@@ -2,7 +2,7 @@
 
 Native language integaration with Java VM has never been easier!
 ```nim
-import "../jnim"
+import jnim
 
 jnimport:
     # Import a couple of classes
