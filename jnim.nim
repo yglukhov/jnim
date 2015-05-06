@@ -425,12 +425,6 @@ proc newJavaVM*(options: openarray[string] = []): JavaVM =
     else:
         currentEnv = result.env
 
-proc dotExprToString(e: NimNode): string {.compileTime.} =
-    if e[0].kind == nnkIdent:
-        result = $(e[0]) & "." & $(e[1])
-    else:
-        result = dotExprToString(e[0]) & "." & $e[1]
-
 template methodSignatureForType*(t: typedesc[jlong]): string = "J"
 template methodSignatureForType*(t: typedesc[jint]): string = "I"
 template methodSignatureForType*(t: typedesc[jboolean]): string = "Z"
@@ -494,138 +488,154 @@ template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmeth
     else:
         T(env.callObjectMethod(o, methodID, args))
 
+proc concatStrings*(args: varargs[string]): string {.compileTime.} = args.join()
 
-proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
-    let isStatic = e.params[1][1].kind == nnkBracketExpr
-    result = e
-    var isConstructor = result[0]
-    var className = ""
+macro getArgumentsSignatureFromVararg(e: expr): expr =
+    result = newCall("concatStrings")
+    for i in e.children:
+        result.add(newCall("methodSignatureForType", newCall("type", i)))
 
-    if not isStatic:
-        result = newNimNode(nnkProcDef)
-        e.copyChildrenTo(result)
-        className = $(result.params[1][1])
-    else:
-        className = $(result.params[1][1][1])
+proc propertyGetter(name: string): string {.compileTime.} =
+    result = ""
+    if name[0] == '.':
+        result = name[1 .. ^1]
 
-    var argListStr = ""
-    var methodSignature = ""
-    for i in 2 .. < result.params.len:
-        for j in 0 .. < result.params[i].len - 2:
-            let paramName = $(result.params[i][j])
-            argListStr &= ", " & paramName
-            methodSignature &= " & methodSignatureForType(type(" & paramName & "))"
+proc propertySetter(name: string): string {.compileTime.} =
+    result = ""
+    if name[^1] == '=':
+        result = name[0 .. ^2]
 
-    if methodSignature == "":
-        methodSignature = " & \"\" "
+macro appendVarargToCall(c: expr, e: expr): expr =
+    result = c
+    for a in e.children:
+        result.add(a)
 
-    var isCtor = false
+template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: varargs[expr]): stmt =
+    const isStatic = isStaticWorkaround == 1
 
-    let propSetter = propertySetter(result)
-    let propGetter = propertyGetter(result)
+    const argsSignature = getArgumentsSignatureFromVararg(args)
+    const propGetter = propertyGetter(methodName)
+    const propSetter = propertySetter(methodName)
 
-    var methodName = ""
-    if propSetter.len > 0:
-        methodName = propSetter
-    elif propGetter.len > 0:
-        methodName = propGetter
-    else:
-        methodName = $result[0]
-        if methodName == "new":
-            methodName = "<init>"
-            result.params[0] = newIdentNode(className)
-            isCtor = true
+    const propName = when propGetter.len > 0: propGetter else: propSetter
+    const isCtor = methodName == "new"
+    const isProp = propSetter.len > 0 or propGetter.len > 0
 
-    let firstArgName = $(result.params[1][0])
+    const javaSymbolName = when isCtor:
+            "<init>"
+        elif isProp:
+            propName
+        else:
+            methodName
 
-    let bodyStmt = """
-const isStatic = """ & $isStatic & """
+    var fieldOrMethodId {.global.} = when isProp: jfieldID(nil) else: jmethodID(nil)
 
-const methodName = """ & "\"" & methodName & "\"" & """
+    const fullyQualifiedName = when isStatic:
+            fullyQualifiedClassName(obj)
+        else:
+            fullyQualifiedClassName(type(obj))
 
-const propSetter = """ & "\"" & propSetter & "\"" & """
+    when isStatic:
+        var clazz {.global.}: jclass
 
-const propGetter = """ & "\"" & propGetter & "\"" & """
+    if fieldOrMethodId.isNil:
+        const retTypeSig = when isCtor or not declared(result):
+                "V"
+            else:
+                methodSignatureForType(type(result))
 
-const isCtor = """ & $isCtor & """
+        const sig = when propGetter.len > 0:
+                retTypeSig
+            elif propSetter.len > 0:
+                argsSignature
+            else:
+                "(" & argsSignature & ")" & retTypeSig
 
-const argsSignature = "" """ & methodSignature & """
+        let localClazz = currentEnv.findClass(fullyQualifiedName)
+        assert(not localClazz.isNil, "Can not find class: " & fullyQualifiedName)
 
-const isProp = propSetter.len > 0 or propGetter.len > 0
+        when isStatic:
+            clazz = localClazz
 
-when isProp:
-    var fieldOrMethodId {.global.}: jfieldID
-else:
-    var fieldOrMethodId {.global.}: jmethodID
+        var symbolKind = ""
 
-when isStatic:
-    var clazz {.global.}: jclass
+        when isProp:
+            when isStatic:
+                symbolKind = "static field"
+                fieldOrMethodId = currentEnv.getStaticFieldID(localClazz, javaSymbolName, sig)
+            else:
+                symbolKind = "field"
+                fieldOrMethodId = currentEnv.getFieldID(localClazz, javaSymbolName, sig)
+        elif isStatic and not isCtor:
+            symbolKind = "static method"
+            fieldOrMethodId = currentEnv.getStaticMethodID(localClazz, javaSymbolName, sig)
+        else:
+            symbolKind = "method"
+            fieldOrMethodId = currentEnv.getMethodID(localClazz, javaSymbolName, sig)
+        assert(not fieldOrMethodId.isNil, "Can not find " & symbolKind & ": " & fullyQualifiedName & "::" & javaSymbolName & "sig: " & sig)
 
-if fieldOrMethodId.isNil:
-    when isCtor or not declared(result):
-        const retTypeSig = "V"
-    else:
-        const retTypeSig = methodSignatureForType(type(result))
+    let obj = when isStatic: clazz else: jobject(obj)
 
     when propGetter.len > 0:
-        const sig = retTypeSig
+        result = currentEnv.getFieldOfType(type(result), obj, fieldOrMethodId)
     elif propSetter.len > 0:
-        const sig = argsSignature
+        appendVarargToCall(setField(currentEnv, obj, fieldOrMethodId), args)
+    elif isCtor:
+        result = type(result)(appendVarargToCall(newObjectv(currentEnv, obj, fieldOrMethodId), args))
+    elif declared(result):
+        result = appendVarargToCall(callMethodOfType(currentEnv, type(result), obj, fieldOrMethodId), args)
     else:
-        const sig = "(" & argsSignature & ")" & retTypeSig
-    const fullyQualifiedName = fullyQualifiedClassName(""" & className & """)
-    when not isStatic:
-        var clazz : jclass
-    clazz = currentEnv.findClass(fullyQualifiedName)
-    assert(not clazz.isNil, "Can not find class: " & fullyQualifiedName)
-    when isProp:
-        when isStatic:
-            fieldOrMethodId = currentEnv.getStaticFieldID(clazz, methodName, sig)
+        appendVarargToCall(callMethodOfType(currentEnv, void, obj, fieldOrMethodId), args)
+
+    if currentEnv.exceptionOccurred() != nil:
+        currentEnv.exceptionDescribe()
+
+proc nodeToString(e: NimNode): string {.compileTime.} =
+    if e.kind == nnkIdent:
+        result = $e
+    elif e.kind == nnkAccQuoted:
+        result = ""
+        for s in e.children:
+            result &= nodeToString(s)
+    elif e.kind == nnkDotExpr:
+        result = nodeToString(e[0]) & "." & nodeToString(e[1])
+    else:
+        echo treeRepr(e)
+        assert(false, "Cannot stringize node")
+
+proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
+    result = e
+    let isStatic = e.params[1][1].kind == nnkBracketExpr
+    let procName = nodeToString(result[0])
+    if procName == "new":
+        var className = ""
+        if not isStatic:
+            className = $(result.params[1][1])
         else:
-            fieldOrMethodId = currentEnv.getFieldID(clazz, methodName, sig)
-    elif isStatic and not isCtor:
-        fieldOrMethodId = currentEnv.getStaticMethodID(clazz, methodName, sig)
-        assert(not fieldOrMethodId.isNil, "Can not find static method: " & fullyQualifiedName & "::" & methodName & " sig: " & sig)
-    else:
-        fieldOrMethodId = currentEnv.getMethodID(clazz, methodName, sig)
-        assert(not fieldOrMethodId.isNil, "Can not find method: " & fullyQualifiedName & "::" & methodName & " sig: " & sig)
+            className = $(result.params[1][1][1])
+        result.params[0] = newIdentNode(className)
 
-when isStatic:
-    let obj = clazz
-else:
-    let obj = jobject(""" & firstArgName & """)
+    let bodyStmt = newCall("jniImpl", newLit(procName), newLit(isStatic), result.params[1][0])
+    for i in 2 .. < result.params.len:
+        for j in 0 .. < result.params[i].len - 2:
+            bodyStmt.add(result.params[i][j])
 
-when propGetter.len > 0:
-    result = currentEnv.getFieldOfType(type(result), obj, fieldOrMethodId)
-elif propSetter.len > 0:
-    currentEnv.setField(obj, fieldOrMethodId """ & argListStr & """)
-elif isCtor:
-    result = type(result)((currentEnv.newObjectv(obj, fieldOrMethodId """ & argListStr & """)))
-elif declared(result):
-    result = currentEnv.callMethodOfType(type(result), obj, fieldOrMethodId """ & argListStr & """)
-else:
-    currentEnv.callMethodOfType(void, obj, fieldOrMethodId """ & argListStr & """)
+    result.body = bodyStmt
 
-if currentEnv.exceptionOccurred() != nil:
-    currentEnv.exceptionDescribe()
-"""
-    result.body = parseStmt(bodyStmt)
+template defineJNIType*(className: expr, fullyQualifiedName: string): stmt =
+    type `className`* {.inject.} = distinct jobject
+    template fullyQualifiedClassName*(t: typedesc[`className`]): string = fullyQualifiedName.replace(".", "/")
+    template methodSignatureForType*(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
+    proc toJValue*(t: `className`): jvalue = result.l = jobject(t)
 
-proc generateTypeDefinition(className, fullyQualifiedName: string): NimNode {.compileTime.} =
-    result = newStmtList()
-    result.add(parseStmt("type " & className & "* = distinct jobject"))
-    result.add(parseStmt("template fullyQualifiedClassName*(t: typedesc[" & className & "]): string = \"" & fullyQualifiedName.replace(".", "/") & "\""))
-    result.add(parseStmt("template methodSignatureForType*(t: typedesc[" & className & "]): string = \"L\" & fullyQualifiedClassName(t) & \";\""))
-    result.add(parseStmt("proc toJValue*(t:" & className & "): jvalue = result.l = jobject(t)"))
-
-proc generateTypeDefinitionFromDotExpr(e: NimNode): NimNode {.compileTime.} =
-    generateTypeDefinition($e[1], dotExprToString(e))
+proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string): NimNode {.compileTime.} =
+    result = newCall("defineJNIType", className, newLit(fullyQualifiedName))
 
 proc processJnimportNode(e: NimNode): NimNode {.compileTime.} =
     if e.kind == nnkDotExpr:
-        result = generateTypeDefinitionFromDotExpr(e)
+        result = generateTypeDefinition(e[1], nodeToString(e))
     elif e.kind == nnkIdent:
-        result = generateTypeDefinition($e, $e)
+        result = generateTypeDefinition(e, $e)
     elif e.kind == nnkImportStmt:
         result = processJnimportNode(e[0])
     elif e.kind == nnkProcDef:
