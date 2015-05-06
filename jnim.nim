@@ -336,10 +336,7 @@ template declareProcsForType(T, capitalizedTypeName: expr): stmt =
     template `get capitalizedTypeName Field`*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): T =
         env.`getStatic capitalizedTypeName Field`(obj, fieldId)
 
-    template `call capitalizedTypeName Methodv`*(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: varargs[jvalue, toJValue]): T {.inject.} =
-        env.`call capitalizedTypeName Method`(obj, methodID, args)
-
-    template `call capitalizedTypeName Methodv`*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): T {.inject.} =
+    template `call capitalizedTypeName Method`*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): T {.inject.} =
         env.`callStatic capitalizedTypeName Method`(clazz, methodID, args)
 
 declareProcsForType(jobject, Object)
@@ -368,11 +365,8 @@ proc getMethods(env: JNIEnvPtr, clazz: jclass): jobject =
     result = env.callObjectMethod(clazz.jobject, mid, [])
 
 
-proc callVoidMethodv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]) =
+proc callVoidMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]) =
     env.callStaticVoidMethod(clazz, methodID, args)
-
-proc callVoidMethodv*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: varargs[jvalue, toJValue]) =
-    env.callVoidMethod(clazz, methodID, args)
 
 proc newObjectv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jobject =
     env.newObject(clazz, methodID, args)
@@ -451,6 +445,7 @@ template methodSignatureForType*(t: typedesc[void]): string = "V"
 # TODO: This should be templatized somehow...
 template methodSignatureForType*(t: typedesc[openarray[string]]): string = "[Ljava/lang/String;"
 
+
 proc propertySetter(e: NimNode): string {.compileTime.} =
     result = ""
     if e[0].kind == nnkAccQuoted and e[0].len == 2 and $(e[0][1]) == "=":
@@ -460,6 +455,45 @@ proc propertyGetter(e: NimNode): string {.compileTime.} =
     result = ""
     if e[0].kind == nnkAccQuoted and e[0].len == 2 and $(e[0][0]) == ".":
         result = $(e[0][1])
+
+template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID): expr =
+    when T is jint:
+        env.getIntField(o, fieldId)
+    elif T is jlong:
+        env.getLongField(o, fieldId)
+    elif T is jboolean:
+        env.getBooleanField(o, fieldId)
+    elif T is jchar:
+        env.getCharField(o, fieldId)
+    elif T is jbyte:
+        env.getByteField(o, fieldId)
+    elif T is jshort:
+        env.getShortField(o, fieldId)
+    elif T is string:
+        env.getString(currentEnv.getObjectField(o, fieldId))
+    else:
+        T(env.getObjectField(o, fieldId))
+
+template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmethodID, args: varargs[jvalue, toJValue]): expr =
+    when T is jint:
+        env.callIntMethod(o, methodID, args)
+    elif T is jlong:
+        env.callLongMethod(o, methodID, args)
+    elif T is jboolean:
+        env.callBooleanMethod(o, methodID, args)
+    elif T is jchar:
+        env.callCharMethod(o, methodID, args)
+    elif T is jbyte:
+        env.callByteMethod(o, methodID, args)
+    elif T is jshort:
+        env.callShortMethod(o, methodID, args)
+    elif T is string:
+        env.getString(currentEnv.callObjectMethod(o, methodID, args))
+    elif T is void:
+        env.callVoidMethod(o, methodID, args)
+    else:
+        T(env.callObjectMethod(o, methodID, args))
+
 
 proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
     let isStatic = e.params[1][1].kind == nnkBracketExpr
@@ -490,19 +524,17 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
     let propSetter = propertySetter(result)
     let propGetter = propertyGetter(result)
 
-    let isProp = propSetter != "" or propGetter != ""
-
     var methodName = ""
-    if not isProp:
+    if propSetter.len > 0:
+        methodName = propSetter
+    elif propGetter.len > 0:
+        methodName = propGetter
+    else:
         methodName = $result[0]
         if methodName == "new":
             methodName = "<init>"
             result.params[0] = newIdentNode(className)
             isCtor = true
-    elif propSetter.len > 0:
-        methodName = propSetter
-    else:
-        methodName = propGetter
 
     let firstArgName = $(result.params[1][0])
 
@@ -517,7 +549,9 @@ const propGetter = """ & "\"" & propGetter & "\"" & """
 
 const isCtor = """ & $isCtor & """
 
-const isProp = """ & $isProp & """
+const argsSignature = "" """ & methodSignature & """
+
+const isProp = propSetter.len > 0 or propGetter.len > 0
 
 when isProp:
     var fieldOrMethodId {.global.}: jfieldID
@@ -528,20 +562,18 @@ when isStatic:
     var clazz {.global.}: jclass
 
 if fieldOrMethodId.isNil:
-    when isCtor:
+    when isCtor or not declared(result):
         const retTypeSig = "V"
-    elif declared(result):
-        const retTypeSig = methodSignatureForType(type(result))
     else:
-        const retTypeSig = "V"
+        const retTypeSig = methodSignatureForType(type(result))
 
     when propGetter.len > 0:
         const sig = retTypeSig
     elif propSetter.len > 0:
-        const sig = "" """ & methodSignature & """
+        const sig = argsSignature
     else:
-        const sig = ("(" """ & methodSignature & """ & ")" & retTypeSig )
-    let fullyQualifiedName = fullyQualifiedClassName(""" & className & """)
+        const sig = "(" & argsSignature & ")" & retTypeSig
+    const fullyQualifiedName = fullyQualifiedClassName(""" & className & """)
     when not isStatic:
         var clazz : jclass
     clazz = currentEnv.findClass(fullyQualifiedName)
@@ -564,45 +596,15 @@ else:
     let obj = jobject(""" & firstArgName & """)
 
 when propGetter.len > 0:
-    when type(result) is jint:
-        result = currentEnv.getIntField(obj, fieldOrMethodId)
-    elif type(result) is jlong:
-        result = currentEnv.getLongField(obj, fieldOrMethodId)
-    elif type(result) is jchar:
-        result = currentEnv.getCharField(obj, fieldOrMethodId)
-    elif type(result) is jbyte:
-        result = currentEnv.getByteField(obj, fieldOrMethodId)
-    elif type(result) is jshort:
-        result = currentEnv.getShortField(obj, fieldOrMethodId)
-    elif type(result) is jboolean:
-        result = currentEnv.getBooleanField(obj, fieldOrMethodId)
-    elif type(result) is string:
-        result = currentEnv.getString(currentEnv.getObjectField(obj, fieldOrMethodId))
-    else:
-        result = type(result)(currentEnv.getObjectField(obj, fieldOrMethodId))
+    result = currentEnv.getFieldOfType(type(result), obj, fieldOrMethodId)
 elif propSetter.len > 0:
-    currentEnv.setField(obj, fieldOrMethodId """ & argListStr &""")
+    currentEnv.setField(obj, fieldOrMethodId """ & argListStr & """)
 elif isCtor:
     result = type(result)((currentEnv.newObjectv(obj, fieldOrMethodId """ & argListStr & """)))
 elif declared(result):
-    when type(result) is jint:
-        result = currentEnv.callIntMethodv(obj, fieldOrMethodId """ & argListStr & """)
-    elif type(result) is jboolean:
-        result = currentEnv.callBooleanMethodv(obj, fieldOrMethodId """ & argListStr & """)
-    elif type(result) is string:
-        result = currentEnv.getString(currentEnv.callObjectMethodv(obj, fieldOrMethodId """ & argListStr & """))
-    elif type(result) is jshort:
-        result = currentEnv.callShortMethodv(obj, fieldOrMethodId """ & argListStr & """)
-    elif type(result) is jlong:
-        result = currentEnv.callLongMethodv(obj, fieldOrMethodId """ & argListStr & """)
-    elif type(result) is jbyte:
-        result = currentEnv.callByteMethodv(obj, fieldOrMethodId """ & argListStr & """)
-    elif type(result) is jchar:
-        result = currentEnv.callCharMethodv(obj, fieldOrMethodId """ & argListStr & """)
-    else:
-        result = type(result)(currentEnv.callObjectMethodv(obj, fieldOrMethodId """ & argListStr & """))
+    result = currentEnv.callMethodOfType(type(result), obj, fieldOrMethodId """ & argListStr & """)
 else:
-    currentEnv.callVoidMethodv(obj, fieldOrMethodId """ & argListStr & """)
+    currentEnv.callMethodOfType(void, obj, fieldOrMethodId """ & argListStr & """)
 
 if currentEnv.exceptionOccurred() != nil:
     currentEnv.exceptionDescribe()
