@@ -1,6 +1,6 @@
 # jnim
 
-Native language integaration with Java VM has never been easier!
+Native language integration with Java VM has never been easier!
 ```nim
 import jnim
 
@@ -21,4 +21,9 @@ let jvm = newJavaVM()
 
 # Call! :)
 System.`.out`().println("This string is printed with System.out.println!")
+```
+
+## Installation
+```sh
+nimble install jnim
 ```
