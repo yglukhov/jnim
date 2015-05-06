@@ -13,6 +13,7 @@ jnimport:
     import HelloWorld
     import java.io.PrintStream
 
+
 # Step 2. Import methods. Static maethods take a typedesc parameter
 # as the first one.
 
@@ -23,7 +24,7 @@ proc new(t: typedesc[HelloWorld]) {.jnimport.}
 proc main(t: typedesc[HelloWorld], args: openarray[string]) {.jnimport.}
 
 # Instance method
-proc getIntFieldValue(o: HelloWorld): jint {.jnimport.}
+proc intMethodWithStringArg(o: HelloWorld, s: string): jint {.jnimport.}
 
 # Or like so:
 jnimport:
@@ -33,6 +34,12 @@ jnimport:
 
     # Static property:
     proc `.out`(s: typedesc[System]): PrintStream
+
+    # Instance method
+    proc getIntFieldValue(h: HelloWorld): jint
+
+    proc `intField=`(h: HelloWorld, v: jint)
+    proc `.intField`(h: HelloWorld): jint
 
 
 echo "Calling first constructor..."
@@ -44,8 +51,17 @@ let hw2 = HelloWorld.new(123)
 echo "Calling static function with array of strings"
 HelloWorld.main(["yglukhov"])
 
-echo "Int field value is: ", hw2.getIntFieldValue()
+echo "Int field value is: ", hw2.intMethodWithStringArg("123")
+assert(hw1.intMethodWithStringArg("Hello") == "Hello".len)
 
-System.`.out`().println("This string is printed with System.out.println().")
-System.`.out`().println("Done!")
+hw1.intField = 5
+assert(hw1.getIntFieldValue() == 5)
+assert(hw1.`.intField` == 5)
+hw1.intField = 8
+assert(hw1.getIntFieldValue() == 8)
+assert(hw1.`.intField` == 8)
+
+
+System.`.out`.println("This string is printed with System.out.println().")
+System.`.out`.println("Done!")
 

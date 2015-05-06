@@ -411,6 +411,14 @@ proc setField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jdouble) =
     env.setStaticDoubleField(obj, fieldId, val)
 
 
+template declareProcsForType(typeName, capitalizedTypeName: expr): stmt =
+    template `call capitalizedTypeName Methodv`*(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: varargs[jvalue, toJValue]): typeName {.inject.} =
+        env.`call capitalizedTypeName Method`(obj, methodID, args)
+
+    template `call capitalizedTypeName Methodv`*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): typeName {.inject.} =
+        env.`callStatic capitalizedTypeName Method`(clazz, methodID, args)
+
+declareProcsForType(jint, Int)
 
 proc getClassName(env: JNIEnvPtr, clazz: jclass): string =
     assert(not clazz.isNil)
@@ -464,11 +472,11 @@ proc callShortMethodv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args:
 proc callShortMethodv*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: varargs[jvalue, toJValue]): jshort =
     env.callShortMethod(clazz, methodID, args)
 
-proc callIntMethodv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jint =
-    env.callStaticIntMethod(clazz, methodID, args)
+#proc callIntMethodv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jint =
+#    env.callStaticIntMethod(clazz, methodID, args)
 
-proc callIntMethodv*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: varargs[jvalue, toJValue]): jint =
-    env.callIntMethod(clazz, methodID, args)
+#proc callIntMethodv*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: varargs[jvalue, toJValue]): jint =
+#    env.callIntMethod(clazz, methodID, args)
 
 proc callLongMethodv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jlong =
     env.callStaticLongMethod(clazz, methodID, args)
@@ -490,7 +498,6 @@ proc callDoubleMethodv*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, arg
 
 proc newObjectv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jobject =
     env.newObject(clazz, methodID, args)
-
 
 
 proc toJValue*(s: string): jvalue =
@@ -568,12 +575,12 @@ template methodSignatureForType*(t: typedesc[openarray[string]]): string = "[Lja
 
 proc propertySetter(e: NimNode): string {.compileTime.} =
     result = ""
-    if e[0].kind == nnkAccQuoted and e[0].len == 3:
-        result = $(e[0][1])
+    if e[0].kind == nnkAccQuoted and e[0].len == 2 and $(e[0][1]) == "=":
+        result = $(e[0][0])
 
 proc propertyGetter(e: NimNode): string {.compileTime.} =
     result = ""
-    if e[0].kind == nnkAccQuoted and e[0].len == 2:
+    if e[0].kind == nnkAccQuoted and e[0].len == 2 and $(e[0][0]) == ".":
         result = $(e[0][1])
 
 proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
@@ -692,7 +699,7 @@ when propGetter.len > 0:
     elif type(result) is jboolean:
         result = currentEnv.getBooleanField(obj, fieldOrMethodId)
     elif type(result) is string:
-        result = currentEnv.newString(currentEnv.getObjectField(obj, fieldOrMethodId))
+        result = currentEnv.getString(currentEnv.getObjectField(obj, fieldOrMethodId))
     else:
         result = type(result)(currentEnv.getObjectField(obj, fieldOrMethodId))
 elif propSetter.len > 0:
@@ -705,7 +712,7 @@ elif declared(result):
     elif type(result) is jboolean:
         result = currentEnv.callBooleanMethodv(obj, fieldOrMethodId """ & argListStr & """)
     elif type(result) is string:
-        result = currentEnv.newString(currentEnv.callObjectMethodv(obj, fieldOrMethodId """ & argListStr & """))
+        result = currentEnv.getString(currentEnv.callObjectMethodv(obj, fieldOrMethodId """ & argListStr & """))
     elif type(result) is jshort:
         result = currentEnv.callShortMethodv(obj, fieldOrMethodId """ & argListStr & """)
     elif type(result) is jlong:

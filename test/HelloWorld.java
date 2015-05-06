@@ -1,8 +1,11 @@
 public class HelloWorld {
 
-    static int someStaticIntValue = 5;
+    static int staticIntField = 5;
+    static boolean staticBoolField = false;
 
-    int intValue = 3;
+    int intField = 3;
+    boolean boolField = true;
+    String stringField = "SomeString";
 
     public HelloWorld() {
         System.out.println("HelloWorld default constructor called!");
@@ -16,7 +19,15 @@ public class HelloWorld {
         System.out.println("Hello, " + args[0]);
     }
 
+    public int intMethodWithStringArg(String str) {
+        return str.length();
+    }
+
+    public boolean booleanMethod() {
+        return boolField;
+    }
+
     public int getIntFieldValue() {
-        return intValue;
+        return intField;
     }
 }
