@@ -20,7 +20,7 @@ jnimport:
 let jvm = newJavaVM()
 
 # Call! :)
-System.`.out`().println("This string is printed with System.out.println!")
+System.`.out`.println("This string is printed with System.out.println!")
 ```
 
 ## Installation
