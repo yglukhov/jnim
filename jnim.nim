@@ -36,6 +36,10 @@ type JavaVMOption* {.header: jniHeader.} = object
     optionString: cstring
     extraInfo: pointer
 
+type JavaError* = object of Exception
+    className*: string
+    fullStackTrace*: string
+
 type jint* {.header: jniHeader.} = cint
 type jsize* {.header: jniHeader.} = jint
 type jchar* {.header: jniHeader.} = uint16
@@ -109,10 +113,11 @@ proc newString*(env: JNIEnvPtr, s: cstring): jstring =
     {.emit: "`result` = (*`env`)->NewStringUTF(`env`, `s`);".}
 
 proc getString*(env: JNIEnvPtr, s: jstring): string =
-    var cstr: cstring
-    {.emit: "`cstr` = (*`env`)->GetStringUTFChars(`env`, `s`, NULL);".}
-    result = $cstr
-    {.emit: "(*`env`)->ReleaseStringUTFChars(`env`, `s`, `cstr`);".}
+    if s != nil:
+        var cstr: cstring
+        {.emit: "`cstr` = (*`env`)->GetStringUTFChars(`env`, `s`, NULL);".}
+        result = $cstr
+        {.emit: "(*`env`)->ReleaseStringUTFChars(`env`, `s`, `cstr`);".}
 
 proc getMethodID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID =
     {.emit: "`result` = (*`env`)->GetMethodID(`env`, `clazz`, `name`, `sig`);".}
@@ -325,6 +330,8 @@ proc exceptionOccurred*(env: JNIEnvPtr): jthrowable =
 proc exceptionDescribe*(env: JNIEnvPtr) =
     {.emit: "(*`env`)->ExceptionDescribe(`env`);".}
 
+proc exceptionClear*(env: JNIEnvPtr) =
+    {.emit: "(*`env`)->ExceptionClear(`env`);".}
 
 template declareProcsForType(T, capitalizedTypeName: expr): stmt =
     template setField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: T) =
@@ -428,6 +435,7 @@ proc newJavaVM*(options: openarray[string] = []): JavaVM =
 template methodSignatureForType*(t: typedesc[jlong]): string = "J"
 template methodSignatureForType*(t: typedesc[jint]): string = "I"
 template methodSignatureForType*(t: typedesc[jboolean]): string = "Z"
+template methodSignatureForType*(t: typedesc[bool]): string = "Z"
 template methodSignatureForType*(t: typedesc[jbyte]): string = "B"
 template methodSignatureForType*(t: typedesc[jchar]): string = "C"
 template methodSignatureForType*(t: typedesc[jshort]): string = "S"
@@ -473,8 +481,8 @@ template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmeth
         env.callIntMethod(o, methodID, args)
     elif T is jlong:
         env.callLongMethod(o, methodID, args)
-    elif T is jboolean:
-        env.callBooleanMethod(o, methodID, args)
+    elif T is jboolean or T is bool:
+        T(env.callBooleanMethod(o, methodID, args))
     elif T is jchar:
         env.callCharMethod(o, methodID, args)
     elif T is jbyte:
@@ -509,6 +517,8 @@ macro appendVarargToCall(c: expr, e: expr): expr =
     result = c
     for a in e.children:
         result.add(a)
+
+proc checkForException()
 
 template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: varargs[expr]): stmt =
     const isStatic = isStaticWorkaround == 1
@@ -572,7 +582,7 @@ template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: 
         else:
             symbolKind = "method"
             fieldOrMethodId = currentEnv.getMethodID(localClazz, javaSymbolName, sig)
-        assert(not fieldOrMethodId.isNil, "Can not find " & symbolKind & ": " & fullyQualifiedName & "::" & javaSymbolName & "sig: " & sig)
+        assert(not fieldOrMethodId.isNil, "Can not find " & symbolKind & ": " & fullyQualifiedName & "::" & javaSymbolName & ", sig: " & sig)
 
     let obj = when isStatic: clazz else: jobject(obj)
 
@@ -587,8 +597,7 @@ template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: 
     else:
         appendVarargToCall(callMethodOfType(currentEnv, void, obj, fieldOrMethodId), args)
 
-    if currentEnv.exceptionOccurred() != nil:
-        currentEnv.exceptionDescribe()
+    checkForException()
 
 proc nodeToString(e: NimNode): string {.compileTime.} =
     if e.kind == nnkIdent:
@@ -651,4 +660,22 @@ macro jnimport*(e: expr): stmt =
             result.add(processJnimportNode(c))
     else:
         result = processJnimportNode(e)
+
+jnimport:
+    import java.lang.Throwable
+    import java.lang.StackTraceElement
+
+
+    proc getMessage(t: Throwable): string
+    proc toString(t: Throwable): string
+
+proc newExceptionWithJavaException(ex: jthrowable): ref JavaError =
+    let mess = Throwable(ex).toString()
+    result = newException(JavaError, mess)
+
+proc checkForException() =
+    let jex = currentEnv.exceptionOccurred()
+    if jex != nil:
+        currentEnv.exceptionClear()
+        raise newExceptionWithJavaException(jex)
 

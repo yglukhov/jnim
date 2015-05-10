@@ -30,4 +30,8 @@ public class HelloWorld {
     public int getIntFieldValue() {
         return intField;
     }
+
+    public void performThrow() {
+        throw new IllegalArgumentException();
+    }
 }
