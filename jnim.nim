@@ -8,20 +8,36 @@ import osproc
 
 const jniHeader = "jni.h"
 
-proc getJavaHomeRT(): string =
-    if existsEnv("JAVA_HOME"):
-        result = getEnv("JAVA_HOME")
-    if (result.isNil or result.len == 0) and existsFile("/usr/libexec/java_home"):
-        result = execProcess("/usr/libexec/java_home")
+template jFileOrDirExists(path: string, ct: bool): bool =
+    when ct:
+        let res = when defined(windows):
+                staticExec("IF EXISTS \"" & path & "\" ( echo true ) ELSE ( echo false ) ")
+            else:
+                staticExec("if [ -e \"" & path & "\" ]; then echo true; else echo false; fi")
+        res == "true"
+    else:
+        fileExists(path)
 
-proc getJavaHomeCT(): string {.compileTime.} =
-    if existsEnv("JAVA_HOME"):
-        result = getEnv("JAVA_HOME")
-    when defined(macosx):
-        if result.isNil or result.len == 0:
-            result = gorge("/usr/libexec/java_home")
+template jExecProcess(path: string, ct: bool): string =
+    when ct:
+        staticExec(path)
+    else:
+        string(execProcess(path))
 
-const JAVA_HOME = getJavaHomeCT()
+template getJavaHomeImpl(ct: bool): string =
+    if getEnv("JAVA_HOME").len > 0:
+        string(getEnv("JAVA_HOME"))
+    elif jFileOrDirExists("/usr/libexec/java_home", ct):
+        jExecProcess("/usr/libexec/java_home", ct)
+    elif jFileOrDirExists("/usr/lib/jvm/default-java", ct):
+        "/usr/lib/jvm/default-java"
+    else:
+        string(nil)
+
+proc getJavaHome*(): string = getJavaHomeImpl(false)
+
+const JAVA_HOME = getJavaHomeImpl(true)
+static: assert(JAVA_HOME.len > 0, "Java home not found")
 
 type JavaVMPtr* {.header: jniHeader.} = pointer
 type JNIEnv* {.header: jniHeader.} = object
@@ -107,7 +123,7 @@ proc isJVMLoaded(): bool =
     not JNI_CreateJavaVM.isNil and not JNI_GetDefaultJavaVMInitArgs.isNil
 
 proc findJVMLib(): string =
-    let home = getJavaHomeRT()
+    let home = getJavaHomeImpl(false)
     when defined(windows):
         result = home & "\\jre\\lib\\jvm.dll"
         if fileExists(result): return
@@ -121,7 +137,7 @@ proc findJVMLib(): string =
 
 proc linkWithJVMLib() =
     when defined(macosx):
-        let libPath : cstring = getJavaHomeRT() & "/../.."
+        let libPath : cstring = getJavaHomeImpl(false) & "/../.."
         {.emit: """
         CFURLRef url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault, (const UInt8 *)`libPath`, strlen(`libPath`), true);
         if (url)
