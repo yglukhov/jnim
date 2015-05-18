@@ -116,6 +116,8 @@ proc findJVMLib(): string =
         if fileExists(result): return
         result = home & "/jre/lib/libjvm.dylib"
         if fileExists(result): return
+    # libjvm not found
+    result = nil
 
 proc linkWithJVMLib() =
     when defined(macosx):
