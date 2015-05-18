@@ -3,14 +3,25 @@ import dynlib
 import strutils
 import typetraits
 import macros
+import os
+import osproc
 
 const jniHeader = "jni.h"
 
-when defined macosx:
-    {.emit: """
-    #include <CoreFoundation/CoreFoundation.h>
-    """.}
+proc getJavaHomeRT(): string =
+    if existsEnv("JAVA_HOME"):
+        result = getEnv("JAVA_HOME")
+    if (result.isNil or result.len == 0) and existsFile("/usr/libexec/java_home"):
+        result = execProcess("/usr/libexec/java_home")
 
+proc getJavaHomeCT(): string {.compileTime.} =
+    if existsEnv("JAVA_HOME"):
+        result = getEnv("JAVA_HOME")
+    when defined(macosx):
+        if result.isNil or result.len == 0:
+            result = gorge("/usr/libexec/java_home")
+
+const JAVA_HOME = getJavaHomeCT()
 
 type JavaVMPtr* {.header: jniHeader.} = pointer
 type JNIEnv* {.header: jniHeader.} = object
@@ -18,14 +29,14 @@ type JNIEnvPtr* = ptr JNIEnv
 
 var currentEnv* : JNIEnvPtr
 
-const JAVA_HOME = gorge("/usr/libexec/java_home")
-const JNI_LIB_DIR = JAVA_HOME & "/jre/lib"
-const JNI_LIB_SERVER_DIR = JNI_LIB_DIR & "/server"
 const JNI_INCLUDE_DIR = JAVA_HOME & "/include"
 
 {.passC: "-I" & JNI_INCLUDE_DIR.}
 
 when defined macosx:
+    {.emit: """
+    #include <CoreFoundation/CoreFoundation.h>
+    """.}
     {.passC: "-I" & JNI_INCLUDE_DIR & "/darwin".}
     {.passL: "-framework CoreFoundation".}
 
@@ -88,20 +99,57 @@ var JNI_VERSION_1_8* {.header: jniHeader.} : jint
 var JNI_CreateJavaVM: proc (pvm: ptr JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
 var JNI_GetDefaultJavaVMInitArgs: proc(vm_args: ptr JavaVMInitArgs): jint {.cdecl.}
 
+proc linkWithJVMModule(handle: LibHandle) =
+    JNI_CreateJavaVM = cast[type(JNI_CreateJavaVM)](symAddr(handle, "JNI_CreateJavaVM"))
+    JNI_GetDefaultJavaVMInitArgs = cast[type(JNI_GetDefaultJavaVMInitArgs)](symAddr(handle, "JNI_GetDefaultJavaVMInitArgs"))
+
+proc isJVMLoaded(): bool =
+    not JNI_CreateJavaVM.isNil and not JNI_GetDefaultJavaVMInitArgs.isNil
+
+proc findJVMLib(): string =
+    let home = getJavaHomeRT()
+    when defined(windows):
+        result = home & "\\jre\\lib\\jvm.dll"
+        if fileExists(result): return
+    else:
+        result = home & "/jre/lib/libjvm.so"
+        if fileExists(result): return
+        result = home & "/jre/lib/libjvm.dylib"
+        if fileExists(result): return
+
 proc linkWithJVMLib() =
     when defined(macosx):
-        let libPath : cstring = "/Library/Java/JavaVirtualMachines/jdk1.8.0_25.jdk"
-
+        let libPath : cstring = getJavaHomeRT() & "/../.."
         {.emit: """
         CFURLRef url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault, (const UInt8 *)`libPath`, strlen(`libPath`), true);
-        CFBundleRef bundle = CFBundleCreate(kCFAllocatorDefault, url);
-        CFRelease(url);
+        if (url)
+        {
+            CFBundleRef bundle = CFBundleCreate(kCFAllocatorDefault, url);
+            CFRelease(url);
 
-        `JNI_CreateJavaVM` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_CreateJavaVM"));
-        `JNI_GetDefaultJavaVMInitArgs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetDefaultJavaVMInitArgs"));
+            if (bundle)
+            {
+                `JNI_CreateJavaVM` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_CreateJavaVM"));
+                `JNI_GetDefaultJavaVMInitArgs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetDefaultJavaVMInitArgs"));
+            }
+        }
         """.}
     else:
-        assert(false, "Not implemented!")
+        # First we try to find the JNI functions in the current process. We may already be linked with those.
+        var handle = loadLib()
+        if not handle.isNil:
+            linkWithJVMModule(handle)
+
+        if not isJVMLoaded():
+            if not handle.isNil:
+                unloadLib(handle)
+            let libPath = findJVMLib()
+            if not libPath.isNil:
+                handle = loadLib(libPath)
+                linkWithJVMModule(handle)
+
+    if not isJVMLoaded():
+        raise newException(Exception, "JVM could not be loaded")
 
 proc findClass*(env: JNIEnvPtr, name: cstring): jclass =
     {.emit: "`result` = (*`env`)->FindClass(`env`, `name`);".}
@@ -537,6 +585,8 @@ template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: 
             propName
         else:
             methodName
+
+    assert(not currentEnv.isNil)
 
     var fieldOrMethodId {.global.} = when isProp: jfieldID(nil) else: jmethodID(nil)
 
