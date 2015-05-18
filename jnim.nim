@@ -16,7 +16,7 @@ template jFileOrDirExists(path: string, ct: bool): bool =
                 staticExec("if [ -e \"" & path & "\" ]; then echo true; else echo false; fi")
         res == "true"
     else:
-        fileExists(path)
+        fileExists(path) or dirExists(path)
 
 template jExecProcess(path: string, ct: bool): string =
     when ct:
@@ -26,7 +26,7 @@ template jExecProcess(path: string, ct: bool): string =
 
 template getJavaHomeImpl(ct: bool): string =
     if getEnv("JAVA_HOME").len > 0:
-        string(getEnv("JAVA_HOME"))
+        getEnv("JAVA_HOME")
     elif jFileOrDirExists("/usr/libexec/java_home", ct):
         jExecProcess("/usr/libexec/java_home", ct)
     elif jFileOrDirExists("/usr/lib/jvm/default-java", ct):
@@ -123,7 +123,7 @@ proc isJVMLoaded(): bool =
     not JNI_CreateJavaVM.isNil and not JNI_GetDefaultJavaVMInitArgs.isNil
 
 proc findJVMLib(): string =
-    let home = getJavaHomeImpl(false)
+    let home = getJavaHome()
     when defined(windows):
         result = home & "\\jre\\lib\\jvm.dll"
         if fileExists(result): return
@@ -132,12 +132,16 @@ proc findJVMLib(): string =
         if fileExists(result): return
         result = home & "/jre/lib/libjvm.dylib"
         if fileExists(result): return
+        when hostCpu == "amd64":
+            # Ubuntu
+            result = home & "/jre/lib/amd64/jamvm/libjvm.so"
+            if fileExists(result): return
     # libjvm not found
     result = nil
 
 proc linkWithJVMLib() =
     when defined(macosx):
-        let libPath : cstring = getJavaHomeImpl(false) & "/../.."
+        let libPath : cstring = getJavaHome() & "/../.."
         {.emit: """
         CFURLRef url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault, (const UInt8 *)`libPath`, strlen(`libPath`), true);
         if (url)
@@ -480,7 +484,7 @@ proc newJavaVM*(options: openarray[string] = []): JavaVM =
     result.new()
 
     var args: JavaVMInitArgs
-    args.version = JNI_VERSION_1_8
+    args.version = JNI_VERSION_1_6
 
     var opts = newSeq[JavaVMOption](options.len)
     for i, o in options:
