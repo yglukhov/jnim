@@ -541,6 +541,10 @@ template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID
         env.getByteField(o, fieldId)
     elif T is jshort:
         env.getShortField(o, fieldId)
+    elif T is jfloat:
+        env.getFloatField(o, fieldId)
+    elif T is jdouble:
+        env.getDoubleField(o, fieldId)
     elif T is string:
         env.getString(currentEnv.getObjectField(o, fieldId))
     else:
@@ -559,6 +563,10 @@ template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmeth
         env.callByteMethod(o, methodID, args)
     elif T is jshort:
         env.callShortMethod(o, methodID, args)
+    elif T is jfloat:
+        env.callFloatMethod(o, methodID, args)
+    elif T is jdouble:
+        env.callDoubleMethod(o, methodID, args)
     elif T is string:
         env.getString(currentEnv.callObjectMethod(o, methodID, args))
     elif T is void:
@@ -750,4 +758,3 @@ proc checkForException() =
     if jex != nil:
         currentEnv.exceptionClear()
         raise newExceptionWithJavaException(jex)
-
