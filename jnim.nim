@@ -114,13 +114,16 @@ var JNI_VERSION_1_8* {.header: jniHeader.} : jint
 
 var JNI_CreateJavaVM: proc (pvm: ptr JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
 var JNI_GetDefaultJavaVMInitArgs: proc(vm_args: ptr JavaVMInitArgs): jint {.cdecl.}
+var JNI_GetCreatedJavaVMs: proc(vmBuf: ptr JavaVMPtr, bufLen: jsize, nVMs: ptr jsize): jint {.cdecl.}
 
 proc linkWithJVMModule(handle: LibHandle) =
     JNI_CreateJavaVM = cast[type(JNI_CreateJavaVM)](symAddr(handle, "JNI_CreateJavaVM"))
     JNI_GetDefaultJavaVMInitArgs = cast[type(JNI_GetDefaultJavaVMInitArgs)](symAddr(handle, "JNI_GetDefaultJavaVMInitArgs"))
+    JNI_GetCreatedJavaVMs = cast[type(JNI_GetCreatedJavaVMs)](symAddr(handle, "JNI_GetCreatedJavaVMs"))
 
 proc isJVMLoaded(): bool =
-    not JNI_CreateJavaVM.isNil and not JNI_GetDefaultJavaVMInitArgs.isNil
+    not JNI_CreateJavaVM.isNil and not JNI_GetDefaultJavaVMInitArgs.isNil and
+        not JNI_GetCreatedJavaVMs.isNil
 
 proc findJVMLib(): string =
     let home = getJavaHome()
@@ -153,6 +156,7 @@ proc linkWithJVMLib() =
             {
                 `JNI_CreateJavaVM` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_CreateJavaVM"));
                 `JNI_GetDefaultJavaVMInitArgs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetDefaultJavaVMInitArgs"));
+                `JNI_GetCreatedJavaVMs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetCreatedJavaVMs"));
             }
         }
         """.}
@@ -172,6 +176,9 @@ proc linkWithJVMLib() =
 
     if not isJVMLoaded():
         raise newException(Exception, "JVM could not be loaded")
+
+proc getEnv(vm: JavaVMPtr, env: ptr JNIEnvPtr, version: jint): jint =
+    {.emit: "`result` = (*((JavaVM*)`vm`))->GetEnv(`vm`, `env`, `version`);".}
 
 proc findClass*(env: JNIEnvPtr, name: cstring): jclass =
     {.emit: "`result` = (*`env`)->FindClass(`env`, `name`);".}
@@ -596,6 +603,20 @@ macro appendVarargToCall(c: expr, e: expr): expr =
     for a in e.children:
         result.add(a)
 
+proc findRunningVM() =
+    if JNI_GetCreatedJavaVMs.isNil:
+        linkWithJVMLib()
+
+    var vmBuf: array[8, JavaVMPtr]
+    var bufSize : jsize = 0
+    discard JNI_GetCreatedJavaVMs(addr vmBuf[0], jsize(vmBuf.len), addr bufSize)
+    if bufSize > 0:
+        let res = vmBuf[0].getEnv(addr currentEnv, JNI_VERSION_1_6)
+        if res != 0:
+            raise newException(Exception, "getEnv result: " & $res)
+    else:
+        raise newException(Exception, "No JVM is running")
+
 proc checkForException()
 
 template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: varargs[expr]): stmt =
@@ -616,6 +637,10 @@ template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: 
         else:
             methodName
 
+    if currentEnv.isNil:
+        findRunningVM()
+        if currentEnv.isNil:
+            raise newException(Exception, "No JVM found")
     assert(not currentEnv.isNil)
 
     var fieldOrMethodId {.global.} = when isProp: jfieldID(nil) else: jmethodID(nil)
