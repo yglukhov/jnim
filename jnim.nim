@@ -667,7 +667,8 @@ template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: 
                 "(" & argsSignature & ")" & retTypeSig
 
         let localClazz = currentEnv.findClass(fullyQualifiedName)
-        assert(not localClazz.isNil, "Can not find class: " & fullyQualifiedName)
+        if localClazz.isNil:
+            raise newException(Exception, "Can not find class: " & fullyQualifiedName)
 
         when isStatic:
             clazz = localClazz
@@ -687,7 +688,9 @@ template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: 
         else:
             symbolKind = "method"
             fieldOrMethodId = currentEnv.getMethodID(localClazz, javaSymbolName, sig)
-        assert(not fieldOrMethodId.isNil, "Can not find " & symbolKind & ": " & fullyQualifiedName & "::" & javaSymbolName & ", sig: " & sig)
+
+        if fieldOrMethodId.isNil:
+            raise newException(Exception, "Can not find " & symbolKind & ": " & fullyQualifiedName & "::" & javaSymbolName & ", sig: " & sig)
 
     let obj = when isStatic: clazz else: jobject(obj)
 
