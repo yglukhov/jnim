@@ -8,35 +8,31 @@ import osproc
 
 const jniHeader = "jni.h"
 
-template jFileOrDirExists(path: string, ct: bool): bool =
-    when ct:
+proc jFileOrDirExists(path: string): bool =
+    when nimvm:
         let res = when defined(windows):
                 staticExec("IF EXISTS \"" & path & "\" ( echo true ) ELSE ( echo false ) ")
             else:
                 staticExec("if [ -e \"" & path & "\" ]; then echo true; else echo false; fi")
-        res == "true"
+        result = res == "true"
     else:
-        fileExists(path) or dirExists(path)
+        result = fileExists(path) or dirExists(path)
 
-template jExecProcess(path: string, ct: bool): string =
-    when ct:
-        staticExec(path)
+proc jExecProcess(path: string): string =
+    when nimvm:
+        result = staticExec(path)
     else:
-        string(execProcess(path))
+        result = string(execProcess(path))
 
-template getJavaHomeImpl(ct: bool): string =
+proc getJavaHome*(): string =
     if getEnv("JAVA_HOME").len > 0:
-        getEnv("JAVA_HOME")
-    elif jFileOrDirExists("/usr/libexec/java_home", ct):
-        jExecProcess("/usr/libexec/java_home", ct)
-    elif jFileOrDirExists("/usr/lib/jvm/default-java", ct):
-        "/usr/lib/jvm/default-java"
-    else:
-        string(nil)
+        result = getEnv("JAVA_HOME")
+    elif jFileOrDirExists("/usr/libexec/java_home"):
+        result = jExecProcess("/usr/libexec/java_home")
+    elif jFileOrDirExists("/usr/lib/jvm/default-java"):
+        result = "/usr/lib/jvm/default-java"
 
-proc getJavaHome*(): string = getJavaHomeImpl(false)
-
-const JAVA_HOME = getJavaHomeImpl(true)
+const JAVA_HOME = getJavaHome()
 static: assert(JAVA_HOME.len > 0, "Java home not found")
 
 type JavaVMPtr* {.header: jniHeader.} = pointer
@@ -87,6 +83,7 @@ type jobjectArray* {.header: jniHeader.} = jarray
 
 proc `isNil`* (x: jclass): bool {.borrow.}
 
+{.warning[SmallLshouldNotBeUsed]: off.}
 type jvalue* {.header: jniHeader, union.} = object
     z: jboolean
     b: jbyte
@@ -97,7 +94,6 @@ type jvalue* {.header: jniHeader, union.} = object
     f: jfloat
     d: jdouble
     l: jobject
-
 
 type JavaVMInitArgs* {.header: jniHeader.} = object
     version: jint
@@ -116,35 +112,36 @@ var JNI_CreateJavaVM: proc (pvm: ptr JavaVMPtr, penv: ptr pointer, args: pointer
 var JNI_GetDefaultJavaVMInitArgs: proc(vm_args: ptr JavaVMInitArgs): jint {.cdecl.}
 var JNI_GetCreatedJavaVMs: proc(vmBuf: ptr JavaVMPtr, bufLen: jsize, nVMs: ptr jsize): jint {.cdecl.}
 
-proc linkWithJVMModule(handle: LibHandle) =
-    JNI_CreateJavaVM = cast[type(JNI_CreateJavaVM)](symAddr(handle, "JNI_CreateJavaVM"))
-    JNI_GetDefaultJavaVMInitArgs = cast[type(JNI_GetDefaultJavaVMInitArgs)](symAddr(handle, "JNI_GetDefaultJavaVMInitArgs"))
-    JNI_GetCreatedJavaVMs = cast[type(JNI_GetCreatedJavaVMs)](symAddr(handle, "JNI_GetCreatedJavaVMs"))
+when not defined(macosx):
+    proc linkWithJVMModule(handle: LibHandle) =
+        JNI_CreateJavaVM = cast[type(JNI_CreateJavaVM)](symAddr(handle, "JNI_CreateJavaVM"))
+        JNI_GetDefaultJavaVMInitArgs = cast[type(JNI_GetDefaultJavaVMInitArgs)](symAddr(handle, "JNI_GetDefaultJavaVMInitArgs"))
+        JNI_GetCreatedJavaVMs = cast[type(JNI_GetCreatedJavaVMs)](symAddr(handle, "JNI_GetCreatedJavaVMs"))
+
+    proc findJVMLib(): string =
+        let home = getJavaHome()
+        when defined(windows):
+            result = home & "\\jre\\lib\\jvm.dll"
+            if fileExists(result): return
+        else:
+            result = home & "/jre/lib/libjvm.so"
+            if fileExists(result): return
+            result = home & "/jre/lib/libjvm.dylib"
+            if fileExists(result): return
+            when hostCpu == "amd64":
+                # Ubuntu
+                result = home & "/jre/lib/amd64/jamvm/libjvm.so"
+                if fileExists(result): return
+        # libjvm not found
+        result = nil
 
 proc isJVMLoaded(): bool =
     not JNI_CreateJavaVM.isNil and not JNI_GetDefaultJavaVMInitArgs.isNil and
         not JNI_GetCreatedJavaVMs.isNil
 
-proc findJVMLib(): string =
-    let home = getJavaHome()
-    when defined(windows):
-        result = home & "\\jre\\lib\\jvm.dll"
-        if fileExists(result): return
-    else:
-        result = home & "/jre/lib/libjvm.so"
-        if fileExists(result): return
-        result = home & "/jre/lib/libjvm.dylib"
-        if fileExists(result): return
-        when hostCpu == "amd64":
-            # Ubuntu
-            result = home & "/jre/lib/amd64/jamvm/libjvm.so"
-            if fileExists(result): return
-    # libjvm not found
-    result = nil
-
 proc linkWithJVMLib() =
     when defined(macosx):
-        let libPath : cstring = getJavaHome() & "/../.."
+        let libPath {.hint[XDeclaredButNotUsed]: off.}: cstring = getJavaHome() & "/../.."
         {.emit: """
         CFURLRef url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault, (const UInt8 *)`libPath`, strlen(`libPath`), true);
         if (url)
@@ -432,22 +429,6 @@ declareProcsForType(jlong, Long)
 declareProcsForType(jchar, Char)
 declareProcsForType(jfloat, Float)
 declareProcsForType(jdouble, Double)
-
-proc getClassName(env: JNIEnvPtr, clazz: jclass): string =
-    assert(not clazz.isNil)
-    # Now get the class object's class descriptor
-    let cls = env.getObjectClass(cast[jobject](clazz))
-    # Find the getName() method on the class object
-    let mid = env.getMethodID(cls, "getName", "()Ljava/lang/String;")
-    let strObj = env.callObjectMethod(clazz.jobject, mid, [])
-    result = env.getString(strObj)
-
-proc getMethods(env: JNIEnvPtr, clazz: jclass): jobject =
-    let cls = env.getObjectClass(cast[jobject](clazz))
-    # Find the getName() method on the class object
-    let mid = env.getMethodID(cls, "getMethods", "()[Ljava/lang/reflect/Method;")
-    result = env.callObjectMethod(clazz.jobject, mid, [])
-
 
 proc callVoidMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]) =
     env.callStaticVoidMethod(clazz, methodID, args)
@@ -772,8 +753,7 @@ jnimport:
     import java.lang.Throwable
     import java.lang.StackTraceElement
 
-
-    proc getMessage(t: Throwable): string
+    #proc getMessage(t: Throwable): string
     proc toString(t: Throwable): string
 
 proc newExceptionWithJavaException(ex: jthrowable): ref JavaError =
