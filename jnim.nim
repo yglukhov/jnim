@@ -524,17 +524,6 @@ template methodSignatureForType*(t: typedesc[void]): string = "V"
 # TODO: This should be templatized somehow...
 template methodSignatureForType*(t: typedesc[openarray[string]]): string = "[Ljava/lang/String;"
 
-
-proc propertySetter(e: NimNode): string {.compileTime.} =
-    result = ""
-    if e[0].kind == nnkAccQuoted and e[0].len == 2 and $(e[0][1]) == "=":
-        result = $(e[0][0])
-
-proc propertyGetter(e: NimNode): string {.compileTime.} =
-    result = ""
-    if e[0].kind == nnkAccQuoted and e[0].len == 2 and $(e[0][0]) == ".":
-        result = $(e[0][1])
-
 template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID): expr =
     when T is jint:
         env.getIntField(o, fieldId)
@@ -590,8 +579,8 @@ macro getArgumentsSignatureFromVararg(e: expr): expr =
 
 proc propertyGetter(name: string): string {.compileTime.} =
     result = ""
-    if name[0] == '.':
-        result = name[1 .. ^1]
+    if name[^1] != '=':
+        result = name
 
 proc propertySetter(name: string): string {.compileTime.} =
     result = ""
@@ -619,11 +608,11 @@ proc findRunningVM() =
 
 proc checkForException()
 
-template jniImpl*(methodName: string, isStaticWorkaround: int, obj: expr, args: varargs[expr]): stmt =
+template jniImpl*(methodName: string, isStaticWorkaround, isProperty: int, obj: expr, args: varargs[expr]): stmt =
     const isStatic = isStaticWorkaround == 1
 
     const argsSignature = getArgumentsSignatureFromVararg(args)
-    const propGetter = propertyGetter(methodName)
+    const propGetter = when isProperty == 1: propertyGetter(methodName) else: ""
     const propSetter = propertySetter(methodName)
 
     const propName = when propGetter.len > 0: propGetter else: propSetter
@@ -720,6 +709,14 @@ proc nodeToString(e: NimNode): string {.compileTime.} =
         echo treeRepr(e)
         assert(false, "Cannot stringize node")
 
+proc consumePropertyPragma(e: NimNode): bool {.compileTime.} =
+    let p = e.pragma
+    for i in 0 ..< p.len:
+        if p[i].kind == nnkIdent and $(p[i]) == "property":
+            result = true
+            p.del(i)
+            break
+
 proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
     result = e
     let isStatic = e.params[1][1].kind == nnkBracketExpr
@@ -732,7 +729,9 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
             className = $(result.params[1][1][1])
         result.params[0] = newIdentNode(className)
 
-    let bodyStmt = newCall("jniImpl", newLit(procName), newLit(isStatic), result.params[1][0])
+    let isProp = consumePropertyPragma(result)
+
+    let bodyStmt = newCall("jniImpl", newLit(procName), newLit(isStatic), newLit(isProp), result.params[1][0])
     for i in 2 .. < result.params.len:
         for j in 0 .. < result.params[i].len - 2:
             bodyStmt.add(result.params[i][j])

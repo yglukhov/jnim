@@ -7,7 +7,7 @@ jnimport:
     import java.io.PrintStream
 
     # Import static property declaration
-    proc `.out`(s: typedesc[System]): PrintStream
+    proc `out`(s: typedesc[System]): PrintStream {.property.}
 
     # Import method declaration
     proc println(s: PrintStream, str: string)
@@ -17,5 +17,4 @@ jnimport:
 let jvm = newJavaVM()
 
 # Call! :)
-System.`.out`().println("This string is printed with System.out.println!")
-
+System.`out`.println("This string is printed with System.out.println!")

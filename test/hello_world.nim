@@ -33,14 +33,13 @@ jnimport:
     proc println(s: PrintStream, str: string)
 
     # Static property:
-    proc `.out`(s: typedesc[System]): PrintStream
+    proc `out`(s: typedesc[System]): PrintStream {.property.}
 
     # Instance method
     proc getIntFieldValue(h: HelloWorld): jint
 
     proc `intField=`(h: HelloWorld, v: jint)
-    proc `.intField`(h: HelloWorld): jint
-
+    proc intField(h: HelloWorld): jint {.property.}
 
     proc performThrow(h: HelloWorld)
 
@@ -59,10 +58,10 @@ assert(hw1.intMethodWithStringArg("Hello") == "Hello".len)
 
 hw1.intField = 5
 assert(hw1.getIntFieldValue() == 5)
-assert(hw1.`.intField` == 5)
+assert(hw1.intField == 5)
 hw1.intField = 8
 assert(hw1.getIntFieldValue() == 8)
-assert(hw1.`.intField` == 8)
+assert(hw1.intField == 8)
 
 # The following mwthod should throw
 var thrown = false
@@ -73,6 +72,5 @@ except JavaError:
 
 assert(thrown)
 
-System.`.out`.println("This string is printed with System.out.println().")
-System.`.out`.println("Done!")
-
+System.`out`.println("This string is printed with System.out.println().")
+System.`out`.println("Done!")
