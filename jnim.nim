@@ -551,10 +551,10 @@ template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmeth
     else:
         T(env.callObjectMethod(o, methodID, args))
 
-proc concatStrings*(args: varargs[string]): string {.compileTime.} = args.join()
+proc concatStrings(args: varargs[string]): string {.compileTime.} = args.join()
 
 macro getArgumentsSignatureFromVararg(e: expr): expr =
-    result = newCall("concatStrings")
+    result = newCall(bindsym"concatStrings")
     for i in e.children:
         result.add(newCall("methodSignatureForType", newCall("type", i)))
 
@@ -589,7 +589,7 @@ proc findRunningVM() =
 
 proc checkForException()
 
-template jniImpl*(methodName: string, isStaticWorkaround, isProperty: int, obj: expr, args: varargs[expr]): stmt =
+template jniImpl(methodName: string, isStaticWorkaround, isProperty: int, obj: expr, args: varargs[expr]): stmt =
     const isStatic = isStaticWorkaround == 1
 
     const argsSignature = getArgumentsSignatureFromVararg(args)
@@ -712,21 +712,21 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
 
     let isProp = consumePropertyPragma(result)
 
-    let bodyStmt = newCall("jniImpl", newLit(procName), newLit(isStatic), newLit(isProp), result.params[1][0])
+    let bodyStmt = newCall(bindsym"jniImpl", newLit(procName), newLit(isStatic), newLit(isProp), result.params[1][0])
     for i in 2 .. < result.params.len:
         for j in 0 .. < result.params[i].len - 2:
             bodyStmt.add(result.params[i][j])
 
     result.body = bodyStmt
 
-template defineJNIType*(className: expr, fullyQualifiedName: string): stmt =
+template defineJNIType(className: expr, fullyQualifiedName: string): stmt =
     type `className`* {.inject.} = distinct jobject
     template fullyQualifiedClassName*(t: typedesc[`className`]): string = fullyQualifiedName.replace(".", "/")
     template methodSignatureForType*(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
     proc toJValue*(t: `className`): jvalue = result.l = jobject(t)
 
 proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string): NimNode {.compileTime.} =
-    result = newCall("defineJNIType", className, newLit(fullyQualifiedName))
+    result = newCall(bindsym"defineJNIType", className, newLit(fullyQualifiedName))
 
 proc processJnimportNode(e: NimNode): NimNode {.compileTime.} =
     if e.kind == nnkDotExpr:
