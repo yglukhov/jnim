@@ -589,11 +589,9 @@ proc findRunningVM() =
 
 proc checkForException()
 
-template jniImpl(methodName: string, isStaticWorkaround, isProperty: int, obj: expr, args: varargs[expr]): stmt =
-    const isStatic = isStaticWorkaround == 1
-
+template jniImpl(methodName: string, isStatic, isProperty: bool, obj: expr, args: varargs[expr]): stmt =
     const argsSignature = getArgumentsSignatureFromVararg(args)
-    const propGetter = when isProperty == 1: propertyGetter(methodName) else: ""
+    const propGetter = when isProperty: propertyGetter(methodName) else: ""
     const propSetter = propertySetter(methodName)
 
     const propName = when propGetter.len > 0: propGetter else: propSetter
