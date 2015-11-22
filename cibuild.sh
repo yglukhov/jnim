@@ -55,6 +55,9 @@ else
     fi
 fi
 
+echo "JAVA_HOME: "
+ls -R $JAVA_HOME
+
 installNim
 
 installNimble
