@@ -132,6 +132,8 @@ when not defined(macosx):
                 # Ubuntu
                 result = home & "/jre/lib/amd64/jamvm/libjvm.so"
                 if fileExists(result): return
+                result = home & "/jre/lib/amd64/server/libjvm.so"
+                if fileExists(result): return
         # libjvm not found
         result = nil
 
