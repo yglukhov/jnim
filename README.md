@@ -1,4 +1,4 @@
-# jnim [![Build Status](https://semaphoreci.com/api/v1/projects/0d22c364-1d81-4f38-8ba9-c440e1b6cd64/611216/badge.svg)](https://semaphoreci.com/yglukhov/jnim)
+# jnim [![Build Status](https://semaphoreci.com/api/v1/projects/0d22c364-1d81-4f38-8ba9-c440e1b6cd64/611216/badge.svg)](https://semaphoreci.com/yglukhov/jnim) [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble.png)](https://github.com/yglukhov/nimble-tag)
 
 Native language integration with Java VM has never been easier!
 ```nim
