@@ -75,6 +75,19 @@ type
         d: jdouble
         l: jobject
 
+template get*(v: jvalue, T: typedesc): auto =
+    when T is jboolean: v.z
+    elif T is jbyte: v.b
+    elif T is jchar: v.c
+    elif T is jshort: v.s
+    elif T is jint: v.i
+    elif T is jlong: v.j
+    elif T is jfloat: v.f
+    elif T is jdouble: v.d
+    elif T is jobject: v.l
+    else:
+        {.error: "wrong type".}
+
 type JavaVMPtr* {.header: jniHeader.} = pointer
 type
     JNINativeInterface {.importc: "struct JNINativeInterface_", header: jniHeader, incompleteStruct.} = object
@@ -197,6 +210,11 @@ type
         SetLongArrayRegion: proc(env: JNIEnvPtr, arr: jlongArray, start, len: jsize, buf: ptr jlong) {.cdecl.}
         SetFloatArrayRegion: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
         SetDoubleArrayRegion: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
+
+        NewGlobalRef: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
+        NewLocalRef: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
+        DeleteGlobalRef: proc(env: JNIEnvPtr, obj: jobject) {.cdecl.}
+        DeleteLocalRef: proc(env: JNIEnvPtr, obj: jobject) {.cdecl.}
 
     JNIEnvPtr* = ptr JNIEnv
     JNIEnv* = ptr JNINativeInterface
@@ -321,6 +339,11 @@ proc getString*(env: JNIEnvPtr, s: jstring): string =
         result = $cstr
         env.ReleaseStringUTFChars(env, s, cstr)
 
+template newGlobalRef*(env: JNIEnvPtr, obj: jobject): jobject = env.NewGlobalRef(env, obj)
+template newLocalRef*(env: JNIEnvPtr, obj: jobject): jobject = env.NewLocalRef(env, obj)
+template deleteGlobalRef*(env: JNIEnvPtr, obj: jobject) = env.DeleteGlobalRef(env, obj)
+template deleteLocalRef*(env: JNIEnvPtr, obj: jobject) = env.DeleteLocalRef(env, obj)
+
 template getMethodID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID =
     env.GetMethodID(env, clazz, name, sig)
 template getFieldID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jfieldID =
@@ -337,7 +360,9 @@ template getObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize)
 template setObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize, val: jobject) =
     env.SetObjectArrayElement(env, arr, index, val)
 proc setObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize, str: string) =
-    env.setObjectArrayElement(arr, index, env.newString(str))
+    let s = env.newString(str)
+    env.setObjectArrayElement(arr, index, s)
+    env.deleteLocalRef(s)
 
 {.push stackTrace: off, inline.}
 proc newObject*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jobject =
@@ -390,7 +415,7 @@ template declareProcsForType(T: typedesc, capitalizedTypeName: expr): stmt =
 template declareProcsForTypeA(T: typedesc, ArrayT: typedesc, capitalizedTypeName: expr): stmt =
     declareProcsForType(T, capitalizedTypeName)
 
-    template `new capitalizedTypeName Array`*(env: JNIEnvPtr, len: jsize): ArrayT =
+    template `New capitalizedTypeName Array`*(env: JNIEnvPtr, len: jsize): ArrayT =
         env.`New capitalizedTypeName Array`(env, len)
 
     template `get capitalizedTypeName ArrayElements`*(env: JNIEnvPtr, arr: ArrayT, isCopy: ptr jboolean): ptr T =
@@ -402,8 +427,14 @@ template declareProcsForTypeA(T: typedesc, ArrayT: typedesc, capitalizedTypeName
     template `get capitalizedTypeName ArrayRegion`*(env: JNIEnvPtr, arr: ArrayT, start, len: jsize, buf: ptr T) =
         env.`Get capitalizedTypeName ArrayRegion`(env, arr, start, len, buf)
 
-    template `set capitalizedTypeName ArrayRegion`*(env: JNIEnvPtr, arr: ArrayT, start, len: jsize, buf: ptr T) =
+    template newArrayOfType*(env: JNIEnvPtr, len: jsize, typSelector: typedesc[T]): ArrayT =
+        env.`New capitalizedTypeName Array`(env, len)
+
+    template setArrayRegion*(env: JNIEnvPtr, arr: ArrayT, start, len: jsize, buf: ptr T) =
         env.`Set capitalizedTypeName ArrayRegion`(env, arr, start, len, buf)
+
+    template getArrayRegion*(env: JNIEnvPtr, arr: ArrayT, start, len: jsize, buf: ptr T) =
+        env.`Get capitalizedTypeName ArrayRegion`(env, arr, start, len, buf)
 
 declareProcsForType(jobject, Object)
 declareProcsForTypeA(jint, jintArray, Int)
@@ -418,38 +449,42 @@ declareProcsForTypeA(jdouble, jdoubleArray, Double)
 template callVoidMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]) =
     env.callStaticVoidMethod(clazz, methodID, args)
 
-template newObjectv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jobject =
-    env.newObject(clazz, methodID, args)
+template toJValue*(s: string, res: var jvalue) =
+    res.l = currentEnv.newString(s)
 
-proc toJValue*(s: string): jvalue =
-    result.l = currentEnv.newString(s)
+template toJValue*(s: cstring, res: var jvalue) =
+    res.l = currentEnv.newString(s)
 
-proc toJValue*(s: cstring): jvalue =
-    result.l = currentEnv.newString(s)
+#template toJValue*(i: int, res: var jvalue) = res.i = i.jint
 
-proc toJValue*(f: cfloat): jvalue =
-    result.f = f
+template toJValue*(v: cfloat, res: var jvalue) = res.f = v
+template toJValue*(v: jdouble, res: var jvalue) = res.d = v
+template toJValue*(v: jint, res: var jvalue) = res.i = v
+template toJValue*(v: jlong, res: var jvalue) = res.j = v
+template toJValue*(v: jboolean, res: var jvalue) = res.z = v
+template toJValue*(v: jbyte, res: var jvalue) = res.b = v
+template toJValue*(v: jchar, res: var jvalue) = res.c = v
+template toJValue*(v: jshort, res: var jvalue) = res.s = v
 
-#proc toJValue*(i: int): jvalue =
-#    result.i = i.jint
-
-proc toJValue*(i: jint): jvalue =
-    result.i = i
-
-proc toJValue*(i: jlong): jvalue =
-    result.j = i
-
-proc toJValue*(a: openarray[string]): jvalue =
-    result.l = currentEnv.newObjectArray(a.len.jsize, currentEnv.findClass("java/lang/String"), nil)
+proc toJValue*(a: openarray[string], res: var jvalue) =
+    res.l = currentEnv.newObjectArray(a.len.jsize, currentEnv.findClass("java/lang/String"), nil)
     for i, v in a:
-        currentEnv.setObjectArrayElement(result.l, i.jsize, v)
+        currentEnv.setObjectArrayElement(res.l, i.jsize, v)
 
-proc toJValue*(a: openarray[jobject]): jvalue =
+proc toJValue*(a: openarray[jobject], res: var jvalue) =
     assert(a.len > 0, "Unknown element type")
     let cl = currentEnv.getObjectClass(a[0])
-    result.l = currentEnv.newObjectArray(a.len.jsize, cl, nil)
+    res.l = currentEnv.newObjectArray(a.len.jsize, cl, nil)
     for i, v in a:
-        currentEnv.setObjectArrayElement(result.l, i.jsize, v)
+        currentEnv.setObjectArrayElement(res.l, i.jsize, v)
+
+type JPrimitiveType = jint | jfloat | jboolean | jdouble | jshort | jlong | jchar
+
+proc toJValue*[T: JPrimitiveType](a: openarray[T], res: var jvalue) {.inline.} =
+    res.l = currentEnv.newArrayOfType(a.len.jsize, T)
+    var pt {.noinit.} : ptr T
+    {.emit: "`pt` = `a`;".}
+    currentEnv.setArrayRegion(res.l, 0, a.len.jsize, pt)
 
 proc newJavaVM*(options: openarray[string] = []): JavaVM =
     linkWithJVMLib()
@@ -474,20 +509,20 @@ proc newJavaVM*(options: openarray[string] = []): JavaVM =
     else:
         currentEnv = result.env
 
-template methodSignatureForType*(t: typedesc[jlong]): string = "J"
-template methodSignatureForType*(t: typedesc[jint]): string = "I"
-template methodSignatureForType*(t: typedesc[jboolean]): string = "Z"
-template methodSignatureForType*(t: typedesc[bool]): string = "Z"
-template methodSignatureForType*(t: typedesc[jbyte]): string = "B"
-template methodSignatureForType*(t: typedesc[jchar]): string = "C"
-template methodSignatureForType*(t: typedesc[jshort]): string = "S"
-template methodSignatureForType*(t: typedesc[jfloat]): string = "F"
-template methodSignatureForType*(t: typedesc[jdouble]): string = "D"
-template methodSignatureForType*(t: typedesc[string]): string = "Ljava/lang/String;"
-template methodSignatureForType*(t: typedesc[void]): string = "V"
+template methodSignatureForType(t: typedesc[jlong]): string = "J"
+template methodSignatureForType(t: typedesc[jint]): string = "I"
+template methodSignatureForType(t: typedesc[jboolean]): string = "Z"
+template methodSignatureForType(t: typedesc[bool]): string = "Z"
+template methodSignatureForType(t: typedesc[jbyte]): string = "B"
+template methodSignatureForType(t: typedesc[jchar]): string = "C"
+template methodSignatureForType(t: typedesc[jshort]): string = "S"
+template methodSignatureForType(t: typedesc[jfloat]): string = "F"
+template methodSignatureForType(t: typedesc[jdouble]): string = "D"
+template methodSignatureForType(t: typedesc[string]): string = "Ljava/lang/String;"
+template methodSignatureForType(t: typedesc[void]): string = "V"
 
 proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = []): auto = dummy[0]
-template methodSignatureForType*(t: typedesc[openarray]): string = "[" & methodSignatureForType(type(elementTypeOfOpenArrayType[t]()))
+template methodSignatureForType(t: typedesc[openarray]): string = "[" & methodSignatureForType(type(elementTypeOfOpenArrayType[t]()))
 
 template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID): expr =
     when T is jint:
@@ -511,7 +546,7 @@ template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID
     else:
         T(env.getObjectField(o, fieldId))
 
-template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmethodID, args: varargs[jvalue, toJValue]): expr =
+template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmethodID, args: openarray[jvalue]): expr =
     when T is jint:
         env.callIntMethod(o, methodID, args)
     elif T is jlong:
@@ -536,11 +571,6 @@ template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmeth
         T(env.callObjectMethod(o, methodID, args))
 
 proc concatStrings(args: varargs[string]): string {.compileTime.} = args.join()
-
-macro getArgumentsSignatureFromVararg(e: expr): expr =
-    result = newCall(bindsym"concatStrings")
-    for i in e.children:
-        result.add(newCall("methodSignatureForType", newCall("type", i)))
 
 proc propertyGetter(name: string): string {.compileTime.} =
     result = ""
@@ -573,8 +603,16 @@ proc findRunningVM() =
 
 proc checkForException()
 
-template jniImpl(methodName: string, isStatic, isProperty: bool, obj: expr, args: varargs[expr]): stmt =
-    const argsSignature = getArgumentsSignatureFromVararg(args)
+template prepareEnv(): stmt =
+    if currentEnv.isNil:
+        findRunningVM()
+        if currentEnv.isNil:
+            raise newException(Exception, "No JVM found")
+    assert(not currentEnv.isNil)
+
+template jniImpl(methodName: string, isStatic, isProperty: bool,
+        obj: expr, argsSignature: string, args: openarray[jvalue],
+        setterType: typedesc): stmt =
     const propGetter = when isProperty: propertyGetter(methodName) else: ""
     const propSetter = propertySetter(methodName)
 
@@ -589,11 +627,7 @@ template jniImpl(methodName: string, isStatic, isProperty: bool, obj: expr, args
         else:
             methodName
 
-    if currentEnv.isNil:
-        findRunningVM()
-        if currentEnv.isNil:
-            raise newException(Exception, "No JVM found")
-    assert(not currentEnv.isNil)
+    prepareEnv()
 
     var fieldOrMethodId {.global.} = when isProp: jfieldID(nil) else: jmethodID(nil)
 
@@ -647,13 +681,13 @@ template jniImpl(methodName: string, isStatic, isProperty: bool, obj: expr, args
     when propGetter.len > 0:
         result = currentEnv.getFieldOfType(type(result), obj, fieldOrMethodId)
     elif propSetter.len > 0:
-        appendVarargToCall(setField(currentEnv, obj, fieldOrMethodId), args)
+        currentEnv.setField(obj, fieldOrMethodId, get(args[0], setterType))
     elif isCtor:
-        result = type(result)(appendVarargToCall(newObjectv(currentEnv, obj, fieldOrMethodId), args))
+        result = type(result)(currentEnv.newObject(obj, fieldOrMethodId, args))
     elif declared(result):
-        result = appendVarargToCall(callMethodOfType(currentEnv, type(result), obj, fieldOrMethodId), args)
+        result = currentEnv.callMethodOfType(type(result), obj, fieldOrMethodId, args)
     else:
-        appendVarargToCall(callMethodOfType(currentEnv, void, obj, fieldOrMethodId), args)
+        currentEnv.callMethodOfType(void, obj, fieldOrMethodId, args)
 
     checkForException()
 
@@ -692,18 +726,41 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
 
     let isProp = consumePropertyPragma(result)
 
-    let bodyStmt = newCall(bindsym"jniImpl", newLit(procName), newLit(isStatic), newLit(isProp), result.params[1][0])
+    var numArgs = 0
+    for i in 2 .. < result.params.len:
+        numArgs += result.params[i].len - 2
+
+    let paramsSym = genSym(nskVar, "params")
+
+    let params = quote do:
+        var `paramsSym` {.noinit.} : array[`numArgs`, jvalue]
+
+    let argsSigNode = newCall(bindSym"concatStrings")
+
+    let initParamsNode = newStmtList()
+    var iParam = 0
     for i in 2 .. < result.params.len:
         for j in 0 .. < result.params[i].len - 2:
-            bodyStmt.add(result.params[i][j])
+            let p = result.params[i][j]
+            argsSigNode.add(newCall(bindSym"methodSignatureForType", result.params[i][^2]))
+            initParamsNode.add quote do:
+                toJValue(`p`, `paramsSym`[`iParam`])
 
-    result.body = bodyStmt
+    let setterType = newCall("type", if numArgs > 0:
+            result.params[2][0]
+        else:
+            bindSym "jint"
+        )
+
+    let jniImplCall = newCall(bindsym"jniImpl", newLit(procName), newLit(isStatic), newLit(isProp), result.params[1][0], argsSigNode, paramsSym, setterType)
+
+    result.body = newStmtList(params, initParamsNode, jniImplCall)
 
 template defineJNIType(className: expr, fullyQualifiedName: string): stmt =
     type `className`* {.inject.} = distinct jobject
     template fullyQualifiedClassName*(t: typedesc[`className`]): string = fullyQualifiedName.replace(".", "/")
-    template methodSignatureForType*(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
-    proc toJValue*(t: `className`): jvalue = result.l = jobject(t)
+    template methodSignatureForType(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
+    template toJValue*(v: `className`, res: var jvalue) = res.l = jobject(v)
 
 proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string): NimNode {.compileTime.} =
     result = newCall(bindsym"defineJNIType", className, newLit(fullyQualifiedName))

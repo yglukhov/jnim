@@ -35,6 +35,8 @@ jnimport:
     # Static property:
     proc `out`(s: typedesc[System]): PrintStream {.property.}
 
+    proc sum(h: HelloWorld, args: openarray[jint]): jint
+
     # Instance method
     proc getIntFieldValue(h: HelloWorld): jint
 
@@ -53,15 +55,17 @@ let hw2 = HelloWorld.new(123)
 echo "Calling static function with array of strings"
 HelloWorld.main(["yglukhov"])
 
-echo "Int field value is: ", hw2.intMethodWithStringArg("123")
-assert(hw1.intMethodWithStringArg("Hello") == "Hello".len)
+echo "Calling function with array of ints"
+doAssert(hw2.sum([1.jint, 2, 3]) == 6)
+
+doAssert(hw1.intMethodWithStringArg("Hello") == "Hello".len)
 
 hw1.intField = 5
-assert(hw1.getIntFieldValue() == 5)
-assert(hw1.intField == 5)
+doAssert(hw1.getIntFieldValue() == 5)
+doAssert(hw1.intField == 5)
 hw1.intField = 8
-assert(hw1.getIntFieldValue() == 8)
-assert(hw1.intField == 8)
+doAssert(hw1.getIntFieldValue() == 8)
+doAssert(hw1.intField == 8)
 
 # The following mwthod should throw
 var thrown = false
@@ -70,7 +74,7 @@ try:
 except JavaError:
     thrown = true
 
-assert(thrown)
+doAssert(thrown)
 
 System.`out`.println("This string is printed with System.out.println().")
 System.`out`.println("Done!")

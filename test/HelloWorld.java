@@ -19,6 +19,14 @@ public class HelloWorld {
         System.out.println("Hello, " + args[0]);
     }
 
+    public int sum(int[] args) {
+        int result = 0;
+        for(int i: args) {
+            result += i;
+        }
+        return result;
+    }
+
     public int intMethodWithStringArg(String str) {
         return str.length();
     }
