@@ -35,9 +35,171 @@ proc getJavaHome*(): string =
 const JAVA_HOME = getJavaHome()
 static: assert(JAVA_HOME.len > 0, "Java home not found")
 
+{.warning[SmallLshouldNotBeUsed]: off.}
+
+type
+    jint* {.header: jniHeader.} = cint
+    jsize* {.header: jniHeader.} = jint
+    jchar* {.header: jniHeader.} = uint16
+    jlong* {.header: jniHeader.} = int64
+    jshort* {.header: jniHeader.} = int16
+    jbyte* {.header: jniHeader.} = int8
+    jfloat* {.header: jniHeader.} = cfloat
+    jdouble* {.header: jniHeader.} = cdouble
+    jboolean* {.header: jniHeader.} = uint8
+    jclass* {.header: jniHeader.} = distinct pointer
+    jmethodID* {.header: jniHeader.} = pointer
+    jobject* {.header: jniHeader.} = pointer
+    jfieldID* {.header: jniHeader.} = pointer
+    jstring* {.header: jniHeader.} = jobject
+    jthrowable* {.header: jniHeader.} = jobject
+    jarray* {.header: jniHeader.} = jobject
+    jobjectArray* {.header: jniHeader.} = jarray
+    jbooleanArray* {.header: jniHeader.} = jarray
+    jbyteArray* {.header: jniHeader.} = jarray
+    jcharArray* {.header: jniHeader.} = jarray
+    jshortArray* {.header: jniHeader.} = jarray
+    jintArray* {.header: jniHeader.} = jarray
+    jlongArray* {.header: jniHeader.} = jarray
+    jfloatArray* {.header: jniHeader.} = jarray
+    jdoubleArray* {.header: jniHeader.} = jarray
+
+    jvalue* {.header: jniHeader, union.} = object
+        z: jboolean
+        b: jbyte
+        c: jchar
+        s: jshort
+        i: jint
+        j: jlong
+        f: jfloat
+        d: jdouble
+        l: jobject
+
 type JavaVMPtr* {.header: jniHeader.} = pointer
-type JNIEnv* {.header: jniHeader.} = object
-type JNIEnvPtr* = ptr JNIEnv
+type
+    JNINativeInterface {.importc: "struct JNINativeInterface_", header: jniHeader, incompleteStruct.} = object
+        FindClass: proc(env: JNIEnvPtr, name: cstring): jclass {.cdecl.}
+        GetObjectClass: proc(env: JNIEnvPtr, obj: jobject): jclass {.cdecl.}
+        NewStringUTF: proc(env: JNIEnvPtr, s: cstring): jstring {.cdecl.}
+        GetStringUTFChars: proc(env: JNIEnvPtr, s: jstring, isCopy: ptr jboolean): cstring {.cdecl.}
+        ReleaseStringUTFChars: proc(env: JNIEnvPtr, s: jstring, cstr: cstring) {.cdecl.}
+        GetMethodID: proc(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID {.cdecl.}
+        GetFieldID: proc(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jfieldID {.cdecl.}
+        GetStaticFieldID: proc(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jfieldID {.cdecl.}
+        GetObjectField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jobject {.cdecl.}
+        GetBooleanField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jboolean {.cdecl.}
+        GetByteField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jbyte {.cdecl.}
+        GetCharField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jchar {.cdecl.}
+        GetShortField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jshort {.cdecl.}
+        GetIntField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jint {.cdecl.}
+        GetLongField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jlong {.cdecl.}
+        GetFloatField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jfloat {.cdecl.}
+        GetDoubleField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jdouble {.cdecl.}
+        SetObjectField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jobject) {.cdecl.}
+        SetBooleanField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jboolean) {.cdecl.}
+        SetByteField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jbyte) {.cdecl.}
+        SetCharField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jchar) {.cdecl.}
+        SetShortField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jshort) {.cdecl.}
+        SetIntField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jint) {.cdecl.}
+        SetLongField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jlong) {.cdecl.}
+        SetFloatField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jfloat) {.cdecl.}
+        SetDoubleField: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jdouble) {.cdecl.}
+        GetStaticObjectField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jobject {.cdecl.}
+        GetStaticBooleanField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jboolean {.cdecl.}
+        GetStaticByteField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jbyte {.cdecl.}
+        GetStaticCharField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jchar {.cdecl.}
+        GetStaticShortField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jshort {.cdecl.}
+        GetStaticIntField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jint {.cdecl.}
+        GetStaticLongField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jlong {.cdecl.}
+        GetStaticFloatField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jfloat {.cdecl.}
+        GetStaticDoubleField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jdouble {.cdecl.}
+        SetStaticObjectField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jobject) {.cdecl.}
+        SetStaticBooleanField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jboolean) {.cdecl.}
+        SetStaticByteField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jbyte) {.cdecl.}
+        SetStaticCharField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jchar) {.cdecl.}
+        SetStaticShortField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jshort) {.cdecl.}
+        SetStaticIntField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jint) {.cdecl.}
+        SetStaticLongField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jlong) {.cdecl.}
+        SetStaticFloatField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jfloat) {.cdecl.}
+        SetStaticDoubleField: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jdouble) {.cdecl.}
+        GetStaticMethodID: proc(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID {.cdecl.}
+        NewObjectArray: proc(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray {.cdecl.}
+        GetObjectArrayElement: proc(env: JNIEnvPtr, arr: jobjectArray, index: jsize): jobject {.cdecl.}
+        SetObjectArrayElement: proc(env: JNIEnvPtr, arr: jobjectArray, index: jsize, val: jobject) {.cdecl.}
+        NewObjectA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
+
+        CallStaticVoidMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+        CallVoidMethodA: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+
+        CallStaticObjectMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
+        CallStaticBooleanMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jboolean {.cdecl.}
+        CallStaticByteMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jbyte {.cdecl.}
+        CallStaticCharMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jchar {.cdecl.}
+        CallStaticShortMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jshort {.cdecl.}
+        CallStaticIntMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jint {.cdecl.}
+        CallStaticLongMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
+        CallStaticFloatMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
+        CallStaticDoubleMethodA: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
+        CallObjectMethodA: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
+        CallBooleanMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jboolean {.cdecl.}
+        CallByteMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jbyte {.cdecl.}
+        CallCharMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jchar {.cdecl.}
+        CallShortMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jshort {.cdecl.}
+        CallIntMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jint {.cdecl.}
+        CallLongMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
+        CallFloatMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
+        CallDoubleMethodA: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
+        ExceptionOccurred: proc(env: JNIEnvPtr): jthrowable {.cdecl.}
+        ExceptionDescribe: proc(env: JNIEnvPtr) {.cdecl.}
+        ExceptionClear: proc(env: JNIEnvPtr) {.cdecl.}
+
+        NewBooleanArray: proc(env: JNIEnvPtr, len: jsize): jbooleanArray {.cdecl.}
+        NewByteArray: proc(env: JNIEnvPtr, len: jsize): jbyteArray {.cdecl.}
+        NewCharArray: proc(env: JNIEnvPtr, len: jsize): jcharArray {.cdecl.}
+        NewShortArray: proc(env: JNIEnvPtr, len: jsize): jshortArray {.cdecl.}
+        NewIntArray: proc(env: JNIEnvPtr, len: jsize): jintArray {.cdecl.}
+        NewLongArray: proc(env: JNIEnvPtr, len: jsize): jlongArray {.cdecl.}
+        NewFloatArray: proc(env: JNIEnvPtr, len: jsize): jfloatArray {.cdecl.}
+        NewDoubleArray: proc(env: JNIEnvPtr, len: jsize): jdoubleArray {.cdecl.}
+
+        GetBooleanArrayElements: proc(env: JNIEnvPtr, arr: jbooleanArray, isCopy: ptr jboolean): ptr jboolean {.cdecl.}
+        GetByteArrayElements: proc(env: JNIEnvPtr, arr: jbyteArray, isCopy: ptr jboolean): ptr jbyte {.cdecl.}
+        GetCharArrayElements: proc(env: JNIEnvPtr, arr: jcharArray, isCopy: ptr jboolean): ptr jchar {.cdecl.}
+        GetShortArrayElements: proc(env: JNIEnvPtr, arr: jshortArray, isCopy: ptr jboolean): ptr jshort {.cdecl.}
+        GetIntArrayElements: proc(env: JNIEnvPtr, arr: jintArray, isCopy: ptr jboolean): ptr jint {.cdecl.}
+        GetLongArrayElements: proc(env: JNIEnvPtr, arr: jlongArray, isCopy: ptr jboolean): ptr jlong {.cdecl.}
+        GetFloatArrayElements: proc(env: JNIEnvPtr, arr: jfloatArray, isCopy: ptr jboolean): ptr jfloat {.cdecl.}
+        GetDoubleArrayElements: proc(env: JNIEnvPtr, arr: jdoubleArray, isCopy: ptr jboolean): ptr jdouble {.cdecl.}
+
+        ReleaseBooleanArrayElements: proc(env: JNIEnvPtr, arr: jbooleanArray, elems: ptr jboolean, mode: jint) {.cdecl.}
+        ReleaseByteArrayElements: proc(env: JNIEnvPtr, arr: jbyteArray, elems: ptr jbyte, mode: jint) {.cdecl.}
+        ReleaseCharArrayElements: proc(env: JNIEnvPtr, arr: jcharArray, elems: ptr jchar, mode: jint) {.cdecl.}
+        ReleaseShortArrayElements: proc(env: JNIEnvPtr, arr: jshortArray, elems: ptr jshort, mode: jint) {.cdecl.}
+        ReleaseIntArrayElements: proc(env: JNIEnvPtr, arr: jintArray, elems: ptr jint, mode: jint) {.cdecl.}
+        ReleaseLongArrayElements: proc(env: JNIEnvPtr, arr: jlongArray, elems: ptr jlong, mode: jint) {.cdecl.}
+        ReleaseFloatArrayElements: proc(env: JNIEnvPtr, arr: jfloatArray, elems: ptr jfloat, mode: jint) {.cdecl.}
+        ReleaseDoubleArrayElements: proc(env: JNIEnvPtr, arr: jdoubleArray, elems: ptr jdouble, mode: jint) {.cdecl.}
+
+        GetBooleanArrayRegion: proc(env: JNIEnvPtr, arr: jbooleanArray, start, len: jsize, buf: ptr jboolean) {.cdecl.}
+        GetByteArrayRegion: proc(env: JNIEnvPtr, arr: jbyteArray, start, len: jsize, buf: ptr jbyte) {.cdecl.}
+        GetCharArrayRegion: proc(env: JNIEnvPtr, arr: jcharArray, start, len: jsize, buf: ptr jchar) {.cdecl.}
+        GetShortArrayRegion: proc(env: JNIEnvPtr, arr: jshortArray, start, len: jsize, buf: ptr jshort) {.cdecl.}
+        GetIntArrayRegion: proc(env: JNIEnvPtr, arr: jintArray, start, len: jsize, buf: ptr jint) {.cdecl.}
+        GetLongArrayRegion: proc(env: JNIEnvPtr, arr: jlongArray, start, len: jsize, buf: ptr jlong) {.cdecl.}
+        GetFloatArrayRegion: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
+        GetDoubleArrayRegion: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
+
+        SetBooleanArrayRegion: proc(env: JNIEnvPtr, arr: jbooleanArray, start, len: jsize, buf: ptr jboolean) {.cdecl.}
+        SetByteArrayRegion: proc(env: JNIEnvPtr, arr: jbyteArray, start, len: jsize, buf: ptr jbyte) {.cdecl.}
+        SetCharArrayRegion: proc(env: JNIEnvPtr, arr: jcharArray, start, len: jsize, buf: ptr jchar) {.cdecl.}
+        SetShortArrayRegion: proc(env: JNIEnvPtr, arr: jshortArray, start, len: jsize, buf: ptr jshort) {.cdecl.}
+        SetIntArrayRegion: proc(env: JNIEnvPtr, arr: jintArray, start, len: jsize, buf: ptr jint) {.cdecl.}
+        SetLongArrayRegion: proc(env: JNIEnvPtr, arr: jlongArray, start, len: jsize, buf: ptr jlong) {.cdecl.}
+        SetFloatArrayRegion: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
+        SetDoubleArrayRegion: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
+
+    JNIEnvPtr* = ptr JNIEnv
+    JNIEnv* = ptr JNINativeInterface
 
 var currentEnv* : JNIEnvPtr
 
@@ -63,37 +225,7 @@ type JavaError* = object of Exception
     className*: string
     fullStackTrace*: string
 
-type jint* {.header: jniHeader.} = cint
-type jsize* {.header: jniHeader.} = jint
-type jchar* {.header: jniHeader.} = uint16
-type jlong* {.header: jniHeader.} = int64
-type jshort* {.header: jniHeader.} = int16
-type jbyte* {.header: jniHeader.} = int8
-type jfloat* {.header: jniHeader.} = cfloat
-type jdouble* {.header: jniHeader.} = cdouble
-type jboolean* {.header: jniHeader.} = uint8
-type jclass* {.header: jniHeader.} = distinct pointer
-type jmethodID* {.header: jniHeader.} = pointer
-type jobject* {.header: jniHeader.} = pointer
-type jfieldID* {.header: jniHeader.} = pointer
-type jstring* {.header: jniHeader.} = jobject
-type jthrowable* {.header: jniHeader.} = jobject
-type jarray* {.header: jniHeader.} = jobject
-type jobjectArray* {.header: jniHeader.} = jarray
-
 proc `isNil`* (x: jclass): bool {.borrow.}
-
-{.warning[SmallLshouldNotBeUsed]: off.}
-type jvalue* {.header: jniHeader, union.} = object
-    z: jboolean
-    b: jbyte
-    c: jchar
-    s: jshort
-    i: jint
-    j: jlong
-    f: jfloat
-    d: jdouble
-    l: jobject
 
 type JavaVMInitArgs* {.header: jniHeader.} = object
     version: jint
@@ -179,237 +311,62 @@ proc linkWithJVMLib() =
 proc getEnv(vm: JavaVMPtr, env: ptr JNIEnvPtr, version: jint): jint =
     {.emit: "`result` = (*((JavaVM*)`vm`))->GetEnv(`vm`, `env`, `version`);".}
 
-proc findClass*(env: JNIEnvPtr, name: cstring): jclass =
-    {.emit: "`result` = (*`env`)->FindClass(`env`, `name`);".}
-
-proc getObjectClass*(env: JNIEnvPtr, obj: jobject): jclass =
-    {.emit: "`result` = (*`env`)->GetObjectClass(`env`, `obj`);".}
-
-proc newString*(env: JNIEnvPtr, s: cstring): jstring =
-    {.emit: "`result` = (*`env`)->NewStringUTF(`env`, `s`);".}
+template findClass*(env: JNIEnvPtr, name: cstring): jclass = env.FindClass(env, name)
+template getObjectClass*(env: JNIEnvPtr, obj: jobject): jclass = env.GetObjectClass(env, obj)
+template newString*(env: JNIEnvPtr, s: cstring): jstring = env.NewStringUTF(env, s)
 
 proc getString*(env: JNIEnvPtr, s: jstring): string =
     if s != nil:
-        var cstr: cstring
-        {.emit: "`cstr` = (*`env`)->GetStringUTFChars(`env`, `s`, NULL);".}
+        var cstr = env.GetStringUTFChars(env, s, nil)
         result = $cstr
-        {.emit: "(*`env`)->ReleaseStringUTFChars(`env`, `s`, `cstr`);".}
+        env.ReleaseStringUTFChars(env, s, cstr)
 
-proc getMethodID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID =
-    {.emit: "`result` = (*`env`)->GetMethodID(`env`, `clazz`, `name`, `sig`);".}
+template getMethodID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID =
+    env.GetMethodID(env, clazz, name, sig)
+template getFieldID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jfieldID =
+    env.GetFieldID(env, clazz, name, sig)
+template getStaticFieldID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jfieldID =
+    env.GetStaticFieldID(env, clazz, name, sig)
+template getStaticMethodID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID =
+    env.GetStaticMethodID(env, clazz, name, sig)
+template newObjectArray*(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray =
+    env.NewObjectArray(env, size, clazz, init)
 
-proc getFieldID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jfieldID =
-    {.emit: "`result` = (*`env`)->GetFieldID(`env`, `clazz`, `name`, `sig`);".}
-
-proc getStaticFieldID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jfieldID =
-    {.emit: "`result` = (*`env`)->GetStaticFieldID(`env`, `clazz`, `name`, `sig`);".}
-
-
-proc getObjectField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jobject =
-    {.emit: "`result` = (*`env`)->GetObjectField(`env`, `obj`, `fieldId`);".}
-
-proc getBooleanField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jboolean =
-    {.emit: "`result` = (*`env`)->GetBooleanField(`env`, `obj`, `fieldId`);".}
-
-proc getByteField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jbyte =
-    {.emit: "`result` = (*`env`)->GetByteField(`env`, `obj`, `fieldId`);".}
-
-proc getCharField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jchar =
-    {.emit: "`result` = (*`env`)->GetCharField(`env`, `obj`, `fieldId`);".}
-
-proc getShortField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jshort =
-    {.emit: "`result` = (*`env`)->GetShortField(`env`, `obj`, `fieldId`);".}
-
-proc getIntField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jint =
-    {.emit: "`result` = (*`env`)->GetIntField(`env`, `obj`, `fieldId`);".}
-
-proc getLongField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jlong =
-    {.emit: "`result` = (*`env`)->GetLongField(`env`, `obj`, `fieldId`);".}
-
-proc getFloatField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jfloat =
-    {.emit: "`result` = (*`env`)->GetFloatField(`env`, `obj`, `fieldId`);".}
-
-proc getDoubleField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jdouble =
-    {.emit: "`result` = (*`env`)->GetDoubleField(`env`, `obj`, `fieldId`);".}
-
-proc setObjectField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jobject) =
-    {.emit: "(*`env`)->SetObjectField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setBooleanField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jboolean) =
-    {.emit: "(*`env`)->SetBooleanField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setByteField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jbyte) =
-    {.emit: "(*`env`)->SetByteField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setCharField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jchar) =
-    {.emit: "(*`env`)->SetCharField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setShortField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jshort) =
-    {.emit: "(*`env`)->SetShortField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setIntField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jint) =
-    {.emit: "(*`env`)->SetIntField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setLongField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jlong) =
-    {.emit: "(*`env`)->SetLongField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setFloatField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jfloat) =
-    {.emit: "(*`env`)->SetFloatField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setDoubleField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jdouble) =
-    {.emit: "(*`env`)->SetDoubleField(`env`, `obj`, `fieldId`, `val`);".}
-
-
-
-
-proc getStaticObjectField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jobject =
-    {.emit: "`result` = (*`env`)->GetStaticObjectField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticBooleanField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jboolean =
-    {.emit: "`result` = (*`env`)->GetStaticBooleanField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticByteField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jbyte =
-    {.emit: "`result` = (*`env`)->GetStaticByteField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticCharField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jchar =
-    {.emit: "`result` = (*`env`)->GetStaticCharField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticShortField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jshort =
-    {.emit: "`result` = (*`env`)->GetStaticShortField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticIntField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jint =
-    {.emit: "`result` = (*`env`)->GetStaticIntField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticLongField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jlong =
-    {.emit: "`result` = (*`env`)->GetStaticLongField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticFloatField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jfloat =
-    {.emit: "`result` = (*`env`)->GetStaticFloatField(`env`, `obj`, `fieldId`);".}
-
-proc getStaticDoubleField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jdouble =
-    {.emit: "`result` = (*`env`)->GetStaticDoubleField(`env`, `obj`, `fieldId`);".}
-
-
-
-proc setStaticObjectField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jobject) =
-    {.emit: "(*`env`)->SetStaticObjectField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticBooleanField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jboolean) =
-    {.emit: "(*`env`)->SetStaticBooleanField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticByteField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jbyte) =
-    {.emit: "(*`env`)->SetStaticByteField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticCharField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jchar) =
-    {.emit: "(*`env`)->SetStaticCharField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticShortField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jshort) =
-    {.emit: "(*`env`)->SetStaticShortField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticIntField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jint) =
-    {.emit: "(*`env`)->SetStaticIntField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticLongField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jlong) =
-    {.emit: "(*`env`)->SetStaticLongField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticFloatField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jfloat) =
-    {.emit: "(*`env`)->SetStaticFloatField(`env`, `obj`, `fieldId`, `val`);".}
-
-proc setStaticDoubleField*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jdouble) =
-    {.emit: "(*`env`)->SetStaticDoubleField(`env`, `obj`, `fieldId`, `val`);".}
-
-
-proc getStaticMethodID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID =
-    {.emit: "`result` = (*`env`)->GetStaticMethodID(`env`, `clazz`, `name`, `sig`);".}
-
-proc newObjectArray*(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray =
-    {.emit: "`result` = (*`env`)->NewObjectArray(`env`, `size`, `clazz`, `init`);".}
-
-proc getObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize): jobject =
-    {.emit: "`result` = (*`env`)->GetObjectArrayElement(`env`, `arr`, `index`);".}
-
-proc setObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize, val: jobject) =
-    {.emit: "(*`env`)->SetObjectArrayElement(`env`, `arr`, `index`, `val`);".}
-
+template getObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize): jobject =
+    env.GetObjectArrayElement(env, arr, index)
+template setObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize, val: jobject) =
+    env.SetObjectArrayElement(env, arr, index, val)
 proc setObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize, str: string) =
     env.setObjectArrayElement(arr, index, env.newString(str))
 
+{.push stackTrace: off, inline.}
 proc newObject*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jobject =
-    {.emit: "`result` = (*`env`)->NewObjectA(`env`, `clazz`, `methodID`, `args`);".}
+    env.NewObjectA(env, clazz, methodID, cast[ptr jvalue](unsafeAddr args))
 
 proc callStaticVoidMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]) =
-    {.emit: "(*`env`)->CallStaticVoidMethodA(`env`, `clazz`, `methodID`, `args`);".}
+    env.CallStaticVoidMethodA(env, clazz, methodID, cast[ptr jvalue](unsafeAddr args))
 
 proc callVoidMethod*(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: openarray[jvalue]) =
-    {.emit: "(*`env`)->CallVoidMethodA(`env`, `obj`, `methodID`, `args`);".}
+    env.CallVoidMethodA(env, obj, methodID, cast[ptr jvalue](unsafeAddr args))
+{.pop.}
 
-proc callStaticObjectMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jobject =
-    {.emit: "`result` = (*`env`)->CallStaticObjectMethodA(`env`, `clazz`, `methodID`, `args`);".}
+template exceptionOccurred*(env: JNIEnvPtr): jthrowable = env.ExceptionOccurred(env)
+template exceptionDescribe*(env: JNIEnvPtr) = env.ExceptionDescribe(env)
+template exceptionClear*(env: JNIEnvPtr) = env.ExceptionClear(env)
 
-proc callStaticBooleanMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jboolean =
-    {.emit: "`result` = (*`env`)->CallStaticBooleanMethodA(`env`, `clazz`, `methodID`, `args`);".}
+template declareProcsForType(T: typedesc, capitalizedTypeName: expr): stmt =
+    template `get capitalizedTypeName Field`*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): T =
+        env.`Get capitalizedTypeName Field`(env, obj, fieldId)
 
-proc callStaticByteMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jbyte =
-    {.emit: "`result` = (*`env`)->CallStaticByteMethodA(`env`, `clazz`, `methodID`, `args`);".}
+    template `set capitalizedTypeName Field`*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: T) =
+        env.`Set capitalizedTypeName Field`(env, obj, fieldId, val)
 
-proc callStaticCharMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jchar =
-    {.emit: "`result` = (*`env`)->CallStaticCharMethodA(`env`, `clazz`, `methodID`, `args`);".}
+    template `getStatic capitalizedTypeName Field`*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): T =
+        env.`GetStatic capitalizedTypeName Field`(env, obj, fieldId)
 
-proc callStaticShortMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jshort =
-    {.emit: "`result` = (*`env`)->CallStaticShortMethodA(`env`, `clazz`, `methodID`, `args`);".}
+    template `setStatic capitalizedTypeName Field`*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: T) =
+        env.`SetStatic capitalizedTypeName Field`(env, obj, fieldId, val)
 
-proc callStaticIntMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jint =
-    {.emit: "`result` = (*`env`)->CallStaticIntMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callStaticLongMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jlong =
-    {.emit: "`result` = (*`env`)->CallStaticLongMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callStaticFloatMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jfloat =
-    {.emit: "`result` = (*`env`)->CallStaticFloatMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callStaticDoubleMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): jdouble =
-    {.emit: "`result` = (*`env`)->CallStaticDoubleMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-
-proc callObjectMethod*(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: openarray[jvalue]): jobject =
-    {.emit: "`result` = (*`env`)->CallObjectMethodA(`env`, `obj`, `methodID`, `args`);".}
-
-proc callBooleanMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jboolean =
-    {.emit: "`result` = (*`env`)->CallBooleanMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callByteMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jbyte =
-    {.emit: "`result` = (*`env`)->CallByteMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callCharMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jchar =
-    {.emit: "`result` = (*`env`)->CallCharMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callShortMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jshort =
-    {.emit: "`result` = (*`env`)->CallShortMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callIntMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jint =
-    {.emit: "`result` = (*`env`)->CallIntMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callLongMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jlong =
-    {.emit: "`result` = (*`env`)->CallLongMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callFloatMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jfloat =
-    {.emit: "`result` = (*`env`)->CallFloatMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-proc callDoubleMethod*(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: openarray[jvalue]): jdouble =
-    {.emit: "`result` = (*`env`)->CallDoubleMethodA(`env`, `clazz`, `methodID`, `args`);".}
-
-
-
-proc exceptionOccurred*(env: JNIEnvPtr): jthrowable =
-    {.emit: "`result` = (*`env`)->ExceptionOccurred(`env`);".}
-
-proc exceptionDescribe*(env: JNIEnvPtr) =
-    {.emit: "(*`env`)->ExceptionDescribe(`env`);".}
-
-proc exceptionClear*(env: JNIEnvPtr) =
-    {.emit: "(*`env`)->ExceptionClear(`env`);".}
-
-template declareProcsForType(T, capitalizedTypeName: expr): stmt =
     template setField*(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: T) =
         env.`set capitalizedTypeName Field`(obj, fieldId, val)
 
@@ -419,25 +376,50 @@ template declareProcsForType(T, capitalizedTypeName: expr): stmt =
     template `get capitalizedTypeName Field`*(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): T =
         env.`getStatic capitalizedTypeName Field`(obj, fieldId)
 
-    template `call capitalizedTypeName Method`*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): T {.inject.} =
+    {.push stackTrace: off, inline.}
+    proc `callStatic capitalizedTypeName Method`*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): T =
+        env.`CallStatic capitalizedTypeName MethodA`(env, clazz, methodID, cast[ptr jvalue](unsafeAddr args))
+
+    proc `call capitalizedTypeName Method`*(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: openarray[jvalue]): T =
+        env.`Call capitalizedTypeName MethodA`(env, obj, methodID, cast[ptr jvalue](unsafeAddr args))
+    {.pop.}
+
+    template `call capitalizedTypeName Method`*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]): T =
         env.`callStatic capitalizedTypeName Method`(clazz, methodID, args)
 
-declareProcsForType(jobject, Object)
-declareProcsForType(jint, Int)
-declareProcsForType(jboolean, Boolean)
-declareProcsForType(jbyte, Byte)
-declareProcsForType(jshort, Short)
-declareProcsForType(jlong, Long)
-declareProcsForType(jchar, Char)
-declareProcsForType(jfloat, Float)
-declareProcsForType(jdouble, Double)
+template declareProcsForTypeA(T: typedesc, ArrayT: typedesc, capitalizedTypeName: expr): stmt =
+    declareProcsForType(T, capitalizedTypeName)
 
-proc callVoidMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]) =
+    template `new capitalizedTypeName Array`*(env: JNIEnvPtr, len: jsize): ArrayT =
+        env.`New capitalizedTypeName Array`(env, len)
+
+    template `get capitalizedTypeName ArrayElements`*(env: JNIEnvPtr, arr: ArrayT, isCopy: ptr jboolean): ptr T =
+        env.`Get capitalizedTypeName ArrayElements`(env, arr, isCopy)
+
+    template `release capitalizedTypeName ArrayElements`*(env: JNIEnvPtr, arr: ArrayT, elems: ptr T, mode: jint) =
+        env.`Release capitalizedTypeName ArrayElements`(env, arr, elems, mode)
+
+    template `get capitalizedTypeName ArrayRegion`*(env: JNIEnvPtr, arr: ArrayT, start, len: jsize, buf: ptr T) =
+        env.`Get capitalizedTypeName ArrayRegion`(env, arr, start, len, buf)
+
+    template `set capitalizedTypeName ArrayRegion`*(env: JNIEnvPtr, arr: ArrayT, start, len: jsize, buf: ptr T) =
+        env.`Set capitalizedTypeName ArrayRegion`(env, arr, start, len, buf)
+
+declareProcsForType(jobject, Object)
+declareProcsForTypeA(jint, jintArray, Int)
+declareProcsForTypeA(jboolean, jbooleanArray, Boolean)
+declareProcsForTypeA(jbyte, jbyteArray, Byte)
+declareProcsForTypeA(jshort, jshortArray, Short)
+declareProcsForTypeA(jlong, jlongArray, Long)
+declareProcsForTypeA(jchar, jcharArray, Char)
+declareProcsForTypeA(jfloat, jfloatArray, Float)
+declareProcsForTypeA(jdouble, jdoubleArray, Double)
+
+template callVoidMethod*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: openarray[jvalue]) =
     env.callStaticVoidMethod(clazz, methodID, args)
 
-proc newObjectv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jobject =
+template newObjectv*(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: varargs[jvalue, toJValue]): jobject =
     env.newObject(clazz, methodID, args)
-
 
 proc toJValue*(s: string): jvalue =
     result.l = currentEnv.newString(s)
@@ -504,8 +486,8 @@ template methodSignatureForType*(t: typedesc[jdouble]): string = "D"
 template methodSignatureForType*(t: typedesc[string]): string = "Ljava/lang/String;"
 template methodSignatureForType*(t: typedesc[void]): string = "V"
 
-# TODO: This should be templatized somehow...
-template methodSignatureForType*(t: typedesc[openarray[string]]): string = "[Ljava/lang/String;"
+proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = []): auto = dummy[0]
+template methodSignatureForType*(t: typedesc[openarray]): string = "[" & methodSignatureForType(type(elementTypeOfOpenArrayType[t]()))
 
 template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID): expr =
     when T is jint:
@@ -643,20 +625,18 @@ template jniImpl(methodName: string, isStatic, isProperty: bool, obj: expr, args
         when isStatic:
             clazz = localClazz
 
-        var symbolKind = ""
-
         when isProp:
             when isStatic:
-                symbolKind = "static field"
+                const symbolKind = "static field"
                 fieldOrMethodId = currentEnv.getStaticFieldID(localClazz, javaSymbolName, sig)
             else:
-                symbolKind = "field"
+                const symbolKind = "field"
                 fieldOrMethodId = currentEnv.getFieldID(localClazz, javaSymbolName, sig)
         elif isStatic and not isCtor:
-            symbolKind = "static method"
+            const symbolKind = "static method"
             fieldOrMethodId = currentEnv.getStaticMethodID(localClazz, javaSymbolName, sig)
         else:
-            symbolKind = "method"
+            const symbolKind = "method"
             fieldOrMethodId = currentEnv.getMethodID(localClazz, javaSymbolName, sig)
 
         if fieldOrMethodId.isNil:
