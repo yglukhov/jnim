@@ -333,6 +333,11 @@ template findClass*(env: JNIEnvPtr, name: cstring): jclass = env.FindClass(env, 
 template getObjectClass*(env: JNIEnvPtr, obj: jobject): jclass = env.GetObjectClass(env, obj)
 template newString*(env: JNIEnvPtr, s: cstring): jstring = env.NewStringUTF(env, s)
 
+proc getClassInCurrentEnv*(fullyQualifiedName: cstring): jclass =
+    result = currentEnv.findClass(fullyQualifiedName)
+    if result.isNil:
+        raise newException(Exception, "Can not find class: " & $fullyQualifiedName)
+
 proc getString*(env: JNIEnvPtr, s: jstring): string =
     if s != nil:
         var cstr = env.GetStringUTFChars(env, s, nil)
@@ -598,17 +603,12 @@ proc findRunningVM() =
         let res = vmBuf[0].getEnv(addr currentEnv, JNI_VERSION_1_6)
         if res != 0:
             raise newException(Exception, "getEnv result: " & $res)
+        if currentEnv.isNil:
+            raise newException(Exception, "No JVM found")
     else:
         raise newException(Exception, "No JVM is running")
 
 proc checkForException()
-
-template prepareEnv(): stmt =
-    if currentEnv.isNil:
-        findRunningVM()
-        if currentEnv.isNil:
-            raise newException(Exception, "No JVM found")
-    assert(not currentEnv.isNil)
 
 template jniImpl(methodName: string, isStatic, isProperty: bool,
         obj: expr, argsSignature: string, args: openarray[jvalue],
@@ -627,7 +627,8 @@ template jniImpl(methodName: string, isStatic, isProperty: bool,
         else:
             methodName
 
-    prepareEnv()
+    if currentEnv.isNil:
+        findRunningVM()
 
     var fieldOrMethodId {.global.} = when isProp: jfieldID(nil) else: jmethodID(nil)
 
@@ -652,42 +653,43 @@ template jniImpl(methodName: string, isStatic, isProperty: bool,
             else:
                 "(" & argsSignature & ")" & retTypeSig
 
-        let localClazz = currentEnv.findClass(fullyQualifiedName)
-        if localClazz.isNil:
-            raise newException(Exception, "Can not find class: " & fullyQualifiedName)
-
         when isStatic:
-            clazz = localClazz
+            template localClazz(): var jclass = clazz
+        else:
+            var lc : jclass
+            template localClazz(): var jclass = lc
+
+        localClazz() = getClassInCurrentEnv(fullyQualifiedName)
 
         when isProp:
             when isStatic:
                 const symbolKind = "static field"
-                fieldOrMethodId = currentEnv.getStaticFieldID(localClazz, javaSymbolName, sig)
+                fieldOrMethodId = currentEnv.getStaticFieldID(localClazz(), javaSymbolName, sig)
             else:
                 const symbolKind = "field"
-                fieldOrMethodId = currentEnv.getFieldID(localClazz, javaSymbolName, sig)
+                fieldOrMethodId = currentEnv.getFieldID(localClazz(), javaSymbolName, sig)
         elif isStatic and not isCtor:
             const symbolKind = "static method"
-            fieldOrMethodId = currentEnv.getStaticMethodID(localClazz, javaSymbolName, sig)
+            fieldOrMethodId = currentEnv.getStaticMethodID(localClazz(), javaSymbolName, sig)
         else:
             const symbolKind = "method"
-            fieldOrMethodId = currentEnv.getMethodID(localClazz, javaSymbolName, sig)
+            fieldOrMethodId = currentEnv.getMethodID(localClazz(), javaSymbolName, sig)
 
         if fieldOrMethodId.isNil:
             raise newException(Exception, "Can not find " & symbolKind & ": " & fullyQualifiedName & "::" & javaSymbolName & ", sig: " & sig)
 
-    let obj = when isStatic: clazz else: jobject(obj)
+    let o = when isStatic: clazz else: jobject(obj)
 
     when propGetter.len > 0:
-        result = currentEnv.getFieldOfType(type(result), obj, fieldOrMethodId)
+        result = currentEnv.getFieldOfType(type(result), o, fieldOrMethodId)
     elif propSetter.len > 0:
-        currentEnv.setField(obj, fieldOrMethodId, get(args[0], setterType))
+        currentEnv.setField(o, fieldOrMethodId, get(args[0], setterType))
     elif isCtor:
-        result = type(result)(currentEnv.newObject(obj, fieldOrMethodId, args))
+        result = type(result)(currentEnv.newObject(o, fieldOrMethodId, args))
     elif declared(result):
-        result = currentEnv.callMethodOfType(type(result), obj, fieldOrMethodId, args)
+        result = currentEnv.callMethodOfType(type(result), o, fieldOrMethodId, args)
     else:
-        currentEnv.callMethodOfType(void, obj, fieldOrMethodId, args)
+        currentEnv.callMethodOfType(void, o, fieldOrMethodId, args)
 
     checkForException()
 
