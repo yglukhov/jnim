@@ -88,9 +88,22 @@ template get*(v: jvalue, T: typedesc): auto =
     else:
         {.error: "wrong type".}
 
+const JNINativeInterfaceImportName = when defined(android):
+        "struct JNINativeInterface"
+    else:
+        "struct JNINativeInterface_"
+
 type JavaVMPtr* {.header: jniHeader.} = pointer
 type
-    JNINativeInterface {.importc: "struct JNINativeInterface_", header: jniHeader, incompleteStruct.} = object
+    JNINativeInterface {.importc: JNINativeInterfaceImportName, nodecl, header: jniHeader, incompleteStruct.} = object
+        reserved0: pointer
+        reserved1: pointer
+        reserved2: pointer
+        reserved3: pointer
+
+        GetVersion: proc(env: JNIEnvPtr): jint {.cdecl.}
+        DefineClass:  proc(env: JNIEnvPtr, name: cstring, loader: jobject, buf: ptr jbyte, len: jsize): jclass {.cdecl.}
+
         FindClass: proc(env: JNIEnvPtr, name: cstring): jclass {.cdecl.}
         GetObjectClass: proc(env: JNIEnvPtr, obj: jobject): jclass {.cdecl.}
         NewStringUTF: proc(env: JNIEnvPtr, s: cstring): jstring {.cdecl.}
@@ -514,20 +527,20 @@ proc newJavaVM*(options: openarray[string] = []): JavaVM =
     else:
         currentEnv = result.env
 
-template methodSignatureForType(t: typedesc[jlong]): string = "J"
-template methodSignatureForType(t: typedesc[jint]): string = "I"
-template methodSignatureForType(t: typedesc[jboolean]): string = "Z"
-template methodSignatureForType(t: typedesc[bool]): string = "Z"
-template methodSignatureForType(t: typedesc[jbyte]): string = "B"
-template methodSignatureForType(t: typedesc[jchar]): string = "C"
-template methodSignatureForType(t: typedesc[jshort]): string = "S"
-template methodSignatureForType(t: typedesc[jfloat]): string = "F"
-template methodSignatureForType(t: typedesc[jdouble]): string = "D"
-template methodSignatureForType(t: typedesc[string]): string = "Ljava/lang/String;"
-template methodSignatureForType(t: typedesc[void]): string = "V"
+template methodSignatureForType*(t: typedesc[jlong]): string = "J"
+template methodSignatureForType*(t: typedesc[jint]): string = "I"
+template methodSignatureForType*(t: typedesc[jboolean]): string = "Z"
+template methodSignatureForType*(t: typedesc[bool]): string = "Z"
+template methodSignatureForType*(t: typedesc[jbyte]): string = "B"
+template methodSignatureForType*(t: typedesc[jchar]): string = "C"
+template methodSignatureForType*(t: typedesc[jshort]): string = "S"
+template methodSignatureForType*(t: typedesc[jfloat]): string = "F"
+template methodSignatureForType*(t: typedesc[jdouble]): string = "D"
+template methodSignatureForType*(t: typedesc[string]): string = "Ljava/lang/String;"
+template methodSignatureForType*(t: typedesc[void]): string = "V"
 
 proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = []): auto = dummy[0]
-template methodSignatureForType(t: typedesc[openarray]): string = "[" & methodSignatureForType(type(elementTypeOfOpenArrayType[t]()))
+template methodSignatureForType*(t: typedesc[openarray]): string = "[" & methodSignatureForType(type(elementTypeOfOpenArrayType[t]()))
 
 template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID): expr =
     when T is jint:
@@ -658,9 +671,7 @@ template jniImpl(methodName: string, isStatic, isProperty: bool,
         else:
             var lc : jclass
             template localClazz(): var jclass = lc
-
         localClazz() = getClassInCurrentEnv(fullyQualifiedName)
-
         when isProp:
             when isStatic:
                 const symbolKind = "static field"
@@ -674,7 +685,6 @@ template jniImpl(methodName: string, isStatic, isProperty: bool,
         else:
             const symbolKind = "method"
             fieldOrMethodId = currentEnv.getMethodID(localClazz(), javaSymbolName, sig)
-
         if fieldOrMethodId.isNil:
             raise newException(Exception, "Can not find " & symbolKind & ": " & fullyQualifiedName & "::" & javaSymbolName & ", sig: " & sig)
 
@@ -744,7 +754,7 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
     for i in 2 .. < result.params.len:
         for j in 0 .. < result.params[i].len - 2:
             let p = result.params[i][j]
-            argsSigNode.add(newCall(bindSym"methodSignatureForType", result.params[i][^2]))
+            argsSigNode.add(newCall("methodSignatureForType", result.params[i][^2]))
             initParamsNode.add quote do:
                 toJValue(`p`, `paramsSym`[`iParam`])
 
@@ -761,7 +771,7 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
 template defineJNIType(className: expr, fullyQualifiedName: string): stmt =
     type `className`* {.inject.} = distinct jobject
     template fullyQualifiedClassName*(t: typedesc[`className`]): string = fullyQualifiedName.replace(".", "/")
-    template methodSignatureForType(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
+    template methodSignatureForType*(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
     template toJValue*(v: `className`, res: var jvalue) = res.l = jobject(v)
 
 proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string): NimNode {.compileTime.} =
