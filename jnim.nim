@@ -236,14 +236,19 @@ var currentEnv* : JNIEnvPtr
 
 const JNI_INCLUDE_DIR = JAVA_HOME & "/include"
 
-{.passC: "-I" & JNI_INCLUDE_DIR.}
-
 when defined macosx:
+    {.passC: "-I" & JNI_INCLUDE_DIR.}
     {.emit: """
     #include <CoreFoundation/CoreFoundation.h>
     """.}
     {.passC: "-I" & JNI_INCLUDE_DIR & "/darwin".}
     {.passL: "-framework CoreFoundation".}
+elif defined windows:
+    {.passC: "-I\"" & JNI_INCLUDE_DIR & "\"".}
+    {.passC: "-I\"" & JNI_INCLUDE_DIR & "/win32\"".}
+elif defined linux:
+    {.passC: "-I" & JNI_INCLUDE_DIR.}
+    {.passC: "-I" & JNI_INCLUDE_DIR & "/linux".}
 
 type JavaVM* = ref object of RootObj
     env*: JNIEnvPtr
@@ -284,7 +289,13 @@ when not defined(macosx):
     proc findJVMLib(): string =
         let home = getJavaHome()
         when defined(windows):
-            result = home & "\\jre\\lib\\jvm.dll"
+            result = home & "\\bin\\client\\jvm.dll"
+            if fileExists(result): return
+            result = home & "\\bin\\server\\jvm.dll"
+            if fileExists(result): return
+            result = home & "\\jre\\bin\\client\\jvm.dll"
+            if fileExists(result): return
+            result = home & "\\jre\\bin\\server\\jvm.dll"
             if fileExists(result): return
         else:
             result = home & "/jre/lib/libjvm.so"
