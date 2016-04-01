@@ -768,6 +768,7 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
             argsSigNode.add(newCall("methodSignatureForType", result.params[i][^2]))
             initParamsNode.add quote do:
                 toJValue(`p`, `paramsSym`[`iParam`])
+            inc iParam
 
     let setterType = newCall("type", if numArgs > 0:
             result.params[2][0]
