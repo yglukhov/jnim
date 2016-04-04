@@ -723,6 +723,8 @@ proc nodeToString(e: NimNode): string {.compileTime.} =
             result &= nodeToString(s)
     elif e.kind == nnkDotExpr:
         result = nodeToString(e[0]) & "." & nodeToString(e[1])
+    elif e.kind == nnkInfix and $(e[0].toStrLit) == "$":
+        result = nodeToString(e[1]) & "$" & nodeToString(e[2])
     else:
         echo treeRepr(e)
         assert(false, "Cannot stringize node")
@@ -792,6 +794,8 @@ proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string): Nim
 proc processJnimportNode(e: NimNode): NimNode {.compileTime.} =
     if e.kind == nnkDotExpr:
         result = generateTypeDefinition(e[1], nodeToString(e))
+    elif e.kind == nnkInfix and $(e[0].toStrLit) == "$":
+        result = generateTypeDefinition(e[2], nodeToString(e))
     elif e.kind == nnkIdent:
         result = generateTypeDefinition(e, $e)
     elif e.kind == nnkImportStmt:

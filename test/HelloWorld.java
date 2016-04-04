@@ -7,6 +7,14 @@ public class HelloWorld {
     boolean boolField = true;
     String stringField = "SomeString";
 
+    public static class InnerHolder {
+        public static class InnerClass {
+            public void innerClassMethod() {
+                System.out.println("Hi! I'm inner class!");
+            }
+        }
+    }
+
     public HelloWorld() {
         System.out.println("HelloWorld default constructor called!");
     }

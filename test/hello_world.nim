@@ -13,6 +13,8 @@ jnimport:
     import HelloWorld
     import java.io.PrintStream
 
+# You can also import inner classes with the `$` operator:
+jnimport HelloWorld$InnerHolder$InnerClass
 
 # Step 2. Import methods. Static maethods take a typedesc parameter
 # as the first one.
@@ -25,6 +27,12 @@ proc main(t: typedesc[HelloWorld], args: openarray[string]) {.jnimport.}
 
 # Instance method
 proc intMethodWithStringArg(o: HelloWorld, s: string): jint {.jnimport.}
+
+# Constructor for inner class:
+proc new(t: typedesc[InnerClass]) {.jnimport.}
+
+# Method of inner class:
+proc innerClassMethod(ic: InnerClass) {.jnimport.}
 
 # Or like so:
 jnimport:
@@ -57,6 +65,10 @@ HelloWorld.main(["yglukhov"])
 
 echo "Calling function with array of ints"
 doAssert(hw2.sum([1.jint, 2, 3]) == 6)
+
+echo "Calling method of the inner class"
+let ic = InnerClass.new
+ic.innerClassMethod
 
 doAssert(hw1.intMethodWithStringArg("Hello") == "Hello".len)
 
