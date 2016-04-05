@@ -737,6 +737,15 @@ proc consumePropertyPragma(e: NimNode): bool {.compileTime.} =
             p.del(i)
             break
 
+proc consumeImportcPragma(e: NimNode): string {.compileTime.} =
+    result = nil
+    let p = e.pragma
+    for i in 0 ..< p.len:
+        if p[i].kind == nnkExprColonExpr and $(p[i][0]) == "importc":
+            result = $(p[i][1])
+            p.del(i)
+            break
+
 proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
     result = e
     let isStatic = e.params[1][1].kind == nnkBracketExpr
@@ -750,6 +759,9 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
         result.params[0] = newIdentNode(className)
 
     let isProp = consumePropertyPragma(result)
+    var realName = consumeImportcPragma(result)
+    if realName == nil:
+      realName = procName
 
     var numArgs = 0
     for i in 2 .. < result.params.len:
@@ -778,7 +790,7 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
             bindSym "jint"
         )
 
-    let jniImplCall = newCall(bindsym"jniImpl", newLit(procName), newLit(isStatic), newLit(isProp), result.params[1][0], argsSigNode, paramsSym, setterType)
+    let jniImplCall = newCall(bindsym"jniImpl", newLit(realName), newLit(isStatic), newLit(isProp), result.params[1][0], argsSigNode, paramsSym, setterType)
 
     result.body = newStmtList(params, initParamsNode, jniImplCall)
 
@@ -794,8 +806,12 @@ proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string): Nim
 proc processJnimportNode(e: NimNode): NimNode {.compileTime.} =
     if e.kind == nnkDotExpr:
         result = generateTypeDefinition(e[1], nodeToString(e))
-    elif e.kind == nnkInfix and $(e[0].toStrLit) == "$":
-        result = generateTypeDefinition(e[2], nodeToString(e))
+    elif e.kind == nnkInfix:
+        let opname = $(e[0].toStrLit)
+        if  opname == "$":
+            result = generateTypeDefinition(e[2], nodeToString(e))
+        elif opname == "as":
+            result = generateTypeDefinition(e[2], nodeToString(e[1]))
     elif e.kind == nnkIdent:
         result = generateTypeDefinition(e, $e)
     elif e.kind == nnkImportStmt:
