@@ -1,20 +1,6 @@
-import "../jnim", unittest
+import "../jnim", private.jmodule, unittest
 
 let jvm = newJavaVM()
-
-jnimportEx:
-  import TestSyntax
-  import TestSyntax as JTestSyntax
-  
-  import java.lang.String as JString
-
-  proc `$`(o: JString): string {.importc: "toString".}
-
-  proc new(s: typedesc[TestSyntax])
-  proc say(o: TestSyntax): string
-
-  proc new(s: typedesc[JTestSyntax])
-  proc jsay(o: JTestSyntax): JString {.importc: "say".}
 
 suite "Syntax":
   test "Syntax - Import class":
