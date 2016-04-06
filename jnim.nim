@@ -746,7 +746,7 @@ proc consumeImportcPragma(e: NimNode): string {.compileTime.} =
             p.del(i)
             break
 
-proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
+proc generateJNIProc(e: NimNode, exported: bool): NimNode {.compileTime.} =
     result = e
     let isStatic = e.params[1][1].kind == nnkBracketExpr
     let procName = nodeToString(result[0])
@@ -756,7 +756,9 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
             className = $(result.params[1][1])
         else:
             className = $(result.params[1][1][1])
-        result.params[0] = newIdentNode(className)
+        result.params[0] = ident(className)
+    if exported:
+        result[0] = if exported: ident(procName).postfix("*") else: ident(procName)
 
     let isProp = consumePropertyPragma(result)
     var realName = consumeImportcPragma(result)
@@ -794,30 +796,41 @@ proc generateJNIProc(e: NimNode): NimNode {.compileTime.} =
 
     result.body = newStmtList(params, initParamsNode, jniImplCall)
 
-template defineJNIType(className: expr, fullyQualifiedName: string): stmt =
-    type `className`* {.inject.} = distinct jobject
-    template fullyQualifiedClassName*(t: typedesc[`className`]): string = fullyQualifiedName.replace(".", "/")
-    template methodSignatureForType*(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
-    template toJValue*(v: `className`, res: var jvalue) = res.l = jobject(v)
+macro defineJNIType(className: expr, fullyQualifiedName: string, exported: static[bool]): stmt =
+    result = newStmtList()
+    if not exported:
+        result.add quote do: {.push hints: off.}
+    let fqn = ($fullyQualifiedName).replace(".", "/")
+    let clsName = if exported: className.postfix("*") else: className
+    let fqcn = if exported: ident("fullyQualifiedClassName").postfix("*") else: ident"fullyQualifiedClassName"
+    let msft = if exported: ident("methodSignatureForType").postfix("*") else: ident"methodSignatureForType"
+    let tjv = if exported: ident("toJValue").postfix("*") else: ident"toJValue"
+    result.add quote do:
+        type `clsName` = distinct jobject
+        template `fqcn`(t: typedesc[`className`]): string = `fqn`
+        template `msft`(t: typedesc[`className`]): string = "L" & fullyQualifiedClassName(t) & ";"
+        template `tjv`(v: `className`, res: var jvalue) = res.l = jobject(v)
+    if not exported:
+       result.add quote do: {.pop.}
 
-proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string): NimNode {.compileTime.} =
-    result = newCall(bindsym"defineJNIType", className, newLit(fullyQualifiedName))
+proc generateTypeDefinition(className: NimNode, fullyQualifiedName: string, exported: bool): NimNode {.compileTime.} =
+    result = newCall(bindsym"defineJNIType", className, newLit(fullyQualifiedName), newLit(exported))
 
-proc processJnimportNode(e: NimNode): NimNode {.compileTime.} =
+proc processJnimportNode(e: NimNode, exported: bool): NimNode {.compileTime.} =
     if e.kind == nnkDotExpr:
-        result = generateTypeDefinition(e[1], nodeToString(e))
+        result = generateTypeDefinition(e[1], nodeToString(e), exported)
     elif e.kind == nnkInfix:
         let opname = $(e[0].toStrLit)
         if  opname == "$":
-            result = generateTypeDefinition(e[2], nodeToString(e))
+            result = generateTypeDefinition(e[2], nodeToString(e), exported)
         elif opname == "as":
-            result = generateTypeDefinition(e[2], nodeToString(e[1]))
+            result = generateTypeDefinition(e[2], nodeToString(e[1]), exported)
     elif e.kind == nnkIdent:
-        result = generateTypeDefinition(e, $e)
+        result = generateTypeDefinition(e, $e, exported)
     elif e.kind == nnkImportStmt:
-        result = processJnimportNode(e[0])
+        result = processJnimportNode(e[0], exported)
     elif e.kind == nnkProcDef:
-        result = generateJNIProc(e)
+        result = generateJNIProc(e, exported)
     else:
         echo treeRepr(e)
         assert(false, "Invalid use of jnimport")
@@ -826,9 +839,17 @@ macro jnimport*(e: expr): stmt =
     if e.kind == nnkStmtList:
         result = newStmtList()
         for c in e.children:
-            result.add(processJnimportNode(c))
+            result.add(processJnimportNode(c, false))
     else:
-        result = processJnimportNode(e)
+        result = processJnimportNode(e, false)
+
+macro jnimportEx*(e: expr): stmt =
+    if e.kind == nnkStmtList:
+        result = newStmtList()
+        for c in e.children:
+            result.add(processJnimportNode(c, true))
+    else:
+        result = processJnimportNode(e, true)
 
 jnimport:
     import java.lang.Throwable

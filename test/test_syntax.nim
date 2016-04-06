@@ -2,7 +2,7 @@ import "../jnim", unittest
 
 let jvm = newJavaVM()
 
-jnimport:
+jnimportEx:
   import TestSyntax
   import TestSyntax as JTestSyntax
   
@@ -18,7 +18,6 @@ jnimport:
 
 suite "Syntax":
   test "Syntax - Import class":
-    # Check if class is declared
     check: declared(TestSyntax)
 
   test "Syntax - Import method":
