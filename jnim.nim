@@ -513,7 +513,7 @@ proc toJValue*(a: openarray[jobject], res: var jvalue) =
     for i, v in a:
         currentEnv.setObjectArrayElement(res.l, i.jsize, v)
 
-type JPrimitiveType = jint | jfloat | jboolean | jdouble | jshort | jlong | jchar
+type JPrimitiveType = jint | jfloat | jboolean | jdouble | jshort | jlong | jchar | jbyte
 
 proc toJValue*[T: JPrimitiveType](a: openarray[T], res: var jvalue) {.inline.} =
     res.l = currentEnv.newArrayOfType(a.len.jsize, T)
@@ -521,7 +521,10 @@ proc toJValue*[T: JPrimitiveType](a: openarray[T], res: var jvalue) {.inline.} =
     {.emit: "`pt` = `a`;".}
     currentEnv.setArrayRegion(res.l, 0, a.len.jsize, pt)
 
-proc jarrayToSeqImpl[T: JPrimitiveType](env: JNIEnvPtr, arr: jobject, res: var seq[T]) {.inline.} =
+proc jarrayToSeqImpl[T: JPrimitiveType](env: JNIEnvPtr, arr: jarray, res: var seq[T]) {.inline.} =
+  res = nil
+  if arr == nil:
+    return
   let length = env.getArrayLength(arr)
   res = newSeq[T](length.int)
   env.getArrayRegion(arr, 0, length, addr(res[0]))
@@ -587,7 +590,7 @@ template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID
     elif T is string:
         env.getString(currentEnv.getObjectField(o, fieldId))
     elif T is seq:
-        T(jarrayToSeq(env, env.getObjectField(o, fieldId), T))
+        T(jarrayToSeq(env, env.getObjectField(o, fieldId).jarray, T))
     else:
         T(env.getObjectField(o, fieldId))
 
@@ -613,7 +616,7 @@ template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmeth
     elif T is void:
         env.callVoidMethod(o, methodID, args)
     elif T is seq:
-        T(jarrayToSeq(env, env.callObjectMethod(o, methodID, args), T))
+        T(jarrayToSeq(env, env.callObjectMethod(o, methodID, args).jarray, T))
     else:
         T(env.callObjectMethod(o, methodID, args))
 
