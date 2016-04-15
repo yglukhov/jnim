@@ -107,6 +107,8 @@ type
         FindClass: proc(env: JNIEnvPtr, name: cstring): jclass {.cdecl.}
         GetObjectClass: proc(env: JNIEnvPtr, obj: jobject): jclass {.cdecl.}
         NewStringUTF: proc(env: JNIEnvPtr, s: cstring): jstring {.cdecl.}
+
+
         GetStringUTFChars: proc(env: JNIEnvPtr, s: jstring, isCopy: ptr jboolean): cstring {.cdecl.}
         ReleaseStringUTFChars: proc(env: JNIEnvPtr, s: jstring, cstr: cstring) {.cdecl.}
         GetMethodID: proc(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID {.cdecl.}
@@ -178,6 +180,8 @@ type
         ExceptionOccurred: proc(env: JNIEnvPtr): jthrowable {.cdecl.}
         ExceptionDescribe: proc(env: JNIEnvPtr) {.cdecl.}
         ExceptionClear: proc(env: JNIEnvPtr) {.cdecl.}
+
+        GetArrayLength: proc(env: JNIEnvPtr, arr: jarray): jsize {.cdecl.}
 
         NewBooleanArray: proc(env: JNIEnvPtr, len: jsize): jbooleanArray {.cdecl.}
         NewByteArray: proc(env: JNIEnvPtr, len: jsize): jbyteArray {.cdecl.}
@@ -383,6 +387,8 @@ template getStaticMethodID*(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): 
     env.GetStaticMethodID(env, clazz, name, sig)
 template newObjectArray*(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray =
     env.NewObjectArray(env, size, clazz, init)
+template getArrayLength*(env: JNIEnvPtr, arr: jarray): jsize =
+    env.GetArrayLength(env, arr)
 
 template getObjectArrayElement*(env: JNIEnvPtr, arr: jobjectArray, index: jsize): jobject =
     env.GetObjectArrayElement(env, arr, index)
@@ -515,6 +521,14 @@ proc toJValue*[T: JPrimitiveType](a: openarray[T], res: var jvalue) {.inline.} =
     {.emit: "`pt` = `a`;".}
     currentEnv.setArrayRegion(res.l, 0, a.len.jsize, pt)
 
+proc jarrayToSeqImpl[T: JPrimitiveType](env: JNIEnvPtr, arr: jobject, res: var seq[T]) {.inline.} =
+  let length = env.getArrayLength(arr)
+  res = newSeq[T](length.int)
+  env.getArrayRegion(arr, 0, length, addr(res[0]))
+
+proc jarrayToSeq[T: JPrimitiveType](env: JNIEnvPtr, arr: jarray, t: typedesc[seq[T]]): seq[T] {.inline.} =
+  env.jarrayToSeqImpl(arr, result)
+
 proc newJavaVM*(options: openarray[string] = []): JavaVM =
     linkWithJVMLib()
     result.new()
@@ -550,7 +564,7 @@ template methodSignatureForType*(t: typedesc[jdouble]): string = "D"
 template methodSignatureForType*(t: typedesc[string]): string = "Ljava/lang/String;"
 template methodSignatureForType*(t: typedesc[void]): string = "V"
 
-proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = []): auto = dummy[0]
+proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = @[]): auto = dummy[0]
 template methodSignatureForType*(t: typedesc[openarray]): string = "[" & methodSignatureForType(type(elementTypeOfOpenArrayType[t]()))
 
 template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID): expr =
@@ -572,6 +586,8 @@ template getFieldOfType*(env: JNIEnvPtr, T: typedesc, o: expr, fieldId: jfieldID
         env.getDoubleField(o, fieldId)
     elif T is string:
         env.getString(currentEnv.getObjectField(o, fieldId))
+    elif T is seq:
+        T(jarrayToSeq(env, env.getObjectField(o, fieldId), T))
     else:
         T(env.getObjectField(o, fieldId))
 
@@ -596,6 +612,8 @@ template callMethodOfType*(env: JNIEnvPtr, T: typedesc, o: expr, methodId: jmeth
         env.getString(currentEnv.callObjectMethod(o, methodID, args))
     elif T is void:
         env.callVoidMethod(o, methodID, args)
+    elif T is seq:
+        T(jarrayToSeq(env, env.callObjectMethod(o, methodID, args), T))
     else:
         T(env.callObjectMethod(o, methodID, args))
 

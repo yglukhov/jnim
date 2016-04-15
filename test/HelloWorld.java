@@ -6,6 +6,7 @@ public class HelloWorld {
     int intField = 3;
     boolean boolField = true;
     String stringField = "SomeString";
+    char[] charArrayField = "ABC".toCharArray();
 
     public static class InnerHolder {
         public static class InnerClass {
@@ -49,5 +50,12 @@ public class HelloWorld {
 
     public void performThrow() {
         throw new IllegalArgumentException();
+    }
+
+    public int[] getIntArray() {
+        int[] arr = new int[3];
+        for(int i = 0; i < 3; i++)
+            arr[i] = i+1;
+        return arr;
     }
 }

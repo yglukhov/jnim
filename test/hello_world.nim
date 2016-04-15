@@ -53,6 +53,10 @@ jnimport:
 
     proc performThrow(h: HelloWorld)
 
+    proc getIntArray(h: HelloWorld): seq[jint]
+
+    proc charArrayField(h: HelloWorld): seq[jchar] {.property.}
+
 
 echo "Calling first constructor..."
 let hw1 = HelloWorld.new()
@@ -65,6 +69,12 @@ HelloWorld.main(["yglukhov"])
 
 echo "Calling function with array of ints"
 doAssert(hw2.sum([1.jint, 2, 3]) == 6)
+
+echo "Calling function that returns array of ints"
+doAssert(hw2.getIntArray() == @[1.jint, 2, 3])
+
+echo "Get char array field"
+doAssert(hw2.charArrayField == @[ord('A').jchar, ord('B'), ord('C')])
 
 echo "Calling method of the inner class"
 let ic = InnerClass.new
