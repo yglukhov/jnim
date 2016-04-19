@@ -57,6 +57,7 @@ jnimport:
 
     proc charArrayField(h: HelloWorld): seq[jchar] {.property.}
 
+    proc getStringArray(h: HelloWorld): seq[string]
 
 echo "Calling first constructor..."
 let hw1 = HelloWorld.new()
@@ -72,6 +73,9 @@ doAssert(hw2.sum([1.jint, 2, 3]) == 6)
 
 echo "Calling function that returns array of ints"
 doAssert(hw2.getIntArray() == @[1.jint, 2, 3])
+
+echo "Calling function that returns array of strings"
+doAssert(hw2.getStringArray() == @["Hello", "world!"])
 
 echo "Get char array field"
 doAssert(hw2.charArrayField == @[ord('A').jchar, ord('B'), ord('C')])
@@ -92,9 +96,13 @@ doAssert(hw1.intField == 8)
 # The following mwthod should throw
 var thrown = false
 try:
+    echo "Waiting for exception..."
     hw1.performThrow()
 except JavaError:
     thrown = true
+    let e = (ref JavaError)(getCurrentException())
+    echo "Exception msg: ", e.msg
+    echo "Stack is ", e.fullStackTrace
 
 doAssert(thrown)
 

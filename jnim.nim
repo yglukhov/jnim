@@ -521,15 +521,24 @@ proc toJValue*[T: JPrimitiveType](a: openarray[T], res: var jvalue) {.inline.} =
     {.emit: "`pt` = `a`;".}
     currentEnv.setArrayRegion(res.l, 0, a.len.jsize, pt)
 
-proc jarrayToSeqImpl[T: JPrimitiveType](env: JNIEnvPtr, arr: jarray, res: var seq[T]) {.inline.} =
+template jarrayToSeqImpl[T](env: JNIEnvPtr, arr: jarray, res: var seq[T]) =
   res = nil
   if arr == nil:
     return
   let length = env.getArrayLength(arr)
   res = newSeq[T](length.int)
-  env.getArrayRegion(arr, 0, length, addr(res[0]))
+  when T is JPrimitiveType:
+    env.getArrayRegion(arr, 0, length, addr(res[0]))
+  elif compiles(res[0].jobject): # imported types are distinct objects
+    for i in 0..<res.len:
+      res[i] = env.getObjectArrayElement(arr.jobjectArray, i.jsize).T
+  elif T is string:
+    for i in 0..<res.len:
+      res[i] = env.getString(env.getObjectArrayElement(arr.jobjectArray, i.jsize).jstring)
+  else:
+    {.fatal: "Sequences is not supported for the supplied type".}
 
-proc jarrayToSeq[T: JPrimitiveType](env: JNIEnvPtr, arr: jarray, t: typedesc[seq[T]]): seq[T] {.inline.} =
+proc jarrayToSeq[T](env: JNIEnvPtr, arr: jarray, t: typedesc[seq[T]]): seq[T] {.inline.} =
   env.jarrayToSeqImpl(arr, result)
 
 proc newJavaVM*(options: openarray[string] = []): JavaVM =
@@ -874,14 +883,24 @@ macro jnimportEx*(e: expr): stmt =
 
 jnimport:
     import java.lang.Throwable
-    import java.lang.StackTraceElement
+    import java.io.StringWriter
+    import java.io.PrintWriter
+    import java.io.Writer
 
-    #proc getMessage(t: Throwable): string
     proc toString(t: Throwable): string
+    proc new(t: typedesc[PrintWriter], w: Writer)
+    proc printStackTrace(t: Throwable, w: PrintWriter)
+    proc new(t: typedesc[StringWriter])
+    proc toString(w: StringWriter): string
 
 proc newExceptionWithJavaException(ex: jthrowable): ref JavaError =
     let mess = Throwable(ex).toString()
+    let sw = StringWriter.new
+    let pw = PrintWriter.new(sw.Writer)
+    Throwable(ex).printStackTrace(pw)
+    let stack = sw.toString.strip
     result = newException(JavaError, mess)
+    result.fullStackTrace = stack
 
 proc checkForException() =
     let jex = currentEnv.exceptionOccurred()

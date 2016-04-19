@@ -58,4 +58,11 @@ public class HelloWorld {
             arr[i] = i+1;
         return arr;
     }
+
+    public String[] getStringArray() {
+        String[] arr = new String[2];
+        arr[0] = "Hello";
+        arr[1] = "world!";
+        return arr;
+    }
 }
