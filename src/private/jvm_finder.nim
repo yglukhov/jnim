@@ -72,4 +72,13 @@ proc findJVM*(opts: set[JVMSearchOpts] = {JVMSearchOpts.JavaHome, JVMSearchOpts.
     .orElse(() => (if JVMSearchOpts.CurrentEnv in opts: searchInCurrentEnv() else: JVMPath.none))
     .rightS
 
-const CT_JVM* = findJVM().get.get ## Compile time JVM
+proc findCtJVM: JVMPath {.compileTime.} =
+  var jvmE = findJVM()
+  if jvmE.isLeft:
+    quit "Can't find installed JVM. Error: " & jvmE.errorMsg
+  let jvmO = jvmE.get
+  if not jvmO.isDefined:
+    quit "JVM not found. Please set JAVA_HOME environment variable"
+  jvmO.get
+
+const CT_JVM* = findCtJVM() ## Compile time JVM
