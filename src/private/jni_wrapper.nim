@@ -1,5 +1,6 @@
 import os,
-       dynlib
+       dynlib,
+       strutils
 
 from jvm_finder import CT_JVM
 
@@ -50,15 +51,15 @@ type
   jdoubleArray* {.header: JNI_HDR.} = jarray
 
   jvalue* {.header: JNI_HDR, union.} = object
-    z: jboolean
-    b: jbyte
-    c: jchar
-    s: jshort
-    i: jint
-    j: jlong
-    f: jfloat
-    d: jdouble
-    l: jobject
+    z*: jboolean
+    b*: jbyte
+    c*: jchar
+    s*: jshort
+    i*: jint
+    j*: jlong
+    f*: jfloat
+    d*: jdouble
+    l*: jobject
 
 const JVM_TRUE* = 1.jboolean
 const JVM_FALSE* = 0.jboolean
@@ -74,8 +75,7 @@ const JNIInvokeInterfaceImportName = when defined(android):
                                        "struct JNIInvokeInterface_"
 
 type
-  JNIInvokeInterface* {.importc: JNIInvokeInterfaceImportName, nodecl, header: JNI_HDR.} = object
-    reserved0, reserved1, reserved2: pointer
+  JNIInvokeInterface* {.importc: JNIInvokeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
     DestroyJavaVM*: proc(vm: JavaVMPtr): jint {.cdecl.}
     AttachCurrentThread*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
     DetachCurrentThread*: proc(vm: JavaVMPtr): jint {.cdecl.}
@@ -92,21 +92,35 @@ type
     options*: ptr JavaVMOption
     ignoreUnrecognized*: jboolean
 
-#TODO: Do we really need incompleteStruct pragma? For what?
   JNINativeInterface* {.importc: JNINativeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
-    reserved0: pointer
-    reserved1: pointer
-    reserved2: pointer
-    reserved3: pointer
     GetVersion*: proc(env: JNIEnvPtr): jint {.cdecl.}
+    ExceptionCheck*: proc(env: JNIEnvPtr): jboolean {.cdecl.}
+    GetObjectClass*: proc(env: JNIEnvPtr, obj: jobject): jclass {.cdecl.}
+    FindClass*: proc(env: JNIEnvPtr, name: cstring): jclass {.cdecl.}
+    NewStringUTF*: proc(env: JNIEnvPtr, s: cstring): jstring {.cdecl.}
+    NewGlobalRef*: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
+    NewLocalRef*: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
+    DeleteGlobalRef*: proc(env: JNIEnvPtr, obj: jobject) {.cdecl.}
+    DeleteLocalRef*: proc(env: JNIEnvPtr, obj: jobject) {.cdecl.}
+
+    GetStaticFieldID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jfieldID {.cdecl.}
+    GetStaticMethodID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jmethodID {.cdecl.}
+    GetFieldID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jfieldID {.cdecl.}
+    GetMethodID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jmethodID {.cdecl.}
+
+    GetObjectField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jobject {.cdecl.}
+    GetStaticObjectField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jobject {.cdecl.}
+
+    CallVoidMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+
   JNIEnv* = ptr JNINativeInterface
   JNIEnvPtr* = ptr JNIEnv
 
-var JNI_VERSION_1_1* {.header: JNI_HDR.} : jint
-var JNI_VERSION_1_2* {.header: JNI_HDR.} : jint
-var JNI_VERSION_1_4* {.header: JNI_HDR.} : jint
-var JNI_VERSION_1_6* {.header: JNI_HDR.} : jint
-var JNI_VERSION_1_8* {.header: JNI_HDR.} : jint
+const JNI_VERSION_1_1* = 0x00010001.jint
+const JNI_VERSION_1_2* = 0x00010002.jint
+const JNI_VERSION_1_4* = 0x00010004.jint
+const JNI_VERSION_1_6* = 0x00010006.jint
+const JNI_VERSION_1_8* = 0x00010008.jint
 
 var JNI_CreateJavaVM*: proc (pvm: ptr JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
 var JNI_GetDefaultJavaVMInitArgs*: proc(vm_args: ptr JavaVMInitArgs): jint {.cdecl.}
@@ -152,3 +166,18 @@ proc linkWithJVMLib* =
 
   if not isJVMLoaded():
     raise newException(Exception, "JVM could not be loaded")
+
+proc fqcn*(cls: string): string =
+  ## Create fullqualified class name
+  result = "L" & cls.replace(".", "/") & ";"
+
+proc toJValue*(v: cfloat): jvalue = result.f = v
+proc toJValue*(v: jdouble): jvalue = result.d = v
+proc toJValue*(v: jint): jvalue = result.i = v
+proc toJValue*(v: jlong): jvalue = result.j = v
+proc toJValue*(v: jboolean): jvalue = result.z = v
+proc toJValue*(v: jbyte): jvalue = result.b = v
+proc toJValue*(v: jchar): jvalue = result.c = v
+proc toJValue*(v: jshort): jvalue = result.s = v
+proc toJValue*(v: jobject): jvalue = result.l = v
+
