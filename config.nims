@@ -38,6 +38,11 @@ proc test(name: string) =
   --run
   buildExe true, "bin" / "test_" & name, "tests" / "test_" & name 
 
-
 task test, "Run all tests":
+  test "all"
+
+task test_jbridge, "Run jbridge test":
   test "jbridge"
+
+task test_jni_wrapper, "Run jni_wrapper test":
+  test "jni_wrapper"

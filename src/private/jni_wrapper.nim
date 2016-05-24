@@ -60,28 +60,47 @@ type
     d: jdouble
     l: jobject
 
+const JVM_TRUE* = 1.jboolean
+const JVM_FALSE* = 0.jboolean
+
 const JNINativeInterfaceImportName = when defined(android):
                                        "struct JNINativeInterface"
                                      else:
                                        "struct JNINativeInterface_"
 
-#TODO: Do we really need incompleteStruct pragma? For what?
-# type JNINativeInterface* {.importc: JNINativeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = 
+const JNIInvokeInterfaceImportName = when defined(android):
+                                       "struct JNIInvokeInterface"
+                                     else:
+                                       "struct JNIInvokeInterface_"
+
 type
-  JNINativeInterface* {.importc: JNINativeInterfaceImportName, nodecl, header: JNI_HDR.} = object
-    GetVersion*: proc(env: JNIEnvPtr): jint {.cdecl.}
-  JNIEnv* = ptr JNINativeInterface
-  JNIEnvPtr* = ptr JNIEnv
-  JavaVMPtr* {.header: JNI_HDR.} = pointer
+  JNIInvokeInterface* {.importc: JNIInvokeInterfaceImportName, nodecl, header: JNI_HDR.} = object
+    reserved0, reserved1, reserved2: pointer
+    DestroyJavaVM*: proc(vm: JavaVMPtr): jint {.cdecl.}
+    AttachCurrentThread*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
+    DetachCurrentThread*: proc(vm: JavaVMPtr): jint {.cdecl.}
+    GetEnv*: proc(vm: JavaVMPtr, penv: ptr pointer, version: jint): jint {.cdecl.}
+    AttachCurrentThreadAsDaemon*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
+  JavaVM* = ptr JNIInvokeInterface
+  JavaVMPtr* = ptr JavaVM
   JavaVMOption* {.header: JNI_HDR.} = object
     optionString*: cstring
     extraInfo*: pointer
   JavaVMInitArgs* {.header: JNI_HDR.} = object
     version*: jint
-
     nOptions*: jint
     options*: ptr JavaVMOption
     ignoreUnrecognized*: jboolean
+
+#TODO: Do we really need incompleteStruct pragma? For what?
+  JNINativeInterface* {.importc: JNINativeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
+    reserved0: pointer
+    reserved1: pointer
+    reserved2: pointer
+    reserved3: pointer
+    GetVersion*: proc(env: JNIEnvPtr): jint {.cdecl.}
+  JNIEnv* = ptr JNINativeInterface
+  JNIEnvPtr* = ptr JNIEnv
 
 var JNI_VERSION_1_1* {.header: JNI_HDR.} : jint
 var JNI_VERSION_1_2* {.header: JNI_HDR.} : jint
