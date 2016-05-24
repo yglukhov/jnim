@@ -1,4 +1,4 @@
-import fp.list, fp.either, fp.option, future, os, osproc, strutils
+import future, os, osproc, strutils, fp.option, fp.list
 
 type
   JVMPath* = tuple[
@@ -61,24 +61,18 @@ proc searchInCurrentEnv: Option[JVMPath] =
   searchInJavaProcessOutput(runJavaProcess())
 
 proc findJVM*(opts: set[JVMSearchOpts] = {JVMSearchOpts.JavaHome, JVMSearchOpts.CurrentEnv},
-              additionalPaths = Nil[string]()): EitherS[Option[JVMPath]] =
+              additionalPaths = Nil[string]()): Option[JVMPath] =
   ## Find the path to JVM. First it tries to find it in ``additionalPaths``,
   ## then it tries the ``JAVA_HOME`` environment variable if ``JVMSearchOpts.JavaHome`` is set in ``opts``,
   ## and at least, it tries to get it calling java executable in the
   ## current environment if ``JVMSearchOpts.CurrentEnv`` is set in ``opts``.
-  flatTryS do () -> auto:
-    searchInPaths(additionalPaths)
-    .orElse(() => (if JVMSearchOpts.JavaHome in opts: searchInJavaHome() else: JVMPath.none))
-    .orElse(() => (if JVMSearchOpts.CurrentEnv in opts: searchInCurrentEnv() else: JVMPath.none))
-    .rightS
+  searchInPaths(additionalPaths)
+  .orElse(() => (if JVMSearchOpts.JavaHome in opts: searchInJavaHome() else: JVMPath.none))
+  .orElse(() => (if JVMSearchOpts.CurrentEnv in opts: searchInCurrentEnv() else: JVMPath.none))
 
 proc findCtJVM: JVMPath {.compileTime.} =
-  var jvmE = findJVM()
-  if jvmE.isLeft:
-    quit "Can't find installed JVM. Error: " & jvmE.errorMsg
-  let jvmO = jvmE.get
-  if not jvmO.isDefined:
-    quit "JVM not found. Please set JAVA_HOME environment variable"
+  let jvmO = findJVM()
+  assert jvmO.isDefined, "JVM not found. Please set JAVA_HOME environment variable"
   jvmO.get
 
 const CT_JVM* = findCtJVM() ## Compile time JVM

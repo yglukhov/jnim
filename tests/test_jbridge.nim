@@ -1,4 +1,4 @@
-import jbridge, unittest, fp.either
+import jbridge, unittest, fp.option
 
 suite "jbridge":
   test "Find JVM":
