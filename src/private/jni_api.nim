@@ -89,6 +89,8 @@ type
   JVMObject* = ref object
     obj: jobject
 
+proc jniSig*(T: typedesc[JVMObject]): string = fqcn"java.lang.Object"
+  
 #################################################################################################### 
 # Exception handling
 
@@ -147,6 +149,65 @@ proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
 proc get*(c: JVMClass): jclass =
   c.cls
 
+# Static fields
+
+proc getStaticFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
+  checkInit
+  (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, sig)).newJVMFieldID
+  
+proc getStaticFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
+  checkInit
+  (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
+
+proc getObject*(c: JVMClass, id: JVMFieldID): JVMObject =
+  checkInit
+  (callVM theEnv.GetStaticObjectField(theEnv, c.get, id.get)).newJVMObject
+
+proc getObject*(c: JVMClass, name: string): JVMObject =
+  checkInit
+  (callVM theEnv.GetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, JVMObject).get)).newJVMObject
+
+proc get*(o: JVMObject): jobject
+
+proc setObject*(c: JVMClass, id: JVMFieldID, o: JVMObject) =
+  checkInit
+  theEnv.SetStaticObjectField(theEnv, c.get, id.get, o.get)
+  checkException
+
+proc setObject*(c: JVMClass, name: string, o: JVMObject) =
+  checkInit
+  theEnv.SetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, JVMObject).get, o.get)
+  checkException
+
+template genStaticField(typ: typedesc, typName: untyped): stmt =
+  proc `get typName`*(c: JVMClass, id: JVMFieldID): `typ` =
+    checkInit
+    (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, id.get))
+
+  proc `get typName`*(c: JVMClass, name: string): `typ` =
+    checkInit
+    (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get))
+
+  proc `set typName`*(c: JVMClass, id: JVMFieldID, v: `typ`) =
+    checkInit
+    theEnv.`SetStatic typName Field`(theEnv, c.get, id.get, v)
+    checkException
+    
+  proc `set typName`*(c: JVMClass, name: string, v: `typ`) =
+    checkInit
+    theEnv.`SetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get, v)
+    checkException
+    
+
+genStaticField(jchar, Char)
+genStaticField(jbyte, Byte)
+genStaticField(jshort, Short)
+genStaticField(jint, Int)
+genStaticField(jlong, Long)
+genStaticField(jfloat, Float)
+genStaticField(jdouble, Double)
+genStaticField(jboolean, Boolean)
+  
 proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
   checkInit
   (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
@@ -155,18 +216,6 @@ proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
   checkInit
   (callVM theEnv.GetStaticMethodID(theEnv, c.get, name, sig)).newJVMMethodID
   
-proc getStaticFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
-  checkInit
-  (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, sig)).newJVMFieldID
-  
-proc getStaticFieldId*[T](c: JVMClass, name: string): JVMFieldID =
-  checkInit
-  (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(T))).newJVMFieldID
-  
-proc getStaticObjectField*(c: JVMClass, id: JVMFieldID): JVMObject =
-  checkInit
-  (callVM theEnv.GetStaticObjectField(theEnv, c.get, id.get)).newJVMObject
-
 proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue]) =
   checkInit
   theEnv.CallStaticVoidMethodA(theEnv, c.get, id.get, unsafeAddr args[0])
@@ -174,6 +223,7 @@ proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue]) =
 
 ####################################################################################################
 # JVMObject type
+
 proc freeJVMObject(o: JVMObject) =
   if o.obj != nil and theEnv != nil:
     theEnv.DeleteLocalRef(theEnv, o.obj)
