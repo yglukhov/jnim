@@ -159,55 +159,6 @@ proc getStaticFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
   checkInit
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
 
-proc getObject*(c: JVMClass, id: JVMFieldID): JVMObject =
-  checkInit
-  (callVM theEnv.GetStaticObjectField(theEnv, c.get, id.get)).newJVMObject
-
-proc getObject*(c: JVMClass, name: string): JVMObject =
-  checkInit
-  (callVM theEnv.GetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, JVMObject).get)).newJVMObject
-
-proc get*(o: JVMObject): jobject
-
-proc setObject*(c: JVMClass, id: JVMFieldID, o: JVMObject) =
-  checkInit
-  theEnv.SetStaticObjectField(theEnv, c.get, id.get, o.get)
-  checkException
-
-proc setObject*(c: JVMClass, name: string, o: JVMObject) =
-  checkInit
-  theEnv.SetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, JVMObject).get, o.get)
-  checkException
-
-template genStaticField(typ: typedesc, typName: untyped): stmt =
-  proc `get typName`*(c: JVMClass, id: JVMFieldID): `typ` =
-    checkInit
-    (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, id.get))
-
-  proc `get typName`*(c: JVMClass, name: string): `typ` =
-    checkInit
-    (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get))
-
-  proc `set typName`*(c: JVMClass, id: JVMFieldID, v: `typ`) =
-    checkInit
-    theEnv.`SetStatic typName Field`(theEnv, c.get, id.get, v)
-    checkException
-    
-  proc `set typName`*(c: JVMClass, name: string, v: `typ`) =
-    checkInit
-    theEnv.`SetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get, v)
-    checkException
-    
-
-genStaticField(jchar, Char)
-genStaticField(jbyte, Byte)
-genStaticField(jshort, Short)
-genStaticField(jint, Int)
-genStaticField(jlong, Long)
-genStaticField(jfloat, Float)
-genStaticField(jdouble, Double)
-genStaticField(jboolean, Boolean)
-  
 proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
   checkInit
   (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
@@ -267,3 +218,48 @@ proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue]) =
   checkInit
   theEnv.CallVoidMethodA(theEnv, o.get, id.get, unsafeAddr args[0])
   checkException
+
+####################################################################################################
+# Fields accessors generation
+
+template genField(typ: typedesc, typName: untyped): stmt =
+  proc `get typName`*(c: JVMClass, id: JVMFieldID): `typ` =
+    checkInit
+    when `typ` is JVMObject:
+      (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, id.get)).newJVMObject
+    else:
+      (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, id.get))
+
+  proc `get typName`*(c: JVMClass, name: string): `typ` =
+    checkInit
+    when `typ` is JVMObject:
+      (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get)).newJVMObject
+    else:
+      (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get))
+
+  proc `set typName`*(c: JVMClass, id: JVMFieldID, v: `typ`) =
+    checkInit
+    when `typ` is JVMObject:
+      theEnv.`SetStatic typName Field`(theEnv, c.get, id.get, v.get)
+    else:
+      theEnv.`SetStatic typName Field`(theEnv, c.get, id.get, v)
+    checkException
+    
+  proc `set typName`*(c: JVMClass, name: string, v: `typ`) =
+    checkInit
+    when `typ` is JVMObject:
+      theEnv.`SetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get, v.get)
+    else:
+      theEnv.`SetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get, v)
+    checkException
+
+genField(JVMObject, Object)
+genField(jchar, Char)
+genField(jbyte, Byte)
+genField(jshort, Short)
+genField(jint, Int)
+genField(jlong, Long)
+genField(jfloat, Float)
+genField(jdouble, Double)
+genField(jboolean, Boolean)
+  
