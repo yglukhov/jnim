@@ -146,11 +146,11 @@ const JNI_VERSION_1_4* = 0x00010004.jint
 const JNI_VERSION_1_6* = 0x00010006.jint
 const JNI_VERSION_1_8* = 0x00010008.jint
 
-var JNI_CreateJavaVM*: proc (pvm: ptr JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
-var JNI_GetDefaultJavaVMInitArgs*: proc(vm_args: ptr JavaVMInitArgs): jint {.cdecl.}
-var JNI_GetCreatedJavaVMs*: proc(vmBuf: ptr JavaVMPtr, bufLen: jsize, nVMs: ptr jsize): jint {.cdecl.}
+var JNI_CreateJavaVM*: proc (pvm: ptr JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl, gcsafe.}
+var JNI_GetDefaultJavaVMInitArgs*: proc(vm_args: ptr JavaVMInitArgs): jint {.cdecl, gcsafe.}
+var JNI_GetCreatedJavaVMs*: proc(vmBuf: ptr JavaVMPtr, bufLen: jsize, nVMs: ptr jsize): jint {.cdecl, gcsafe.}
 
-proc isJVMLoaded*: bool =
+proc isJVMLoaded*: bool {.gcsafe.} =
   not JNI_CreateJavaVM.isNil and not JNI_GetDefaultJavaVMInitArgs.isNil and not JNI_GetCreatedJavaVMs.isNil
 
 proc linkWithJVMLib* =

@@ -26,6 +26,8 @@ proc buildExe(debug: bool, bin: string, src: string) =
     --stacktrace: on
     --linetrace: on
     --verbosity: 1
+
+  --threads: on
     
   --NimblePath: src
   --NimblePath: srcDir

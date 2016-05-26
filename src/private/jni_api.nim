@@ -15,14 +15,17 @@ type
   ]
 
 var theOptions = JVMOptions.none
+# Options for another threads
+var theOptionsPtr: pointer
 var theVM: JavaVMPtr
 var theEnv {.threadVar}: JNIEnvPtr
 
-proc initJNIThread*
+proc initJNIThread* {.gcsafe.}
 proc initJNI*(version: JNIVersion, options: seq[string]) =
   ## Setup JNI API
   jniAssert(not theOptions.isDefined, "JNI API already initialized, you must deinitialize it first")
   theOptions = (version, options).some
+  theOptionsPtr = cast[pointer](theOptions)
   initJNIThread()
 
 # This is not supported, as it said here: http://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/invocation.html#destroy_java_vm:
@@ -35,6 +38,7 @@ when false:
       return
     jniCall theVM.DestroyJavaVM(theVM), "Error deinitializing JNI"
     theOptions = JVMOptions.none
+    theOptionsPtr = nil
     theVM = nil
     theEnv = nil
 
@@ -42,10 +46,10 @@ proc initJNIThread* =
   ## Setup JNI API thread
   if theEnv != nil:
     return
-  if not theOptions.isDefined:
+  if theOptionsPtr == nil:
     raise newJNIException("You must initialize JNI API before using it")
 
-  let o = theOptions.get
+  let o = cast[type(theOptions)](theOptionsPtr).get
   var args: JavaVMInitArgs
   args.version = o.version.jint
   args.nOptions = o.options.len.jint
@@ -68,6 +72,8 @@ proc deinitJNIThread* =
     return
   discard theVM.DetachCurrentThread(theVM)
   theEnv = nil
+
+proc isJNIThreadInitialized*: bool = theEnv != nil
 
 template checkInit = jniAssert(theEnv != nil, "You must call initJNIThread before using JNI API")
 
