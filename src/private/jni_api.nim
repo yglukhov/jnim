@@ -77,17 +77,143 @@ proc isJNIThreadInitialized*: bool = theEnv != nil
 
 template checkInit = jniAssert(theEnv != nil, "You must call initJNIThread before using JNI API")
 
+####################################################################################################
+# Types
 type
+  JVMMethodID* = ref object
+    id: jmethodID
+  JVMFieldID* = ref object
+    id: jfieldID
+  JVMClass* = ref object
+    cls: jclass
   JVMObject* = ref object
-    o: jobject
+    obj: jobject
 
+#################################################################################################### 
+# Exception handling
+
+type
+  JavaException* = object of Exception
+
+proc newJavaException*(msg: string): ref JavaException =
+  newException(JavaException, msg)
+
+proc newJVMObject*(o: jobject): JVMObject
+proc toStringRaw*(o: JVMObject): string
+template checkException: stmt =
+  #TODO: Add stack trace support
+  if theEnv != nil and theEnv.ExceptionCheck(theEnv) == JVM_TRUE:
+    let ex = theEnv.ExceptionOccurred(theEnv).newJVMObject
+    theEnv.ExceptionClear(theEnv)
+    raise newJavaException(ex.toStringRaw)
+  
+macro callVM(s: expr): expr =
+  result = quote do:
+    let res = `s`
+    checkException()
+    res
+
+####################################################################################################
+# JVMMethodID type
+proc newJVMMethodID*(id: jmethodID): JVMMethodID =
+  JVMMethodID(id: id)
+
+proc get*(id: JVMMethodID): jmethodID =
+  id.id
+
+####################################################################################################
+# JVMFieldID type
+proc newJVMFieldID*(id: jfieldID): JVMFieldID =
+  JVMFieldID(id: id)
+
+proc get*(id: JVMFieldID): jfieldID =
+  id.id
+
+####################################################################################################
+# JVMClass type
+proc newJVMClass*(c: jclass): JVMClass =
+  JVMClass(cls: c)
+
+proc getByFqcn*(T: typedesc[JVMClass], name: string): JVMClass =
+  ## Finds class by it's full qualified class name
+  checkInit
+  let c = callVM theEnv.FindClass(theEnv, name)
+  c.newJVMClass
+
+proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
+  ## Finds class by it's name (not fqcn)
+  T.getByFqcn(name.fqcn)
+
+proc get*(c: JVMClass): jclass =
+  c.cls
+
+proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
+  checkInit
+  (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
+
+proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
+  checkInit
+  (callVM theEnv.GetStaticMethodID(theEnv, c.get, name, sig)).newJVMMethodID
+  
+proc getStaticFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
+  checkInit
+  (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, sig)).newJVMFieldID
+  
+proc getStaticFieldId*[T](c: JVMClass, name: string): JVMFieldID =
+  checkInit
+  (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(T))).newJVMFieldID
+  
+proc getStaticObjectField*(c: JVMClass, id: JVMFieldID): JVMObject =
+  checkInit
+  (callVM theEnv.GetStaticObjectField(theEnv, c.get, id.get)).newJVMObject
+
+proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue]) =
+  checkInit
+  theEnv.CallStaticVoidMethodA(theEnv, c.get, id.get, unsafeAddr args[0])
+  checkException
+
+####################################################################################################
+# JVMObject type
 proc freeJVMObject(o: JVMObject) =
-  if o.o != nil and theEnv != nil:
-    theEnv.DeleteLocalRef(theEnv, o.o)
+  if o.obj != nil and theEnv != nil:
+    theEnv.DeleteLocalRef(theEnv, o.obj)
 
 proc newJVMObject*(o: jobject): JVMObject =
   new(result, freeJVMObject)
-  result.o = o
+  result.obj = o
+
+proc newJVMObject*(s: string): JVMObject =
+  (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObject
 
 proc get*(o: JVMObject): jobject =
-  o.o
+  o.obj
+
+proc toJValue*(o: JVMObject): jvalue =
+  o.get.toJValue
+
+proc getClass*(o: JVMObject): JVMClass =
+  checkInit
+  (callVM theEnv.GetObjectClass(theEnv, o.get)).newJVMClass
+  
+proc toStringRaw(o: JVMObject): string =
+  # This is low level ``toString`` version
+  let cls = theEnv.GetObjectClass(theEnv, o.obj)
+  jniAssertEx(cls.pointer != nil, "Can't find object's class")
+  let mthId = theEnv.GetMethodID(theEnv, cls, "toString", "()" & string.jniSig)
+  jniAssertEx(mthId != nil, "Can't find ``toString`` method")
+  let s = theEnv.CallObjectMethodA(theEnv, o.obj, mthId, nil).jstring
+  defer:
+    if s != nil:
+      theEnv.DeleteLocalRef(theEnv, s)
+  if s == nil:
+    return nil
+  let cs = theEnv.GetStringUTFChars(theEnv, s, nil)
+  defer:
+    if cs != nil:
+      theEnv.ReleaseStringUTFChars(theEnv, s, cs)
+  $cs
+
+proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue]) =
+  checkInit
+  theEnv.CallVoidMethodA(theEnv, o.get, id.get, unsafeAddr args[0])
+  checkException

@@ -35,6 +35,10 @@ template jniAssert*(call: expr): stmt =
     
 template jniAssert*(call: expr, msg: string): stmt =
   if not `call`:
+    raise newJNIException(msg)
+    
+template jniAssertEx*(call: expr, msg: string): stmt =
+  if not `call`:
     raise newJNIException(msg & " (" & call.astToStr & " is false)")
     
 template jniCall*(call: expr): stmt =
@@ -43,6 +47,11 @@ template jniCall*(call: expr): stmt =
     raise newJNIException(call.astToStr & " returned " & $res)
 
 template jniCall*(call: expr, msg: string): stmt =
+  let res = `call`
+  if res != 0.jint:
+    raise newJNIException(msg & " (result = " & $res & ")")
+
+template jniCallEx*(call: expr, msg: string): stmt =
   let res = `call`
   if res != 0.jint:
     raise newJNIException(msg & " (" & call.astToStr & " returned " & $res & ")")
@@ -119,8 +128,12 @@ type
   JNINativeInterface* {.importc: JNINativeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
     GetVersion*: proc(env: JNIEnvPtr): jint {.cdecl.}
     ExceptionCheck*: proc(env: JNIEnvPtr): jboolean {.cdecl.}
+    ExceptionOccurred*: proc(env: JNIEnvPtr): jthrowable {.cdecl.}
+    ExceptionClear*: proc(env: JNIEnvPtr) {.cdecl.}
     GetObjectClass*: proc(env: JNIEnvPtr, obj: jobject): jclass {.cdecl.}
     FindClass*: proc(env: JNIEnvPtr, name: cstring): jclass {.cdecl.}
+    GetStringUTFChars*: proc(env: JNIEnvPtr, s: jstring, isCopy: ptr jboolean): cstring {.cdecl.}
+    ReleaseStringUTFChars*: proc(env: JNIEnvPtr, s: jstring, cstr: cstring) {.cdecl.}
     NewStringUTF*: proc(env: JNIEnvPtr, s: cstring): jstring {.cdecl.}
     NewGlobalRef*: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
     NewLocalRef*: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
@@ -135,7 +148,10 @@ type
     GetObjectField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jobject {.cdecl.}
     GetStaticObjectField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jobject {.cdecl.}
 
+    CallStaticVoidMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
     CallVoidMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+
+    CallObjectMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
 
   JNIEnv* = ptr JNINativeInterface
   JNIEnvPtr* = ptr JNIEnv
