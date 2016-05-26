@@ -1,2 +1,3 @@
 import test_jni_wrapper
+import test_jni_api
 import test_jbridge

@@ -24,6 +24,30 @@ elif defined linux:
 {.warning[SmallLshouldNotBeUsed]: off.}
 
 type
+  JNIException* = object of Exception
+
+proc newJNIException*(msg: string): ref JNIException =
+  newException(JNIException, msg)
+
+template jniAssert*(call: expr): stmt =
+  if not `call`:
+    raise newJNIException(call.astToStr & " is false")
+    
+template jniAssert*(call: expr, msg: string): stmt =
+  if not `call`:
+    raise newJNIException(msg & " (" & call.astToStr & " is false)")
+    
+template jniCall*(call: expr): stmt =
+  let res = `call`
+  if res != 0.jint:
+    raise newJNIException(call.astToStr & " returned " & $res)
+
+template jniCall*(call: expr, msg: string): stmt =
+  let res = `call`
+  if res != 0.jint:
+    raise newJNIException(msg & " (" & call.astToStr & " returned " & $res & ")")
+
+type
   jint* {.header: JNI_HDR.} = cint
   jsize* {.header: JNI_HDR.} = jint
   jchar* {.header: JNI_HDR.} = uint16
@@ -180,4 +204,31 @@ proc toJValue*(v: jbyte): jvalue = result.b = v
 proc toJValue*(v: jchar): jvalue = result.c = v
 proc toJValue*(v: jshort): jvalue = result.s = v
 proc toJValue*(v: jobject): jvalue = result.l = v
+
+template fromJValue*(T: typedesc, v: jvalue): auto =
+  when T is jboolean: v.z
+  elif T is jbyte: v.b
+  elif T is jchar: v.c
+  elif T is jshort: v.s
+  elif T is jint: v.i
+  elif T is jlong: v.j
+  elif T is jfloat: v.f
+  elif T is jdouble: v.d
+  elif T is jobject: v.l
+  else:
+    {.error: "wrong type".}
+
+template jniSig*(t: typedesc[jlong]): string = "J"
+template jniSig*(t: typedesc[jint]): string = "I"
+template jniSig*(t: typedesc[jboolean]): string = "Z"
+template jniSig*(t: typedesc[bool]): string = "Z"
+template jniSig*(t: typedesc[jbyte]): string = "B"
+template jniSig*(t: typedesc[jchar]): string = "C"
+template jniSig*(t: typedesc[jshort]): string = "S"
+template jniSig*(t: typedesc[jfloat]): string = "F"
+template jniSig*(t: typedesc[jdouble]): string = "D"
+template jniSig*(t: typedesc[string]): string = fqcn"java.lang.String"
+template jniSig*(t: typedesc[void]): string = "V"
+proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = @[]): auto = dummy[0]
+template jniSig*(t: typedesc[openarray]): string = "[" & jniSig(type(elementTypeOfOpenArrayType[t]()))
 

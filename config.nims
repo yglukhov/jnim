@@ -46,3 +46,6 @@ task test_jbridge, "Run jbridge test":
 
 task test_jni_wrapper, "Run jni_wrapper test":
   test "jni_wrapper"
+
+task test_jni_api, "Run jni_api test":
+  test "jni_api"

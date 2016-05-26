@@ -28,7 +28,7 @@ suite "jni_wrapper":
   test "JNI - call static method":
     let cls = env.FindClass(env, fqcn"java.lang.System")
     chkEx
-    let outId = env.GetStaticFieldID(env, cls, "out", fqcn"java.io.PrintStream");
+    let outId = env.GetStaticFieldID(env, cls, "out", fqcn"java.io.PrintStream")
     chkEx
     let `out` = env.GetStaticObjectField(env, cls, outId)
     chkEx
