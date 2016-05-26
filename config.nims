@@ -11,6 +11,9 @@ import ospaths
 const BIN_DIR = "bin"
 const BUILD_DIR = "build"
 
+template dep(name: untyped): untyped =
+  exec "nim " & astToStr(name)
+
 proc buildExe(debug: bool, bin: string, src: string) =
   switch("out", (thisDir() & "/" & bin).toExe)
   switch("nimcache", BUILD_DIR)
@@ -40,7 +43,15 @@ proc test(name: string) =
   --run
   buildExe true, "bin" / "test_" & name, "tests" / "test_" & name 
 
+proc javac(file: string, outDir: string) =
+  exec "javac".toExe & " -d " & outDir & " " & file
+
+task int_test_bootstrap, "Prepare test environment":
+  BUILD_DIR.mkDir
+  javac "tests/java/TestClass.java", BUILD_DIR
+
 task test, "Run all tests":
+  dep int_test_bootstrap
   test "all"
 
 task test_jbridge, "Run jbridge test":
@@ -50,4 +61,5 @@ task test_jni_wrapper, "Run jni_wrapper test":
   test "jni_wrapper"
 
 task test_jni_api, "Run jni_api test":
+  dep int_test_bootstrap
   test "jni_api"
