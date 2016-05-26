@@ -38,7 +38,7 @@ suite "jni_api":
     expect Exception:
       discard JVMClass.getByName("java.lang.ObjectThatNotExists")
 
-  test "API - call static method":
+  test "API - call System.out.println":
     let cls = JVMClass.getByName("java.lang.System")
     let outId = cls.getStaticFieldId("out", fqcn"java.io.PrintStream")
     let `out` = cls.getStaticObjectField(outId)

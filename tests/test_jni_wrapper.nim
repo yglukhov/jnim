@@ -25,7 +25,7 @@ suite "jni_wrapper":
   template chkEx: stmt = 
     require env.ExceptionCheck(env) == JVM_FALSE
 
-  test "JNI - call static method":
+  test "JNI - call System.out.println":
     let cls = env.FindClass(env, fqcn"java.lang.System")
     chkEx
     let outId = env.GetStaticFieldID(env, cls, "out", fqcn"java.io.PrintStream")
