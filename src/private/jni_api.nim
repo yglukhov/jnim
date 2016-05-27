@@ -88,6 +88,8 @@ type
     cls: jclass
   JVMObject* = ref object
     obj: jobject
+  JVMArray*[T: JVMValueType] = ref object
+    arr*: arrayType(T)
 
 proc jniSig*(T: typedesc[JVMObject]): string = fqcn"java.lang.Object"
   
@@ -370,3 +372,14 @@ genMethod(jlong, Long)
 genMethod(jfloat, Float)
 genMethod(jdouble, Double)
 genMethod(jboolean, Boolean)
+
+####################################################################################################
+# Arrays support
+
+proc freeJVMArray(a: JVMArray) =
+  if a.arr != nil and theEnv != nil:
+    theEnv.DeleteLocalRef(theEnv, a.arr)
+
+proc newJVMArray*[T: JVMArrayType](arr: T): JVMArray[valueType(T)] =
+  new(result, freeJVMArray)
+  result.arr = arr

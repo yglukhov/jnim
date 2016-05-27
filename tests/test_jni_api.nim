@@ -1,7 +1,8 @@
 import private.jni_api,
        threadpool,
        unittest,
-       strutils
+       strutils,
+       typetraits
 
 suite "jni_api":
   test "API - Initialization":
@@ -139,3 +140,7 @@ suite "jni_api":
     check: obj.callFloatMethod("floatSMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
     check: obj.callDoubleMethod("doubleSMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
     check: obj.callBooleanMethod("booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
+
+  test "JVM - arrays":
+    var arr = newJVMArray(nil.jobjectArray)
+    check: name(type(arr.arr)) == "jobjectArray"

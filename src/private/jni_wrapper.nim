@@ -1,6 +1,7 @@
 import os,
        dynlib,
-       strutils
+       strutils,
+       macros
 
 from jvm_finder import CT_JVM
 
@@ -207,6 +208,53 @@ type
     CallLongMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
     CallFloatMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
     CallDoubleMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
+    
+    GetArrayLength*: proc(env: JNIEnvPtr, arr: jarray): jsize {.cdecl.}
+
+    NewBooleanArray*: proc(env: JNIEnvPtr, len: jsize): jbooleanArray {.cdecl.}
+    NewByteArray*: proc(env: JNIEnvPtr, len: jsize): jbyteArray {.cdecl.}
+    NewCharArray*: proc(env: JNIEnvPtr, len: jsize): jcharArray {.cdecl.}
+    NewShortArray*: proc(env: JNIEnvPtr, len: jsize): jshortArray {.cdecl.}
+    NewIntArray*: proc(env: JNIEnvPtr, len: jsize): jintArray {.cdecl.}
+    NewLongArray*: proc(env: JNIEnvPtr, len: jsize): jlongArray {.cdecl.}
+    NewFloatArray*: proc(env: JNIEnvPtr, len: jsize): jfloatArray {.cdecl.}
+    NewDoubleArray*: proc(env: JNIEnvPtr, len: jsize): jdoubleArray {.cdecl.}
+
+    GetBooleanArrayElements*: proc(env: JNIEnvPtr, arr: jbooleanArray, isCopy: ptr jboolean): ptr jboolean {.cdecl.}
+    GetByteArrayElements*: proc(env: JNIEnvPtr, arr: jbyteArray, isCopy: ptr jboolean): ptr jbyte {.cdecl.}
+    GetCharArrayElements*: proc(env: JNIEnvPtr, arr: jcharArray, isCopy: ptr jboolean): ptr jchar {.cdecl.}
+    GetShortArrayElements*: proc(env: JNIEnvPtr, arr: jshortArray, isCopy: ptr jboolean): ptr jshort {.cdecl.}
+    GetIntArrayElements*: proc(env: JNIEnvPtr, arr: jintArray, isCopy: ptr jboolean): ptr jint {.cdecl.}
+    GetLongArrayElements*: proc(env: JNIEnvPtr, arr: jlongArray, isCopy: ptr jboolean): ptr jlong {.cdecl.}
+    GetFloatArrayElements*: proc(env: JNIEnvPtr, arr: jfloatArray, isCopy: ptr jboolean): ptr jfloat {.cdecl.}
+    GetDoubleArrayElements*: proc(env: JNIEnvPtr, arr: jdoubleArray, isCopy: ptr jboolean): ptr jdouble {.cdecl.}
+
+    ReleaseBooleanArrayElements*: proc(env: JNIEnvPtr, arr: jbooleanArray, elems: ptr jboolean, mode: jint) {.cdecl.}
+    ReleaseByteArrayElements*: proc(env: JNIEnvPtr, arr: jbyteArray, elems: ptr jbyte, mode: jint) {.cdecl.}
+    ReleaseCharArrayElements*: proc(env: JNIEnvPtr, arr: jcharArray, elems: ptr jchar, mode: jint) {.cdecl.}
+    ReleaseShortArrayElements*: proc(env: JNIEnvPtr, arr: jshortArray, elems: ptr jshort, mode: jint) {.cdecl.}
+    ReleaseIntArrayElements*: proc(env: JNIEnvPtr, arr: jintArray, elems: ptr jint, mode: jint) {.cdecl.}
+    ReleaseLongArrayElements*: proc(env: JNIEnvPtr, arr: jlongArray, elems: ptr jlong, mode: jint) {.cdecl.}
+    ReleaseFloatArrayElements*: proc(env: JNIEnvPtr, arr: jfloatArray, elems: ptr jfloat, mode: jint) {.cdecl.}
+    ReleaseDoubleArrayElements*: proc(env: JNIEnvPtr, arr: jdoubleArray, elems: ptr jdouble, mode: jint) {.cdecl.}
+
+    GetBooleanArrayRegion*: proc(env: JNIEnvPtr, arr: jbooleanArray, start, len: jsize, buf: ptr jboolean) {.cdecl.}
+    GetByteArrayRegion*: proc(env: JNIEnvPtr, arr: jbyteArray, start, len: jsize, buf: ptr jbyte) {.cdecl.}
+    GetCharArrayRegion*: proc(env: JNIEnvPtr, arr: jcharArray, start, len: jsize, buf: ptr jchar) {.cdecl.}
+    GetShortArrayRegion*: proc(env: JNIEnvPtr, arr: jshortArray, start, len: jsize, buf: ptr jshort) {.cdecl.}
+    GetIntArrayRegion*: proc(env: JNIEnvPtr, arr: jintArray, start, len: jsize, buf: ptr jint) {.cdecl.}
+    GetLongArrayRegion*: proc(env: JNIEnvPtr, arr: jlongArray, start, len: jsize, buf: ptr jlong) {.cdecl.}
+    GetFloatArrayRegion*: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
+    GetDoubleArrayRegion*: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
+
+    SetBooleanArrayRegion*: proc(env: JNIEnvPtr, arr: jbooleanArray, start, len: jsize, buf: ptr jboolean) {.cdecl.}
+    SetByteArrayRegion*: proc(env: JNIEnvPtr, arr: jbyteArray, start, len: jsize, buf: ptr jbyte) {.cdecl.}
+    SetCharArrayRegion*: proc(env: JNIEnvPtr, arr: jcharArray, start, len: jsize, buf: ptr jchar) {.cdecl.}
+    SetShortArrayRegion*: proc(env: JNIEnvPtr, arr: jshortArray, start, len: jsize, buf: ptr jshort) {.cdecl.}
+    SetIntArrayRegion*: proc(env: JNIEnvPtr, arr: jintArray, start, len: jsize, buf: ptr jint) {.cdecl.}
+    SetLongArrayRegion*: proc(env: JNIEnvPtr, arr: jlongArray, start, len: jsize, buf: ptr jlong) {.cdecl.}
+    SetFloatArrayRegion*: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
+    SetDoubleArrayRegion*: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
 
   JNIEnv* = ptr JNINativeInterface
   JNIEnvPtr* = ptr JNIEnv
@@ -303,3 +351,68 @@ template jniSig*(t: typedesc[void]): string = "V"
 proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = @[]): auto = dummy[0]
 template jniSig*(t: typedesc[openarray]): string = "[" & jniSig(type(elementTypeOfOpenArrayType[t]()))
 
+type
+  JVMArrayType* = jobjectArray |
+    jcharArray |
+    jbyteArray |
+    jshortArray |
+    jintArray |
+    jlongArray |
+    jfloatArray |
+    jdoubleArray |
+    jbooleanArray
+  JVMValueType* = jobject |
+    jchar |
+    jbyte |
+    jshort |
+    jint |
+    jlong |
+    jfloat |
+    jdouble |
+    jboolean
+
+template valueType*(T: typedesc): typedesc =
+  when T is jobjectArray:
+    jobject
+  elif T is jcharArray:
+    jchar
+  elif T is jbyteArray:
+    jbyte
+  elif T is jshortArray:
+    jshort
+  elif T is jintArray:
+    jint
+  elif T is jlongArray:
+    jlong
+  elif T is jfloatArray:
+    jfloat
+  elif T is jdoubleArray:
+    jdouble
+  elif T is jbooleanArray:
+    jboolean
+  else:
+    quit("Can't use type " & astToStr(T) & " with java's arrays")
+    jobject
+
+template arrayType*(T: typedesc): typedesc =
+  when T is jobject:
+    jobjectArray
+  elif T is jchar:
+    jcharArray
+  elif T is jbyte:
+    jbyteArray
+  elif T is jshort:
+    jshortArray
+  elif T is jint:
+    jintArray
+  elif T is jlong:
+    jlongArray
+  elif T is jfloat:
+    jfloatArray
+  elif T is jdouble:
+    jdoubleArray
+  elif T is jboolean:
+    jbooleanArray
+  else:
+    quit("Can't use type " & astToStr(T) & " with java's arrays")
+    jobjectArray
