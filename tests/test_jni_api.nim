@@ -81,8 +81,7 @@ suite "jni_api":
 
   test "API - TestClass - fields":
     let cls = JVMClass.getByName("TestClass")
-    let cons = cls.getMethodId("<init>", "()V")
-    let obj = cls.newObject(cons, [])
+    let obj = cls.newObject("()V")
     
     check: obj.getObject("objectField").toStringRaw == "obj"
     check: obj.getChar("charField") == 'A'.jchar
@@ -113,3 +112,16 @@ suite "jni_api":
     check: obj.getFloat("floatField") == 500.0
     check: obj.getDouble("doubleField") == 600.0
     check: obj.getBoolean("booleanField") == JVM_FALSE
+
+  test "JVM - TestClass - static methods":
+    let cls = JVMClass.getByName("TestClass")
+
+    check: cls.callObjectMethod("objectSMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
+    check: cls.callCharMethod("charSMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
+    check: cls.callByteMethod("byteSMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
+    check: cls.callShortMethod("shortSMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
+    check: cls.callIntMethod("intSMethod", "($1)$1" % jint.jniSig, [3.jint.toJValue]) == 3
+    check: cls.callLongMethod("longSMethod", "($1)$1" % jlong.jniSig, [4.jlong.toJValue]) == 4
+    check: cls.callFloatMethod("floatSMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
+    check: cls.callDoubleMethod("doubleSMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
+    check: cls.callBooleanMethod("booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE

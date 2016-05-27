@@ -175,15 +175,27 @@ proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
   checkInit
   (callVM theEnv.GetStaticMethodID(theEnv, c.get, name, sig)).newJVMMethodID
   
-proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue]) =
+proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []) =
   checkInit
-  theEnv.CallStaticVoidMethodA(theEnv, c.get, id.get, if args.len == 0: nil else: unsafeAddr args[0])
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  theEnv.CallStaticVoidMethodA(theEnv, c.get, id.get, a)
   checkException
 
-proc newObject*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue]): JVMObject =
+proc callVoidMethod*(c: JVMClass, name, sig: string, args: openarray[jvalue] = []) =
+  checkInit
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  theEnv.CallStaticVoidMethodA(theEnv, c.get, c.getStaticMethodId(name, sig).get, a)
+  checkException
+
+proc newObject*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): JVMObject =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
   (callVM theEnv.NewobjectA(theEnv, c.get, id.get, a)).newJVMObject
+
+proc newObject*(c: JVMClass, sig: string, args: openarray[jvalue] = []): JVMObject =
+  checkInit
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  (callVM theEnv.NewobjectA(theEnv, c.get, c.getMethodId("<init>", sig).get, a)).newJVMObject
 
 ####################################################################################################
 # JVMObject type
@@ -227,9 +239,16 @@ proc toStringRaw(o: JVMObject): string =
       theEnv.ReleaseStringUTFChars(theEnv, s, cs)
   $cs
 
-proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue]) =
+proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []) =
   checkInit
-  theEnv.CallVoidMethodA(theEnv, o.get, id.get, unsafeAddr args[0])
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  theEnv.CallVoidMethodA(theEnv, o.get, id.get, a)
+  checkException
+
+proc callVoidMethod*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []) =
+  checkInit
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  theEnv.CallVoidMethodA(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)
   checkException
 
 ####################################################################################################
@@ -306,3 +325,32 @@ genField(jfloat, Float)
 genField(jdouble, Double)
 genField(jboolean, Boolean)
   
+####################################################################################################
+# Methods generation
+
+template genMethod(typ: typedesc, typName: untyped): stmt =
+  proc `call typName Method`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `typ` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    when `typ` is JVMObject:
+      (callVM theEnv.`CallStatic typName MethodA`(theEnv, c.get, id.get, a)).newJVMObject
+    else:
+      callVM theEnv.`CallStatic typName MethodA`(theEnv, c.get, id.get, a)
+
+  proc `call typName Method`*(c: JVMClass, name, sig: string, args: openarray[jvalue] = []): `typ` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    when `typ` is JVMObject:
+      (callVM theEnv.`CallStatic typName MethodA`(theEnv, c.get, c.getStaticMethodId(name, sig).get, a)).newJVMObject
+    else:
+      callVM theEnv.`CallStatic typName MethodA`(theEnv, c.get, c.getStaticMethodId(name, sig).get, a)
+
+genMethod(JVMObject, Object)
+genMethod(jchar, Char)
+genMethod(jbyte, Byte)
+genMethod(jshort, Short)
+genMethod(jint, Int)
+genMethod(jlong, Long)
+genMethod(jfloat, Float)
+genMethod(jdouble, Double)
+genMethod(jboolean, Boolean)

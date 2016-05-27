@@ -21,4 +21,32 @@ public class TestClass {
     public double doubleField = 2.0;
     public boolean booleanField = true;
 
+    // Static methods
+    public static Object objectSMethod(Object v) {
+        return v;
+    }
+    public static char charSMethod(char v) {
+        return v;
+    }
+    public static byte byteSMethod(byte v) {
+        return v;
+    }
+    public static short shortSMethod(short v) {
+        return v;
+    }
+    public static int intSMethod(int v) {
+        return v;
+    }
+    public static long longSMethod(long v) {
+        return v;
+    }
+    public static float floatSMethod(float v) {
+        return v;
+    }
+    public static double doubleSMethod(double v) {
+        return v;
+    }
+    public static boolean booleanSMethod(boolean v) {
+        return v;
+    }
 }
