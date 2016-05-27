@@ -159,6 +159,14 @@ proc getStaticFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
   checkInit
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
 
+proc getFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
+  checkInit
+  (callVM theEnv.GetFieldID(theEnv, c.get, name, sig)).newJVMFieldID
+  
+proc getFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
+  checkInit
+  (callVM theEnv.GetFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
+
 proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
   checkInit
   (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
@@ -169,8 +177,13 @@ proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
   
 proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue]) =
   checkInit
-  theEnv.CallStaticVoidMethodA(theEnv, c.get, id.get, unsafeAddr args[0])
+  theEnv.CallStaticVoidMethodA(theEnv, c.get, id.get, if args.len == 0: nil else: unsafeAddr args[0])
   checkException
+
+proc newObject*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue]): JVMObject =
+  checkInit
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  (callVM theEnv.NewobjectA(theEnv, c.get, id.get, a)).newJVMObject
 
 ####################################################################################################
 # JVMObject type
@@ -251,6 +264,36 @@ template genField(typ: typedesc, typName: untyped): stmt =
       theEnv.`SetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get, v.get)
     else:
       theEnv.`SetStatic typName Field`(theEnv, c.get, c.getStaticFieldId(`name`, `typ`).get, v)
+    checkException
+
+  proc `get typName`*(o: JVMObject, id: JVMFieldID): `typ` =
+    checkInit
+    when `typ` is JVMObject:
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, id.get)).newJVMObject
+    else:
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, id.get))
+
+  proc `get typName`*(o: JVMObject, name: string): `typ` =
+    checkInit
+    when `typ` is JVMObject:
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get)).newJVMObject
+    else:
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get))
+
+  proc `set typName`*(o: JVMObject, id: JVMFieldID, v: `typ`) =
+    checkInit
+    when `typ` is JVMObject:
+      theEnv.`Set typName Field`(theEnv, o.get, id.get, v.get)
+    else:
+      theEnv.`Set typName Field`(theEnv, o.get, id.get, v)
+    checkException
+    
+  proc `set typName`*(o: JVMObject, name: string, v: `typ`) =
+    checkInit
+    when `typ` is JVMObject:
+      theEnv.`Set typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get, v.get)
+    else:
+      theEnv.`Set typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get, v)
     checkException
 
 genField(JVMObject, Object)
