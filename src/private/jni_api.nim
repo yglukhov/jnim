@@ -345,6 +345,22 @@ template genMethod(typ: typedesc, typName: untyped): stmt =
     else:
       callVM theEnv.`CallStatic typName MethodA`(theEnv, c.get, c.getStaticMethodId(name, sig).get, a)
 
+  proc `call typName Method`*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []): `typ` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    when `typ` is JVMObject:
+      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, id.get, a)).newJVMObject
+    else:
+      callVM theEnv.`Call typName MethodA`(theEnv, o.get, id.get, a)
+
+  proc `call typName Method`*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []): `typ` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    when `typ` is JVMObject:
+      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getStaticMethodId(name, sig).get, a)).newJVMObject
+    else:
+      callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getStaticMethodId(name, sig).get, a)
+
 genMethod(JVMObject, Object)
 genMethod(jchar, Char)
 genMethod(jbyte, Byte)

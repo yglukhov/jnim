@@ -49,4 +49,33 @@ public class TestClass {
     public static boolean booleanSMethod(boolean v) {
         return v;
     }
+
+    // Methods
+    public Object objectMethod(Object v) {
+        return v;
+    }
+    public char charMethod(char v) {
+        return v;
+    }
+    public byte byteMethod(byte v) {
+        return v;
+    }
+    public short shortMethod(short v) {
+        return v;
+    }
+    public int intMethod(int v) {
+        return v;
+    }
+    public long longMethod(long v) {
+        return v;
+    }
+    public float floatMethod(float v) {
+        return v;
+    }
+    public double doubleMethod(double v) {
+        return v;
+    }
+    public boolean booleanMethod(boolean v) {
+        return v;
+    }
 }
