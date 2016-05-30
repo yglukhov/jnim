@@ -142,5 +142,7 @@ suite "jni_api":
     check: obj.callBooleanMethod("booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
 
   test "JVM - arrays":
-    var arr = newJVMArray(nil.jobjectArray)
-    check: name(type(arr.arr)) == "jobjectArray"
+    discard newJVMCharArray(100.jsize)
+    discard jchar.newArray(100)
+    discard newJVMObjectArray(100)
+    discard JVMClass.getByName("java.lang.Object").newArray(100)

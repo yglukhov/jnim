@@ -88,11 +88,9 @@ type
     cls: jclass
   JVMObject* = ref object
     obj: jobject
-  JVMArray*[T: JVMValueType] = ref object
-    arr*: arrayType(T)
+  JVMObjectArray* = ref object
+    arr: jobjectArray
 
-proc jniSig*(T: typedesc[JVMObject]): string = fqcn"java.lang.Object"
-  
 #################################################################################################### 
 # Exception handling
 
@@ -151,6 +149,11 @@ proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
 proc get*(c: JVMClass): jclass =
   c.cls
 
+proc newJVMObjectArray*(len: jsize, cls = JVMClass.getByName("java.lang.Object")): JVMObjectArray
+
+proc newArray*(c: JVMClass, len: int): JVMObjectArray =
+  newJVMObjectArray(len.jsize, c)
+
 # Static fields
 
 proc getStaticFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
@@ -202,6 +205,8 @@ proc newObject*(c: JVMClass, sig: string, args: openarray[jvalue] = []): JVMObje
 ####################################################################################################
 # JVMObject type
 
+proc jniSig*(T: typedesc[JVMObject]): string = fqcn"java.lang.Object"
+  
 proc freeJVMObject(o: JVMObject) =
   if o.obj != nil and theEnv != nil:
     theEnv.DeleteLocalRef(theEnv, o.obj)
@@ -376,10 +381,35 @@ genMethod(jboolean, Boolean)
 ####################################################################################################
 # Arrays support
 
-proc freeJVMArray(a: JVMArray) =
+template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
+  type `JVM typName Array`* = ref object
+    arr*: `arrTyp`
+
+  proc `freeJVM typName Array`(a: `JVM typName Array`) =
+    if a.arr != nil and theEnv != nil:
+      theEnv.DeleteLocalRef(theEnv, a.arr)
+
+  proc `newJVM typName Array`*(len: jsize): `JVM typName Array` =
+    checkInit
+    new(result, `freeJVM typName Array`)
+    result.arr = callVM theEnv.`New typName Array`(theEnv, len)
+
+  proc newArray*(t: typedesc[typ], len: int): `JVM typName Array` = `newJVM typName Array`(len.jsize)
+  
+genArrayType(jchar, jcharArray, Char)
+genArrayType(jbyte, jbyteArray, Byte)
+genArrayType(jshort, jshortArray, Short)
+genArrayType(jint, jintArray, Int)
+genArrayType(jlong, jlongArray, Long)
+genArrayType(jfloat, jfloatArray, Float)
+genArrayType(jdouble, jdoubleArray, Double)
+genArrayType(jboolean, jbooleanArray, Boolean)
+
+proc freeJVMObjectArray(a: JVMObjectArray) =
   if a.arr != nil and theEnv != nil:
     theEnv.DeleteLocalRef(theEnv, a.arr)
 
-proc newJVMArray*[T: JVMArrayType](arr: T): JVMArray[valueType(T)] =
-  new(result, freeJVMArray)
-  result.arr = arr
+proc newJVMObjectArray*(len: jsize, cls = JVMClass.getByName("java.lang.Object")): JVMObjectArray =
+  checkInit
+  new(result, freeJVMObjectArray)
+  result.arr = callVM theEnv.NewObjectArray(theEnv, len, cls.get, nil)

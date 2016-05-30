@@ -210,6 +210,8 @@ type
     CallDoubleMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
     
     GetArrayLength*: proc(env: JNIEnvPtr, arr: jarray): jsize {.cdecl.}
+    
+    NewObjectArray*: proc(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray {.cdecl.}
 
     NewBooleanArray*: proc(env: JNIEnvPtr, len: jsize): jbooleanArray {.cdecl.}
     NewByteArray*: proc(env: JNIEnvPtr, len: jsize): jbyteArray {.cdecl.}
@@ -391,8 +393,8 @@ template valueType*(T: typedesc): typedesc =
   elif T is jbooleanArray:
     jboolean
   else:
-    quit("Can't use type " & astToStr(T) & " with java's arrays")
-    jobject
+    {.error: "Can't use type " & astToStr(T) & " with java's arrays".}
+    discard
 
 template arrayType*(T: typedesc): typedesc =
   when T is jobject:
@@ -414,5 +416,5 @@ template arrayType*(T: typedesc): typedesc =
   elif T is jboolean:
     jbooleanArray
   else:
-    quit("Can't use type " & astToStr(T) & " with java's arrays")
-    jobjectArray
+    {.error: "Can't use type " & astToStr(T) & " with java's arrays".}
+    discard
