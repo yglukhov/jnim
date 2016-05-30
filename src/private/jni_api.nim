@@ -88,8 +88,6 @@ type
     cls: jclass
   JVMObject* = ref object
     obj: jobject
-  JVMObjectArray* = ref object
-    arr: jobjectArray
 
 #################################################################################################### 
 # Exception handling
@@ -149,17 +147,12 @@ proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
 proc get*(c: JVMClass): jclass =
   c.cls
 
-proc newJVMObjectArray*(len: jsize, cls = JVMClass.getByName("java.lang.Object")): JVMObjectArray
-
-proc newArray*(c: JVMClass, len: int): JVMObjectArray =
-  newJVMObjectArray(len.jsize, c)
-
 # Static fields
 
 proc getStaticFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
   checkInit
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, sig)).newJVMFieldID
-  
+
 proc getStaticFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
   checkInit
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
@@ -167,7 +160,7 @@ proc getStaticFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
 proc getFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
   checkInit
   (callVM theEnv.GetFieldID(theEnv, c.get, name, sig)).newJVMFieldID
-  
+
 proc getFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
   checkInit
   (callVM theEnv.GetFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
@@ -179,7 +172,7 @@ proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
 proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
   checkInit
   (callVM theEnv.GetStaticMethodID(theEnv, c.get, name, sig)).newJVMMethodID
-  
+
 proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []) =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
@@ -259,6 +252,73 @@ proc callVoidMethod*(o: JVMObject, name, sig: string, args: openarray[jvalue] = 
   checkException
 
 ####################################################################################################
+# Reference handling
+proc newRef*(o: JVMObject): jobject =
+  checkInit
+  callVM theEnv.NewLocalRef(theEnv, o.get)
+  
+####################################################################################################
+# Arrays support
+
+template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
+
+  type `JVM typName Array`* = ref object
+    arr*: `arrTyp`
+
+  proc `freeJVM typName Array`(a: `JVM typName Array`) =
+    if a.arr != nil and theEnv != nil:
+      theEnv.DeleteLocalRef(theEnv, a.arr)
+
+  when not (`typ` is JVMObject):
+    proc `newJVM typName Array`*(len: jsize): `JVM typName Array` =
+      checkInit
+      new(result, `freeJVM typName Array`)
+      result.arr = callVM theEnv.`New typName Array`(theEnv, len)
+
+    proc newArray*(t: typedesc[typ], len: int): `JVM typName Array` = `newJVM typName Array`(len.jsize)
+
+  else:
+
+    proc `newJVM typName Array`*(len: jsize, cls = JVMClass.getByName("java.lang.Object")): `JVM typName Array` =
+      checkInit
+      new(result, freeJVMObjectArray)
+      result.arr = callVM theEnv.NewObjectArray(theEnv, len, cls.get, nil)
+
+    proc newArray*(c: JVMClass, len: int): `JVM typName Array` =
+      `newJVM typName Array`(len.jsize, c)
+
+  proc `newJVM typName Array`*(arr: jobject): `JVM typName Array` =
+    checkInit
+    new(result, `freeJVM typName Array`)
+    result.arr = arr.`arrTyp`
+
+  proc `newJVM typName Array`*(arr: JVMObject): `JVM typName Array` =
+    `newJVM typName Array`(arr.newRef)
+
+  proc newArray*(t: typedesc[typ], arr: jobject): `JVM typName Array` = `newJVM typName Array`(arr)
+
+  proc newArray*(t: typedesc[typ], arr: JVMObject): `JVM typName Array` =
+    `newJVM typName Array`(arr.newRef)
+  
+  proc `get typName Array`*(c: JVMClass, name: string): `JVM typName Array` =
+    checkInit
+    `typ`.newArray(callVM theEnv.GetStaticObjectField(theEnv, c.get, c.getStaticFieldId(`name`, seq[`typ`].jniSig).get))
+
+  proc `get typName Array`*(o: JVMObject, name: string): `JVM typName Array` =
+    checkInit
+    `typ`.newArray(callVM theEnv.GetObjectField(theEnv, o.get, o.getClass.getFieldId(`name`, seq[`typ`].jniSig).get))
+
+genArrayType(jchar, jcharArray, Char)
+genArrayType(jbyte, jbyteArray, Byte)
+genArrayType(jshort, jshortArray, Short)
+genArrayType(jint, jintArray, Int)
+genArrayType(jlong, jlongArray, Long)
+genArrayType(jfloat, jfloatArray, Float)
+genArrayType(jdouble, jdoubleArray, Double)
+genArrayType(jboolean, jbooleanArray, Boolean)
+genArrayType(JVMObject, jobjectArray, Object)
+
+####################################################################################################
 # Fields accessors generation
 
 template genField(typ: typedesc, typName: untyped): stmt =
@@ -331,7 +391,7 @@ genField(jlong, Long)
 genField(jfloat, Float)
 genField(jdouble, Double)
 genField(jboolean, Boolean)
-  
+
 ####################################################################################################
 # Methods generation
 
@@ -378,38 +438,3 @@ genMethod(jfloat, Float)
 genMethod(jdouble, Double)
 genMethod(jboolean, Boolean)
 
-####################################################################################################
-# Arrays support
-
-template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
-  type `JVM typName Array`* = ref object
-    arr*: `arrTyp`
-
-  proc `freeJVM typName Array`(a: `JVM typName Array`) =
-    if a.arr != nil and theEnv != nil:
-      theEnv.DeleteLocalRef(theEnv, a.arr)
-
-  proc `newJVM typName Array`*(len: jsize): `JVM typName Array` =
-    checkInit
-    new(result, `freeJVM typName Array`)
-    result.arr = callVM theEnv.`New typName Array`(theEnv, len)
-
-  proc newArray*(t: typedesc[typ], len: int): `JVM typName Array` = `newJVM typName Array`(len.jsize)
-  
-genArrayType(jchar, jcharArray, Char)
-genArrayType(jbyte, jbyteArray, Byte)
-genArrayType(jshort, jshortArray, Short)
-genArrayType(jint, jintArray, Int)
-genArrayType(jlong, jlongArray, Long)
-genArrayType(jfloat, jfloatArray, Float)
-genArrayType(jdouble, jdoubleArray, Double)
-genArrayType(jboolean, jbooleanArray, Boolean)
-
-proc freeJVMObjectArray(a: JVMObjectArray) =
-  if a.arr != nil and theEnv != nil:
-    theEnv.DeleteLocalRef(theEnv, a.arr)
-
-proc newJVMObjectArray*(len: jsize, cls = JVMClass.getByName("java.lang.Object")): JVMObjectArray =
-  checkInit
-  new(result, freeJVMObjectArray)
-  result.arr = callVM theEnv.NewObjectArray(theEnv, len, cls.get, nil)

@@ -144,5 +144,11 @@ suite "jni_api":
   test "JVM - arrays":
     discard newJVMCharArray(100.jsize)
     discard jchar.newArray(100)
-    discard newJVMObjectArray(100)
+    discard newJVMObjectArray(100.jsize)
     discard JVMClass.getByName("java.lang.Object").newArray(100)
+
+  test "JVM - TestClass - arrays":
+    let cls = JVMClass.getByName("TestClass")
+    let obj = cls.newObject("()V")
+    let arr = obj.getIntArray("intArray")
+    let sArr = cls.getCharArray("staticCharArray")

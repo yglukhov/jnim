@@ -78,4 +78,8 @@ public class TestClass {
     public boolean booleanMethod(boolean v) {
         return v;
     }
+
+    // Arrays
+    public int[] intArray = { 1, 2, 3, 4, 5 };
+    public static char[] staticCharArray = "Hello".toCharArray();
 }
