@@ -131,15 +131,15 @@ suite "jni_api":
     let cls = JVMClass.getByName("TestClass")
     let obj = cls.newObject("()V")
 
-    check: obj.callObjectMethod("objectSMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
-    check: obj.callCharMethod("charSMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
-    check: obj.callByteMethod("byteSMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
-    check: obj.callShortMethod("shortSMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
-    check: obj.callIntMethod("intSMethod", "($1)$1" % jint.jniSig, [3.jint.toJValue]) == 3
-    check: obj.callLongMethod("longSMethod", "($1)$1" % jlong.jniSig, [4.jlong.toJValue]) == 4
-    check: obj.callFloatMethod("floatSMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
-    check: obj.callDoubleMethod("doubleSMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
-    check: obj.callBooleanMethod("booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
+    check: obj.callObjectMethod("objectMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
+    check: obj.callCharMethod("charMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
+    check: obj.callByteMethod("byteMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
+    check: obj.callShortMethod("shortMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
+    check: obj.callIntMethod("intMethod", "($1)$1" % jint.jniSig, [3.jint.toJValue]) == 3
+    check: obj.callLongMethod("longMethod", "($1)$1" % jlong.jniSig, [4.jlong.toJValue]) == 4
+    check: obj.callFloatMethod("floatMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
+    check: obj.callDoubleMethod("doubleMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
+    check: obj.callBooleanMethod("booleanMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
 
   test "JVM - arrays":
     discard newJVMCharArray(100.jsize)
@@ -149,6 +149,23 @@ suite "jni_api":
 
   test "JVM - TestClass - arrays":
     let cls = JVMClass.getByName("TestClass")
+    let sArr = cls.getCharArray("staticCharArray")
+
+    check: sArr.len == 5
+    for idx, ch in "Hello":
+      check: sArr[idx] == ch.jchar
+
     let obj = cls.newObject("()V")
     let arr = obj.getIntArray("intArray")
-    let sArr = cls.getCharArray("staticCharArray")
+
+    check: arr.len == 5
+    for idx, i in [1,2,3,4,5]:
+      check: arr[idx] == i
+      arr[idx] = (i * 2).jint
+      check: arr[idx] == i * 2
+
+    let objArray = newJVMObjectArray(2)
+    objArray[0] = "Hello".newJVMObject
+    objArray[1] = "world!".newJVMObject
+    obj.setObjectArray("objectArray", objArray)
+    check: obj.callBooleanMethod("checkObjectArray", "()" & jboolean.jniSig) == JVM_TRUE

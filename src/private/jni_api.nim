@@ -262,8 +262,12 @@ proc newRef*(o: JVMObject): jobject =
 
 template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
 
+  # Creation
+
   type `JVM typName Array`* = ref object
-    arr*: `arrTyp`
+    arr: `arrTyp`
+
+  proc get*(arr: `JVM typName Array`): `arrTyp` = arr.arr
 
   proc `freeJVM typName Array`(a: `JVM typName Array`) =
     if a.arr != nil and theEnv != nil:
@@ -299,6 +303,8 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
 
   proc newArray*(t: typedesc[typ], arr: JVMObject): `JVM typName Array` =
     `newJVM typName Array`(arr.newRef)
+
+  # getters/setters
   
   proc `get typName Array`*(c: JVMClass, name: string): `JVM typName Array` =
     checkInit
@@ -307,6 +313,40 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
   proc `get typName Array`*(o: JVMObject, name: string): `JVM typName Array` =
     checkInit
     `typ`.newArray(callVM theEnv.GetObjectField(theEnv, o.get, o.getClass.getFieldId(`name`, seq[`typ`].jniSig).get))
+
+  proc `set typName Array`*(c: JVMClass, name: string, arr: `JVM typName Array`) =
+    checkInit
+    theEnv.SetStaticObjectField(theEnv, c.get, c.getStaticFieldId(`name`, seq[`typ`].jniSig).get, arr.arr)
+    checkException
+
+  proc `set typName Array`*(o: JVMObject, name: string, arr: `JVM typName Array`) =
+    checkInit
+    theEnv.SetObjectField(theEnv, o.get, o.getClass.getFieldId(`name`, seq[`typ`].jniSig).get, arr.arr)
+    checkException
+
+  # Array methods
+
+  proc len*(arr: `JVM typName Array`): jsize =
+    checkInit
+    callVM theEnv.GetArrayLength(theEnv, arr.get)
+
+  when `typ` is JVMObject:
+    proc `[]`*(arr: `JVM typName Array`, idx: Natural): JVMObject =
+      checkInit
+      (callVM theEnv.GetObjectArrayElement(theEnv, arr.get, idx.jsize)).newJVMObject
+    proc `[]=`*(arr: `JVM typName Array`, idx: Natural, obj: JVMObject) =
+      checkInit
+      theEnv.SetObjectArrayElement(theEnv, arr.get, idx.jsize, obj.get)
+      checkException
+  else:
+    proc `[]`*(arr: `JVM typName Array`, idx: Natural): `typ` =
+      checkInit
+      theEnv.`Get typName ArrayRegion`(theEnv, arr.get, idx.jsize, 1.jsize, addr result)
+      checkException
+    proc `[]=`*(arr: `JVM typName Array`, idx: Natural, v: `typ`) =
+      checkInit
+      theEnv.`Set typName ArrayRegion`(theEnv, arr.get, idx.jsize, 1.jsize, unsafeAddr v)
+      checkException
 
 genArrayType(jchar, jcharArray, Char)
 genArrayType(jbyte, jbyteArray, Byte)
@@ -424,9 +464,9 @@ template genMethod(typ: typedesc, typName: untyped): stmt =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
     when `typ` is JVMObject:
-      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getStaticMethodId(name, sig).get, a)).newJVMObject
+      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)).newJVMObject
     else:
-      callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getStaticMethodId(name, sig).get, a)
+      callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)
 
 genMethod(JVMObject, Object)
 genMethod(jchar, Char)

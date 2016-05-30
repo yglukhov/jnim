@@ -82,4 +82,14 @@ public class TestClass {
     // Arrays
     public int[] intArray = { 1, 2, 3, 4, 5 };
     public static char[] staticCharArray = "Hello".toCharArray();
+    public Object[] objectArray;
+    public boolean checkObjectArray() {
+        if(objectArray.length != 2)
+            return false;
+        if(!objectArray[0].equals("Hello"))
+            return false;
+        if(!objectArray[1].equals("world!"))
+            return false;
+        return true;
+    }
 }

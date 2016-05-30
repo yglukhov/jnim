@@ -213,6 +213,9 @@ type
     
     NewObjectArray*: proc(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray {.cdecl.}
 
+    GetObjectArrayElement*: proc(env: JNIEnvPtr, arr: jobjectArray, index: jsize): jobject {.cdecl.}
+    SetObjectArrayElement*: proc(env: JNIEnvPtr, arr: jobjectArray, index: jsize, val: jobject) {.cdecl.}
+
     NewBooleanArray*: proc(env: JNIEnvPtr, len: jsize): jbooleanArray {.cdecl.}
     NewByteArray*: proc(env: JNIEnvPtr, len: jsize): jbyteArray {.cdecl.}
     NewCharArray*: proc(env: JNIEnvPtr, len: jsize): jcharArray {.cdecl.}
