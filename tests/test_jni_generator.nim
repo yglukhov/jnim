@@ -96,18 +96,48 @@ suite "jni_generator":
     check: pd.isFinal
     check: pd.isExported
 
+  test "jni_generator - class def - header":
+    var cd: ClassDef
+    
+    parseClassDefTest cd:
+      java.lang.String of JVMObject
+
+    check: cd.name == "String"
+    check: cd.jName == "java.lang.String"
+    check: cd.parent == "JVMObject"
+    check: not cd.isExported
+
+    parseClassDefTest cd:
+      java.lang.String as JVMString of JVMObject
+
+    check: cd.name == "JVMString"
+    check: cd.jName == "java.lang.String"
+    check: cd.parent == "JVMObject"
+    check: not cd.isExported
+
+    parseClassDefTest cd:
+      java.lang.String* of JVMObject
+
+    check: cd.name == "String"
+    check: cd.jName == "java.lang.String"
+    check: cd.parent == "JVMObject"
+    check: cd.isExported
+
+    parseClassDefTest cd:
+      java.lang.String as JVMString* of JVMObject
+
+    check: cd.name == "JVMString"
+    check: cd.jName == "java.lang.String"
+    check: cd.parent == "JVMObject"
+    check: cd.isExported
+
   test "jni_generator - import class":
 
-    # jclass java.lang.String* of JVMObject:
-    #   proc new
-      # proc new(s: String)
-      # proc length*: jint
-      # proc test: String {.Static, Prop.}
-    
-    # jclass java.lang.String as JVMString* of JVMObject:
-    #   proc length: jint {.importc: "length".}
-
-    # jclass java.util.List*[T] as JVMList of JVMObject:
-    #   proc get(i: jint): T
-    
-    echo "Hi!"
+    jclass java.lang.String of JVMObject:
+      proc new
+    jclass java.lang.String as JVMString of JVMObject:
+      proc length: jint {.importc: "length".}
+    jclass java.lang.String* of JVMObject:
+      proc new
+    jclass java.lang.String as JVMString* of JVMObject:
+      proc length: jint {.importc: "length".}

@@ -3,6 +3,27 @@ import jni_api,
        macros,
        fp.option
 
+proc concat(s: varargs[string]): string = "(" & s.join() & ")"
+
+proc nodeToString(n: NimNode): string =
+  if n.kind == nnkIdent:
+    result = $n
+  elif n.kind == nnkAccQuoted:
+    result = ""
+    for s in n:
+      result &= s.nodeToString
+  elif n.kind == nnkStrLit:
+    result = n.strVal
+  elif n.kind == nnkDotExpr:
+    result = n[0].nodeToString & "." & n[1].nodeToString
+  elif n.kind == nnkInfix and n[0].nodeToString == "$":
+    result = n[1].nodeToString & "$" & n[2].nodeToString
+  else:
+    assert false, "Can't stringify " & $n.kind
+
+#################################################################################################### 
+# Proc signature parser 
+
 type
   ProcDef* = object
     name*: string
@@ -17,10 +38,8 @@ type
 proc initProcDef(name: string, jName: string, sig: string, isConstructor, isStatic, isProp, isFinal, isExported: bool): ProcDef =
   ProcDef(name: name, jName: jName, sig: sig, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isFinal: isFinal, isExported: isExported)
 
-const IdentPos = 0
-const ParamsPos = 3
-
-proc concat(s: varargs[string]): string = "(" & s.join() & ")"
+const ProcNamePos = 0
+const ProcParamsPos = 3
 
 proc getProcSignature*(n: NimNode): NimNode {.compileTime.} =
   expectKind n, nnkFormalParams
@@ -41,23 +60,11 @@ macro procSig*(v: untyped, e: expr): stmt =
   # Allow to use in tests
   let n = if e.kind == nnkStmtList: e[0] else: e
   expectKind n, nnkProcDef
-  expectKind n[IdentPos], {nnkIdent, nnkPostfix}
+  expectKind n[ProcNamePos], {nnkIdent, nnkPostfix}
   let i = newIdentNode($v)
-  let r = getProcSignature(n[ParamsPos])
+  let r = getProcSignature(n[ProcParamsPos])
   result = quote do:
     let `i` = `r`
-
-proc nodeToString(n: NimNode): string =
-  if n.kind == nnkIdent:
-    result = $n
-  elif n.kind == nnkAccQuoted:
-    result = ""
-    for s in n:
-      result &= s.nodeToString
-  elif n.kind == nnkStrLit:
-    result = n.strVal
-  else:
-    assert false, "Can't stringify " & $n.kind
 
 proc findPragma(n: NimNode, name: string): bool {.compileTime.} =
   for p in n.pragma:
@@ -76,7 +83,7 @@ proc findPragmaValue(n: NimNode, name: string): Option[string] {.compileTime.} =
 proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
   result = newStmtList()
   expectKind n, nnkProcDef
-  expectKind n[IdentPos], {nnkIdent, nnkPostfix}
+  expectKind n[ProcNamePos], {nnkIdent, nnkPostfix}
 
   var name,
       jName,
@@ -87,14 +94,14 @@ proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
       isFinal,
       isExported : NimNode
 
-  if n[IdentPos].kind == nnkPostfix:
-    assert $n[IdentPos][0].toStrLit == "*"
-    name = newStrLitNode(n[IdentPos][1].nodeToString)
+  if n[ProcNamePos].kind == nnkPostfix:
+    assert $n[ProcNamePos][0].toStrLit == "*"
+    name = newStrLitNode(n[ProcNamePos][1].nodeToString)
     isExported = bindSym"true"
   else:
-    name = newStrLitNode($n[IdentPos].nodeToString)
+    name = newStrLitNode($n[ProcNamePos].nodeToString)
     isExported = bindSym"false"
-  expectKind n[ParamsPos], nnkFormalParams
+  expectKind n[ProcParamsPos], nnkFormalParams
 
   # Check constructor by name
   if $name == "new":
@@ -105,7 +112,7 @@ proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
     let jn = findPragmaValue(n, "importc")
     jName = if jn.isDefined: newStrLitNode(jn.get) else: name.copyNimNode
 
-  sig = getProcSignature(n[ParamsPos])
+  sig = getProcSignature(n[ProcParamsPos])
 
   isStatic = if findPragma(n, "static"): bindSym"true" else: bindSym"false"
   isProp = if findPragma(n, "prop"): bindSym"true" else: bindSym"false"
@@ -117,11 +124,63 @@ proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
 macro parseProcDefTest*(i: untyped, s: expr): stmt =
   result = parseProcDef(s[0], i)
 
+####################################################################################################
+# Class definition parser
+
+type
+  ClassDef* = object
+    name*: string
+    jName*: string
+    parent*: string
+    isExported*: bool
+
+proc initClassDef(name, jName, parent: string, isExported: bool): ClassDef =
+  ClassDef(name: name, jName: jName, parent: parent, isExported: isExported)
+
+proc parseClassDef(c: NimNode, def: NimNode): NimNode {.compileTime.} =
+  expectKind c, nnkInfix
+  expectKind c[0], nnkIdent
+
+  var jNameNode,
+      nameNode,
+      parentNode: NimNode
+  var exported = false
+
+  if $c[0] == "of":
+    if c[1].kind == nnkInfix and $c[1][0] == "as":
+      jNameNode = c[1][1]
+      nameNode = c[1][2]
+      parentNode = c[2]
+    else:
+      jNameNode = c[1]
+      parentNode = c[2]
+      nameNode = if jNameNode.kind == nnkDotExpr: jNameNode[1].copyNimNode else: jNameNode.copyNimNode
+  else:
+    exported = true
+    if $c[0] == "as" and $c[2][0] == "*":
+      jNameNode = c[1]
+      nameNode = c[2][1]
+      parentNode = c[2][2][1]
+    elif $c[0] == "*":
+      jNameNode = c[1]
+      nameNode = if jNameNode.kind == nnkDotExpr: jNameNode[1].copyNimNode else: jNameNode.copyNimNode
+      parentNode = c[2][1]
+
+  let name = nameNode.nodeToString.newStrLitNode
+  let jName = jNameNode.nodeToString.newStrLitNode
+  let parent = parentNode.nodeToString.newStrLitNode
+  let isExported = if exported: bindSym"true" else: bindSym"false"
+
+  result = quote do:
+    `def` = initClassDef(`name`, `jName`, `parent`, `isExported`)
+  
+macro parseClassDefTest*(i: untyped, s: expr): stmt =
+  result = parseClassDef(s[0], i)
+
 macro jclass*(head: expr, body: expr): stmt =
   echo "HEAD:"
   echo head.treeRepr
-  echo "BODY:"
-  for son in body:
-    echo treeRepr(son)
-    # echo parseProcDef(son)
+  # echo "BODY:"
+  # for son in body:
+  #   echo treeRepr(son)
   result = newStmtList()
