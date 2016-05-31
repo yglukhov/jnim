@@ -54,8 +54,8 @@ task test, "Run all tests":
   dep int_test_bootstrap
   test "all"
 
-task test_jbridge, "Run jbridge test":
-  test "jbridge"
+task test_jvm_finder, "Run jvm_finder test":
+  test "jvm_finder"
 
 task test_jni_wrapper, "Run jni_wrapper test":
   test "jni_wrapper"
@@ -63,3 +63,6 @@ task test_jni_wrapper, "Run jni_wrapper test":
 task test_jni_api, "Run jni_api test":
   dep int_test_bootstrap
   test "jni_api"
+
+task test_jni_generator, "Run jni_api test":
+  test "jni_generator"
