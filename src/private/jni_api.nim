@@ -199,7 +199,7 @@ proc newObject*(c: JVMClass, sig: string, args: openarray[jvalue] = []): JVMObje
 # JVMObject type
 
 proc jniSig*(T: typedesc[JVMObject]): string = fqcn"java.lang.Object"
-  
+
 proc freeJVMObject(o: JVMObject) =
   if o.obj != nil and theEnv != nil:
     theEnv.DeleteLocalRef(theEnv, o.obj)

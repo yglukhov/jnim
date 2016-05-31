@@ -1,4 +1,5 @@
 import private.jni_api,
+       ./common,
        threadpool,
        unittest,
        strutils,
@@ -15,7 +16,7 @@ suite "jni_api":
     spawn thrNotInited()
     sync()
 
-    initJNI(JNIVersion.v1_6, @["-Djava.class.path=build"])
+    initJNIForTests()
     expect JNIException:
       initJNI(JNIVersion.v1_6, @[])
     check: isJNIThreadInitialized()
