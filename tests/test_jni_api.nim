@@ -166,6 +166,16 @@ suite "jni_api":
 
     let objArray = newJVMObjectArray(2)
     objArray[0] = "Hello".newJVMObject
-    objArray[1] = "world!".newJVMObject
+    objArray[1] = "world".newJVMObject
     obj.setObjectArray("objectArray", objArray)
+    check: obj.callBooleanMethod("checkObjectArray", "()" & jboolean.jniSig) == JVM_FALSE
+    objArray[1] = "world!".newJVMObject
     check: obj.callBooleanMethod("checkObjectArray", "()" & jboolean.jniSig) == JVM_TRUE
+
+    let doubleArray = obj.callDoubleArrayMethod("getDoubleArray", "($#)$#" % [jdouble.jniSig, seq[jdouble].jniSig], [2.0.jdouble.toJValue])
+    for idx in 1..doubleArray.len:
+      check: doubleArray[idx-1] == (idx * 2).jdouble
+
+    let strArray = cls.callObjectArrayMethod("getStringArrayS", "()" & seq[string].jniSig)
+    for idx, val in ["Hello", "from", "java!"]:
+      check: strArray[idx].toStringRaw == val

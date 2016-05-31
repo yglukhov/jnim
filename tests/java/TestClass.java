@@ -92,4 +92,17 @@ public class TestClass {
             return false;
         return true;
     }
+
+    // Methods returning arrays
+    public double[] getDoubleArray(double factor) {
+        double[] res = new double[10];
+        for(int i = 1; i <= 10; i++) {
+            res[i-1] = (double)i * factor;
+        }
+        return res;
+    }
+    public static String[] getStringArrayS() {
+        String[] arr = {"Hello", "from", "java!"};
+        return arr;
+    }
 }

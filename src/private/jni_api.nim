@@ -348,6 +348,27 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
       theEnv.`Set typName ArrayRegion`(theEnv, arr.get, idx.jsize, 1.jsize, unsafeAddr v)
       checkException
 
+  # Array methods
+  proc `call typName ArrayMethod`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `JVM typName Array` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    `typ`.newArray((callVM theEnv.CallStaticObjectMethodA(theEnv, c.get, id.get, a)).newJVMObject)
+
+  proc `call typName ArrayMethod`*(c: JVMClass, name, sig: string, args: openarray[jvalue] = []): `JVM typName Array` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    `typ`.newArray((callVM theEnv.CallStaticObjectMethodA(theEnv, c.get, c.getStaticMethodId(name, sig).get, a)).newJVMObject)
+
+  proc `call typName ArrayMethod`*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []): `JVM typName Array` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, id.get, a)).newJVMObject)
+
+  proc `call typName ArrayMethod`*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []): `JVM typName Array` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)).newJVMObject)
+
 genArrayType(jchar, jcharArray, Char)
 genArrayType(jbyte, jbyteArray, Byte)
 genArrayType(jshort, jshortArray, Short)
