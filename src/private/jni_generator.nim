@@ -11,10 +11,11 @@ type
     isConstructor*: bool
     isStatic*: bool
     isProp*: bool
+    isFinal*: bool
     isExported*: bool
     
-proc initProcDef(name: string, jName: string, sig: string, isConstructor, isStatic, isProp, isExported: bool): ProcDef =
-  ProcDef(name: name, jName: jName, sig: sig, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isExported: isExported)
+proc initProcDef(name: string, jName: string, sig: string, isConstructor, isStatic, isProp, isFinal, isExported: bool): ProcDef =
+  ProcDef(name: name, jName: jName, sig: sig, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isFinal: isFinal, isExported: isExported)
 
 const IdentPos = 0
 const ParamsPos = 3
@@ -83,6 +84,7 @@ proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
       isConstructor,
       isStatic,
       isProp,
+      isFinal,
       isExported : NimNode
 
   if n[IdentPos].kind == nnkPostfix:
@@ -107,9 +109,10 @@ proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
 
   isStatic = if findPragma(n, "static"): bindSym"true" else: bindSym"false"
   isProp = if findPragma(n, "prop"): bindSym"true" else: bindSym"false"
+  isFinal = if findPragma(n, "final"): bindSym"true" else: bindSym"false"
 
   result.add quote do:
-    `def` = initProcDef(`name`, `jName`, `sig`, `isConstructor`,  `isStatic`, `isProp`, `isExported`)
+    `def` = initProcDef(`name`, `jName`, `sig`, `isConstructor`,  `isStatic`, `isProp`, `isFinal`, `isExported`)
 
 macro parseProcDefTest*(i: untyped, s: expr): stmt =
   result = parseProcDef(s[0], i)

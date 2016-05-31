@@ -20,6 +20,7 @@ suite "jni_generator":
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
+    check: not pd.isFinal
     check: not pd.isExported
 
     parseProcDefTest pd:
@@ -30,6 +31,7 @@ suite "jni_generator":
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
+    check: not pd.isFinal
     check: pd.isExported
       
     parseProcDefTest pd:
@@ -40,6 +42,7 @@ suite "jni_generator":
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
+    check: not pd.isFinal
     check: not pd.isExported
       
     parseProcDefTest pd:
@@ -50,6 +53,7 @@ suite "jni_generator":
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
+    check: not pd.isFinal
     check: pd.isExported
 
   test "jni_generator - proc def - methods":
@@ -63,6 +67,7 @@ suite "jni_generator":
     check: not pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
+    check: not pd.isFinal
     check: pd.isExported
 
     parseProcDefTest pd:
@@ -73,7 +78,23 @@ suite "jni_generator":
     check: not pd.isConstructor
     check: pd.isStatic
     check: not pd.isProp
+    check: not pd.isFinal
     check: not pd.isExported
+
+  test "jni_generator - proc def - properties":
+    var pd: ProcDef
+
+    parseProcDefTest pd:
+      proc `out`*(): JVMObject {.prop, final, `static`.}
+    
+    check: pd.name == "out"
+    check: pd.jName == "out"
+    check: pd.sig == "()Ljava/lang/Object;"
+    check: not pd.isConstructor
+    check: pd.isStatic
+    check: pd.isProp
+    check: pd.isFinal
+    check: pd.isExported
 
   test "jni_generator - import class":
 
