@@ -10,44 +10,42 @@ suite "jni_generator":
       initJNIForTests()
   
   test "jni_generator - proc def":
-    const pd1 = parseProcDef("proc new".parseExpr)
-    procSig pd1sig:
-      proc new
-    check: pd1.name == "new"
-    check: pd1.jName == "<init>"
-    check: pd1.isConstructor
-    check: not pd1.isStatic
-    check: not pd1.isProp
-    check: not pd1.isExported
-    check: pd1sig == "()V"
+    var pd: ProcDef
 
-    const pd2 = parseProcDef("proc new*".parseExpr)
-    procSig pd2sig:
+    parseProcDefTest pd:
+      proc new
+    check: pd.name == "new"
+    check: pd.jName == "<init>"
+    check: pd.sig == "()V"
+    check: pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isExported
+
+    parseProcDefTest pd:
       proc new*
-    check: pd2.name == "new"
-    check: pd2.jName == "<init>"
-    check: pd2sig == "()V"
-    check: pd2.isConstructor
-    check: not pd2.isStatic
-    check: not pd2.isProp
-    check: pd2.isExported
+    check: pd.name == "new"
+    check: pd.jName == "<init>"
+    check: pd.sig == "()V"
+    check: pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: pd.isExported
       
-    const pd3 = parseProcDef("proc new(o: JVMObject)".parseExpr)
-    procSig pd3sig:
+    parseProcDefTest pd:
       proc new(o: JVMObject)
-    check: pd3.name == "new"
-    check: pd3.jName == "<init>"
-    check: pd3sig == "(Ljava/lang/Object;)V"
-    check: pd3.isConstructor
-    check: not pd3.isStatic
-    check: not pd3.isProp
-    check: not pd3.isExported
+    check: pd.name == "new"
+    check: pd.jName == "<init>"
+    check: pd.sig == "(Ljava/lang/Object;)V"
+    check: pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isExported
       
   test "jni_generator - import class":
 
-    jclass java.lang.String* of JVMObject:
-      proc new
-      proc new(o: JVMObject)
+    # jclass java.lang.String* of JVMObject:
+    #   proc new
       # proc new(s: String)
       # proc length*: jint
       # proc test: String {.Static, Prop.}
