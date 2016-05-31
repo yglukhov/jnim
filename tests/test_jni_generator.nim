@@ -9,7 +9,7 @@ suite "jni_generator":
     if not isJNIThreadInitialized():
       initJNIForTests()
   
-  test "jni_generator - proc def":
+  test "jni_generator - proc def - constructors":
     var pd: ProcDef
 
     parseProcDefTest pd:
@@ -42,6 +42,39 @@ suite "jni_generator":
     check: not pd.isProp
     check: not pd.isExported
       
+    parseProcDefTest pd:
+      proc new*(i: jint, s: string)
+    check: pd.name == "new"
+    check: pd.jName == "<init>"
+    check: pd.sig == "(ILjava/lang/String;)V"
+    check: pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: pd.isExported
+
+  test "jni_generator - proc def - methods":
+    var pd: ProcDef
+
+    parseProcDefTest pd:
+      proc `method`*(i: jint): jshort {.importc: "jmethod".}
+    check: pd.name == "method"
+    check: pd.jName == "jmethod"
+    check: pd.sig == "(I)S"
+    check: not pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: pd.isExported
+
+    parseProcDefTest pd:
+      proc staticMethod(i: jint): jshort {.`static`.}
+    check: pd.name == "staticMethod"
+    check: pd.jName == "staticMethod"
+    check: pd.sig == "(I)S"
+    check: not pd.isConstructor
+    check: pd.isStatic
+    check: not pd.isProp
+    check: not pd.isExported
+
   test "jni_generator - import class":
 
     # jclass java.lang.String* of JVMObject:

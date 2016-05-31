@@ -1,6 +1,7 @@
 import jni_api,
        strutils,
-       macros
+       macros,
+       fp.option
 
 type
   ProcDef* = object
@@ -45,6 +46,32 @@ macro procSig*(v: untyped, e: expr): stmt =
   result = quote do:
     let `i` = `r`
 
+proc nodeToString(n: NimNode): string =
+  if n.kind == nnkIdent:
+    result = $n
+  elif n.kind == nnkAccQuoted:
+    result = ""
+    for s in n:
+      result &= s.nodeToString
+  elif n.kind == nnkStrLit:
+    result = n.strVal
+  else:
+    assert false, "Can't stringify " & $n.kind
+
+proc findPragma(n: NimNode, name: string): bool {.compileTime.} =
+  for p in n.pragma:
+    if (p.kind == nnkIdent or p.kind == nnkAccQuoted) and p.nodeToString == name:
+      return true
+    elif p.kind == nnkExprColonExpr and p[0].nodeToString == name:
+      return true
+  return false
+
+proc findPragmaValue(n: NimNode, name: string): Option[string] {.compileTime.} =
+  for p in n.pragma:
+    if p.kind == nnkExprColonExpr and p[0].nodeToString == name:
+      return p[1].nodeToString.some
+  return string.none
+
 proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
   result = newStmtList()
   expectKind n, nnkProcDef
@@ -60,10 +87,10 @@ proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
 
   if n[IdentPos].kind == nnkPostfix:
     assert $n[IdentPos][0].toStrLit == "*"
-    name = newStrLitNode($n[IdentPos][1])
+    name = newStrLitNode(n[IdentPos][1].nodeToString)
     isExported = bindSym"true"
   else:
-    name = newStrLitNode($n[IdentPos])
+    name = newStrLitNode($n[IdentPos].nodeToString)
     isExported = bindSym"false"
   expectKind n[ParamsPos], nnkFormalParams
 
@@ -72,13 +99,14 @@ proc parseProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
     jName = newStrLitNode("<init>")
     isConstructor = bindSym"true"
   else:
-    jName = name.copyNimNode
     isConstructor = bindSym"false"
+    let jn = findPragmaValue(n, "importc")
+    jName = if jn.isDefined: newStrLitNode(jn.get) else: name.copyNimNode
 
   sig = getProcSignature(n[ParamsPos])
 
-  isStatic = bindSym"false"
-  isProp = bindSym"false"
+  isStatic = if findPragma(n, "static"): bindSym"true" else: bindSym"false"
+  isProp = if findPragma(n, "prop"): bindSym"true" else: bindSym"false"
 
   result.add quote do:
     `def` = initProcDef(`name`, `jName`, `sig`, `isConstructor`,  `isStatic`, `isProp`, `isExported`)
