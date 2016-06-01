@@ -1,9 +1,8 @@
 import jni_api,
        strutils,
+       sequtils,
        macros,
        fp.option
-
-proc concat(s: varargs[string]): string = "(" & s.join() & ")"
 
 proc nodeToString(n: NimNode): string =
   if n.kind == nnkIdent:
@@ -24,6 +23,12 @@ proc nodeToString(n: NimNode): string =
 #################################################################################################### 
 # Proc signature parser 
 
+type ParamType* = string
+type ProcParam* = tuple[
+  name: string,
+  `type`: ParamType
+]
+
 type
   ProcDef* = object
     name*: string
@@ -33,9 +38,11 @@ type
     isProp*: bool
     isFinal*: bool
     isExported*: bool
+    params*: seq[ProcParam]
+    retType*: ParamType
     
-proc initProcDef(name: string, jName: string, isConstructor, isStatic, isProp, isFinal, isExported: bool): ProcDef =
-  ProcDef(name: name, jName: jName, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isFinal: isFinal, isExported: isExported)
+proc initProcDef(name: string, jName: string, isConstructor, isStatic, isProp, isFinal, isExported: bool, params: seq[ProcParam] = @[], retType = "void"): ProcDef =
+  ProcDef(name: name, jName: jName, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isFinal: isFinal, isExported: isExported, params: params, retType: retType)
 
 const ProcNamePos = 0
 const ProcParamsPos = 3
@@ -43,37 +50,33 @@ const ProcParamsPos = 3
 ####################################################################################################
 # Proc signature
 
-proc getProcSignature(isProp: bool, n: NimNode): NimNode {.compileTime.} =
-  expectKind n, nnkFormalParams
-  let hasRet = n.len > 0 and n[0].kind == nnkIdent
-  let hasParams = n.len > 1
-  if isProp == true:
-    expectLen n, 1
-    let ret = if hasRet: newCall("jniSig", n[0]) else: "V".newStrLitNode
+proc concat(s: varargs[string]): string = "(" & s.join() & ")"
+
+proc getProcSignature(pd: ProcDef): NimNode {.compileTime.} =
+  let ret = parseExpr("jniSig($#)" % pd.retType)
+  if pd.isProp == true:
     return quote do:
       `ret`
 
-  let ret = if hasRet: newCall("jniSig", n[0]) else: "V".newStrLitNode
-
   var params = newCall(bindSym("concat"))
-  if hasParams:
-    for i in 1..<n.len:
-      params.add(newCall("jniSig", n[i][1]))
+  for p in pd.params:
+    params.add(parseExpr("jniSig($#)" % p.`type`))
   
   result = quote do:
     `params` & `ret`
 
-# This is for tests
-macro procSigTest*(isProp: static[bool], v: untyped, e: expr): stmt =
-  # Allow to use in tests
-  let n = if e.kind == nnkStmtList: e[0] else: e
-  expectKind n, nnkProcDef
-  expectKind n[ProcNamePos], {nnkIdent, nnkPostfix}
-  let i = newIdentNode($v)
-  let r = getProcSignature(isProp, n[ProcParamsPos])
-  result = quote do:
-    `i` = `r`
+proc fillProcParams(pd: var ProcDef, n: NimNode) {.compileTime.} =
+  expectKind n, nnkFormalParams
+  let hasRet = n.len > 0 and n[0].kind == nnkIdent
+  let hasParams = n.len > 1
 
+  pd.retType = if hasRet: n[0].nodeToString else: "void"
+
+  pd.params = newSeq[ProcParam]()
+  if hasParams:
+    for i in 1..<n.len:
+      pd.params.add((n[i][0].nodeToString, n[i][1].nodeToString))
+  
 ####################################################################################################
 # Proc definition
 
@@ -117,6 +120,8 @@ proc parseProcDef(n: NimNode): ProcDef {.compileTime.} =
   result.isProp = findPragma(n, "prop")
   result.isFinal = findPragma(n, "final")
 
+  fillProcParams(result, n[ProcParamsPos])
+
 proc fillProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
   expectKind n, nnkProcDef
   expectKind n[ProcNamePos], {nnkIdent, nnkPostfix}
@@ -127,7 +132,9 @@ proc fillProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
       isStatic,
       isProp,
       isFinal,
-      isExported : NimNode
+      isExported,
+      params,
+      retType : NimNode
   
   let pd = parseProcDef(n)
 
@@ -138,9 +145,12 @@ proc fillProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
   isProp = if pd.isProp: bindSym"true" else: bindSym"false"
   isFinal = if pd.isFinal: bindSym"true" else: bindSym"false"
   isExported = if pd.isExported: bindSym"true" else: bindSym"false"
+  var paramsVals = "@[" & pd.params.mapIt("(\"" & it.name & "\", \"" & it.`type` & "\")").join(",") & "]"
+  params = paramsVals.parseExpr
+  retType = pd.retType.newStrLitNode
 
   result = quote do:
-    `def` = initProcDef(`name`, `jName`, `isConstructor`, `isStatic`, `isProp`, `isFinal`, `isExported`)
+    `def` = initProcDef(`name`, `jName`, `isConstructor`, `isStatic`, `isProp`, `isFinal`, `isExported`, `params`, `retType`)
 
 macro parseProcDefTest*(i: untyped, s: expr): stmt =
   result = fillProcDef(s[0], i)
@@ -224,9 +234,18 @@ proc generateClassType(def: NimNode): NimNode {.compileTime.} =
     type `classNameEx` = ref object of `parentName`
     proc `jniSig`(t: typedesc[`className`]): string = fqcn(`jName`)
 
+proc generateMethod(def: NimNode): NimNode {.compileTime.} =
+  let pd = parseProcDef(def)
+  result = newStmtList()
+
 proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
   result = newStmtList()
   result.add generateClassType(head)
+  if body.kind == nnkStmtList:
+    for def in body:
+      result.add generateMethod(def)
+  else:
+    result.add generateMethod(body)
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
