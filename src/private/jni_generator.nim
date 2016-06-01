@@ -40,10 +40,18 @@ proc initProcDef(name: string, jName: string, isConstructor, isStatic, isProp, i
 const ProcNamePos = 0
 const ProcParamsPos = 3
 
-proc getProcSignature*(n: NimNode): NimNode {.compileTime.} =
+####################################################################################################
+# Proc signature
+
+proc getProcSignature(isProp: bool, n: NimNode): NimNode {.compileTime.} =
   expectKind n, nnkFormalParams
   let hasRet = n.len > 0 and n[0].kind == nnkIdent
   let hasParams = n.len > 1
+  if isProp == true:
+    expectLen n, 1
+    let ret = if hasRet: newCall("jniSig", n[0]) else: "V".newStrLitNode
+    return quote do:
+      `ret`
 
   let ret = if hasRet: newCall("jniSig", n[0]) else: "V".newStrLitNode
 
@@ -55,15 +63,19 @@ proc getProcSignature*(n: NimNode): NimNode {.compileTime.} =
   result = quote do:
     `params` & `ret`
 
-macro procSigTest*(v: untyped, e: expr): stmt =
+# This is for tests
+macro procSigTest*(isProp: static[bool], v: untyped, e: expr): stmt =
   # Allow to use in tests
   let n = if e.kind == nnkStmtList: e[0] else: e
   expectKind n, nnkProcDef
   expectKind n[ProcNamePos], {nnkIdent, nnkPostfix}
   let i = newIdentNode($v)
-  let r = getProcSignature(n[ProcParamsPos])
+  let r = getProcSignature(isProp, n[ProcParamsPos])
   result = quote do:
     `i` = `r`
+
+####################################################################################################
+# Proc definition
 
 proc findPragma(n: NimNode, name: string): bool {.compileTime.} =
   for p in n.pragma:

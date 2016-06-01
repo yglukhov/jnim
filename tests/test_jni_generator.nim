@@ -15,7 +15,7 @@ suite "jni_generator":
 
     parseProcDefTest pd:
       proc new
-    procSigTest sig:
+    procSigTest false, sig:
       proc new
     check: pd.name == "new"
     check: pd.jName == "<init>"
@@ -28,7 +28,7 @@ suite "jni_generator":
 
     parseProcDefTest pd:
       proc new*
-    procSigTest sig:
+    procSigTest false, sig:
       proc new*
     check: pd.name == "new"
     check: pd.jName == "<init>"
@@ -41,7 +41,7 @@ suite "jni_generator":
       
     parseProcDefTest pd:
       proc new(o: JVMObject)
-    procSigTest sig:
+    procSigTest false, sig:
       proc new(o: JVMObject)
     check: pd.name == "new"
     check: pd.jName == "<init>"
@@ -54,7 +54,7 @@ suite "jni_generator":
       
     parseProcDefTest pd:
       proc new*(i: jint, s: string)
-    procSigTest sig:
+    procSigTest false, sig:
       proc new*(i: jint, s: string)
     check: pd.name == "new"
     check: pd.jName == "<init>"
@@ -71,7 +71,7 @@ suite "jni_generator":
 
     parseProcDefTest pd:
       proc `method`*(i: jint): jshort {.importc: "jmethod".}
-    procSigTest sig:
+    procSigTest false, sig:
       proc `method`*(i: jint): jshort {.importc: "jmethod".}
     check: pd.name == "method"
     check: pd.jName == "jmethod"
@@ -84,7 +84,7 @@ suite "jni_generator":
 
     parseProcDefTest pd:
       proc staticMethod(i: jint): jshort {.`static`.}
-    procSigTest sig:
+    procSigTest false, sig:
       proc staticMethod(i: jint): jshort {.`static`.}
     check: pd.name == "staticMethod"
     check: pd.jName == "staticMethod"
@@ -101,11 +101,11 @@ suite "jni_generator":
 
     parseProcDefTest pd:
       proc `out`*(): JVMObject {.prop, final, `static`.}
-    procSigTest sig:
+    procSigTest true, sig:
       proc `out`*(): JVMObject {.prop, final, `static`.}
     check: pd.name == "out"
     check: pd.jName == "out"
-    check: sig == "()Ljava/lang/Object;"
+    check: sig == "Ljava/lang/Object;"
     check: not pd.isConstructor
     check: pd.isStatic
     check: pd.isProp
