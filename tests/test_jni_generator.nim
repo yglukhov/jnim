@@ -11,12 +11,15 @@ suite "jni_generator":
   
   test "jni_generator - proc def - constructors":
     var pd: ProcDef
+    var sig: string
 
     parseProcDefTest pd:
       proc new
+    procSigTest sig:
+      proc new
     check: pd.name == "new"
     check: pd.jName == "<init>"
-    check: pd.sig == "()V"
+    check: sig == "()V"
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
@@ -25,9 +28,11 @@ suite "jni_generator":
 
     parseProcDefTest pd:
       proc new*
+    procSigTest sig:
+      proc new*
     check: pd.name == "new"
     check: pd.jName == "<init>"
-    check: pd.sig == "()V"
+    check: sig == "()V"
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
@@ -36,9 +41,11 @@ suite "jni_generator":
       
     parseProcDefTest pd:
       proc new(o: JVMObject)
+    procSigTest sig:
+      proc new(o: JVMObject)
     check: pd.name == "new"
     check: pd.jName == "<init>"
-    check: pd.sig == "(Ljava/lang/Object;)V"
+    check: sig == "(Ljava/lang/Object;)V"
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
@@ -47,9 +54,11 @@ suite "jni_generator":
       
     parseProcDefTest pd:
       proc new*(i: jint, s: string)
+    procSigTest sig:
+      proc new*(i: jint, s: string)
     check: pd.name == "new"
     check: pd.jName == "<init>"
-    check: pd.sig == "(ILjava/lang/String;)V"
+    check: sig == "(ILjava/lang/String;)V"
     check: pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
@@ -58,12 +67,15 @@ suite "jni_generator":
 
   test "jni_generator - proc def - methods":
     var pd: ProcDef
+    var sig: string
 
     parseProcDefTest pd:
       proc `method`*(i: jint): jshort {.importc: "jmethod".}
+    procSigTest sig:
+      proc `method`*(i: jint): jshort {.importc: "jmethod".}
     check: pd.name == "method"
     check: pd.jName == "jmethod"
-    check: pd.sig == "(I)S"
+    check: sig == "(I)S"
     check: not pd.isConstructor
     check: not pd.isStatic
     check: not pd.isProp
@@ -72,9 +84,11 @@ suite "jni_generator":
 
     parseProcDefTest pd:
       proc staticMethod(i: jint): jshort {.`static`.}
+    procSigTest sig:
+      proc staticMethod(i: jint): jshort {.`static`.}
     check: pd.name == "staticMethod"
     check: pd.jName == "staticMethod"
-    check: pd.sig == "(I)S"
+    check: sig == "(I)S"
     check: not pd.isConstructor
     check: pd.isStatic
     check: not pd.isProp
@@ -83,13 +97,15 @@ suite "jni_generator":
 
   test "jni_generator - proc def - properties":
     var pd: ProcDef
+    var sig: string
 
     parseProcDefTest pd:
       proc `out`*(): JVMObject {.prop, final, `static`.}
-    
+    procSigTest sig:
+      proc `out`*(): JVMObject {.prop, final, `static`.}
     check: pd.name == "out"
     check: pd.jName == "out"
-    check: pd.sig == "()Ljava/lang/Object;"
+    check: sig == "()Ljava/lang/Object;"
     check: not pd.isConstructor
     check: pd.isStatic
     check: pd.isProp
