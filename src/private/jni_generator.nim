@@ -207,20 +207,27 @@ proc fillClassDef(c: NimNode, def: NimNode): NimNode {.compileTime.} =
 macro parseClassDefTest*(i: untyped, s: expr): stmt =
   result = fillClassDef(if s.kind == nnkStmtList: s[0] else: s, i)
 
+####################################################################################################
+# Type generator
+
+template identEx(isExported: bool, name: string): expr =
+  if isExported: postfix(ident(name), "*") else: ident(name)
+
 proc generateClassType(def: NimNode): NimNode {.compileTime.} =
   let cd = parseClassDef(def)
-  echo cd
-  result = newStmtList()
+  let className = ident(cd.name)
+  let classNameEx = identEx(cd.isExported, cd.name)
+  let parentName = ident(cd.parent)
+  let jniSig = identEx(cd.isExported, "jniSig")
+  let jName = cd.jName.newStrLitNode
+  result = quote do:
+    type `classNameEx` = ref object of `parentName`
+    proc `jniSig`(t: typedesc[`className`]): string = fqcn(`jName`)
 
 proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
   result = newStmtList()
   result.add generateClassType(head)
 
-macro jclass*(head: expr, body: expr): stmt =
-  echo "HEAD:"
-  echo head.treeRepr
-  # echo "BODY:"
-  # for son in body:
-  #   echo treeRepr(son)
+macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
   

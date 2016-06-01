@@ -4,6 +4,11 @@ import private.jni_generator,
        macros,
        unittest
 
+jclass java.lang.String2* of JVMObject:
+  proc new
+jclass java.lang.String as JVMString2* of JVMObject:
+  proc length: jint {.importc: "length".}
+
 suite "jni_generator":
   setup:
     if not isJNIThreadInitialized():
@@ -148,12 +153,15 @@ suite "jni_generator":
     check: cd.isExported
 
   test "jni_generator - import class":
-
-    jclass java.lang.String of JVMObject:
+    jclass java.lang.String1 of JVMObject:
       proc new
-    jclass java.lang.String as JVMString of JVMObject:
+    check: declared(String1)
+    check: String1.jniSig == fqcn"java.lang.String1"
+    jclass java.lang.String as JVMString1 of JVMObject:
       proc length: jint {.importc: "length".}
-    jclass java.lang.String* of JVMObject:
-      proc new
-    jclass java.lang.String as JVMString* of JVMObject:
-      proc length: jint {.importc: "length".}
+    check: declared(JVMString1)
+    check: JVMString1.jniSig == fqcn"java.lang.String"
+    check: declared(String2)
+    check: String2.jniSig == fqcn"java.lang.String2"
+    check: declared(JVMString2)
+    check: JVMString2.jniSig == fqcn"java.lang.String"

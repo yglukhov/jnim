@@ -86,7 +86,7 @@ type
     id: jfieldID
   JVMClass* = ref object
     cls: jclass
-  JVMObject* = ref object
+  JVMObject* = ref object {.inheritable.}
     obj: jobject
 
 #################################################################################################### 
