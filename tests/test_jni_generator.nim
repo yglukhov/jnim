@@ -223,3 +223,17 @@ suite "jni_generator":
     check: o.addToMem(3) == 5
     check: MethodTestClass.factory(5).addToMem(1) == 6
     check: o.getStrings == @["Hello", "world!"]
+
+  jclass PropsTestClass of JVMObject:
+    proc new
+    proc staticInt: jint {.prop, `static`.}
+    proc instanceInt: jint {.prop.}
+
+  test "jni_generator - TestClass - properties":
+    check: PropsTestClass.staticInt == 100
+    PropsTestClass.staticInt = 200
+    check: PropsTestClass.staticInt == 200
+    let o = PropsTestClass.new
+    check: o.instanceInt == 100
+    o.instanceInt = 300
+    check: o.instanceInt == 300

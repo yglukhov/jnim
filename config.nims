@@ -51,6 +51,7 @@ task int_test_bootstrap, "Prepare test environment":
   javac "tests/java/TestClass.java", BUILD_DIR
   javac "tests/java/ConstructorTestClass.java", BUILD_DIR
   javac "tests/java/MethodTestClass.java", BUILD_DIR
+  javac "tests/java/PropsTestClass.java", BUILD_DIR
 
 task test, "Run all tests":
   dep int_test_bootstrap

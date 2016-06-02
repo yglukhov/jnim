@@ -465,6 +465,38 @@ template genField(typ: typedesc, typName: untyped): stmt =
       theEnv.`Set typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get, v)
     checkException
 
+  when `typ` is JVMObject:
+    proc getPropRaw*(T: typedesc[`typ`], c: JVMClass, id: JVMFieldID): jobject =
+      checkInit
+      (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, id.get))
+
+    proc getPropRaw*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID): jobject =
+      checkInit
+      (callVM theEnv.`Get typName Field`(theEnv, o.getClass.get, id.get))
+
+    proc setPropRaw*(T: typedesc[`typ`], c: JVMClass, id: JVMFieldID, v: jobject) =
+      checkInit
+      theEnv.`SetStatic typName Field`(theEnv, c.get, id.get, v)
+      checkException
+      
+    proc setPropRaw*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID, v: jobject) =
+      checkInit
+      theEnv.`Set typName Field`(theEnv, o.getClass.get, id.get, v)
+      checkException
+  else:
+    # Need to find out, why I can't just call `get typName`. Guess it's Nim's bug
+    proc getProp*(T: typedesc[`typ`], c: JVMClass, id: JVMFieldID): `typ` =
+      checkInit
+      (callVM theEnv.`GetStatic typName Field`(theEnv, c.get, id.get))
+
+    proc getProp*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID): `typ` =
+      checkInit
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, id.get))
+
+    proc setProp*(T: typedesc[`typ`], o: JVMClass|JVMObject, id: JVMFieldID, v: `typ`) =
+      `set typName`(o, id, v)
+
+
 genField(JVMObject, Object)
 genField(jchar, Char)
 genField(jbyte, Byte)
@@ -577,6 +609,26 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
 
 proc jarrayToSeq[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {.inline.} =
   jarrayToSeqImpl(arr, result)
+
+template getProp*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.} =
+  when T is JPrimitiveType:
+    T.getProp(o, id)
+  elif T is string:
+    JVMObject.getPropRaw(o, id).newJVMObject.toStringRaw
+  elif compiles(T.fromJObject(nil.jobject)):
+    T.fromJObject(JVMObject.getPropRaw(o, id))
+  elif T is seq:
+    T(jarrayToSeq(JVMObject.getPropRaw(o, id).jarray, T))
+  else:
+    {.error: "Unknown property type".}
+
+template setProp*(T: typedesc, o: expr, id: JVMFieldID, v: T): expr {.immediate.} =
+  when T is JPrimitiveType:
+    T.setProp(o, id, v)
+  elif compiles(toJVMObject(v)):
+    JVMObject.setPropRaw(o, id, v.get)
+  else:
+    {.error: "Unknown property type".}
 
 template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarray[jvalue]): expr {.immediate.} =
   when T is void:

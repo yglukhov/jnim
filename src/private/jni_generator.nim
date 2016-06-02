@@ -225,8 +225,13 @@ macro parseClassDefTest*(i: untyped, s: expr): stmt =
 ####################################################################################################
 # Type generator
 
-template identEx(isExported: bool, name: string): expr =
-  if isExported: postfix(ident(name), "*") else: ident(name)
+template identEx(isExported: bool, name: string, isSetter = false): expr =
+  let id =
+    if isSetter:
+      newNimNode(nnkAccQuoted).add(ident(name), ident("="))
+    else:
+      ident(name)
+  if isExported: postfix(id, "*") else: id
 
 proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
@@ -321,14 +326,55 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
     `args`
     callMethod(`retType`, `objToCall`, `mId`, `ai`)
 
+proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): NimNode =
+  assert pd.isProp
+
+  let sig = getProcSignature(pd)
+  let cname = cd.jName.newStrLitNode
+  let pname = pd.jName.newStrLitNode
+  let ctype = cd.name.ident
+  result = def.copyNimTree
+  result.pragma = newEmptyNode()
+  result.name = identEx(pd.isExported, pd.name, isSetter)
+  var objToCall: NimNode
+  # Add first parameter
+  if pd.isStatic:
+    result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
+    objToCall = quote do:
+      `ctype`.getTypeClass
+  else:
+    result.params.insert(1, newIdentDefs(ident"this", ctype))
+    objToCall = ident"this"
+  if isSetter:
+    result.params.insert(2, newIdentDefs(ident"value", result.params[0]))
+    result.params[0] = newEmptyNode()
+  let valType = parseExpr(pd.retType)
+  let mId =
+    if pd.isStatic:
+      quote do:
+        `objToCall`.getStaticFieldId(`pname`, `sig`)
+    else:
+      quote do:
+        `objToCall`.getClass.getFieldId(`pname`, `sig`)
+
+  if isSetter:
+    result.body = quote do:
+      setProp(`valType`, `objToCall`, `mId`, value)
+  else:
+    result.body = quote do:
+      getProp(`valType`, `objToCall`, `mId`)
+    
 proc generateProc(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
   let pd = parseProcDef(def)
   if pd.isConstructor:
     result = generateConstructor(cd, pd, def)
-  elif not pd.isProp:
-    result = generateMethod(cd, pd, def)
+  elif pd.isProp:
+    result = newStmtList()
+    result.add(generateProperty(cd, pd, def, false))
+    if not pd.isFinal:
+      result.add(generateProperty(cd, pd, def, true))
   else:
-    assert false, "Don't know how to generate " & repr(def)
+    result = generateMethod(cd, pd, def)
 
 proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
   let cd = parseClassDef(head)
@@ -342,3 +388,4 @@ proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
+  echo repr(result)
