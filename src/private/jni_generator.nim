@@ -20,7 +20,6 @@ proc nodeToString(n: NimNode): string =
   elif n.kind == nnkBracketExpr:
     result = n[0].nodeToString & "[" & n[1].nodeToString & "]"
   else:
-    echo treeRepr(n)
     assert false, "Can't stringify " & $n.kind
 
 #################################################################################################### 
@@ -234,7 +233,7 @@ proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
   let classNameEx = identEx(cd.isExported, cd.name)
   let parentName = ident(cd.parent)
   let jniSig = identEx(cd.isExported, "jniSig")
-  let create = identEx(cd.isExported, "create")
+  let create = identEx(cd.isExported, "fromJObject")
   let freeId = ident("free" & cd.name)
   let jName = cd.jName.newStrLitNode
   let getClassId = identEx(cd.isExported, "getTypeClass")
@@ -288,7 +287,7 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
     checkInit
     let sig = `sig`
     `args`
-    `ctype`.create(newObjectRaw(JVMClass.getByName(`cname`), sig, `ai`))
+    `ctype`.fromJObject(newObjectRaw(JVMClass.getByName(`cname`), sig, `ai`))
 
 proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert(not (pd.isConstructor or pd.isProp))
@@ -297,7 +296,6 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   let cname = cd.jName.newStrLitNode
   let pname = pd.jName.newStrLitNode
   let ctype = cd.name.ident
-  echo pd
   result = def.copyNimTree
   result.pragma = newEmptyNode()
   var objToCall: NimNode
@@ -309,7 +307,7 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   else:
     result.params.insert(1, newIdentDefs(ident"this", ctype))
     objToCall = ident"this"
-  let retType = parseExpr("typedesc[$#]" % pd.retType)
+  let retType = parseExpr(pd.retType)
   let mId =
     if pd.isStatic:
       quote do:
@@ -344,4 +342,3 @@ proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
-  echo repr(result)

@@ -557,7 +557,7 @@ proc toJVMObject*[T](a: openarray[T]): JVMObject =
   else:
     {.error: "define toJVMObject method for the openarray element type".}
 
-template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarray[jvalue]): expr =
+template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarray[jvalue]): expr {.immediate.} =
   when T is void:
     o.callVoidMethod(methodId, args)
   elif T is jchar:
@@ -578,7 +578,7 @@ template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarra
     o.callBooleanMethod(methodId, args)
   elif T is string:
     o.callObjectMethod(methodId, args).toStringRaw
-  elif compiles(T.create(nil.jobject)):
-    T.create(o.callObjectMethodRaw(methodId, args))
+  elif compiles(T.fromJObject(nil.jobject)):
+    T.fromJObject(o.callObjectMethodRaw(methodId, args))
   else:
     {.error: "Unknown return type".}

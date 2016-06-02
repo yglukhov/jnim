@@ -201,10 +201,11 @@ suite "jni_generator":
     proc new
     proc add(x, y: jint): jint {.`static`, importc: "addStatic".}
     proc addToMem(x: jint): jint {.importc: "addToMem".}
+    proc factory(i: jint): MethodTestClass {.`static`.}
 
   test "jni_generator - TestClass - methods":
     check: MethodTestClass.add(1, 2) == 3
     let o = MethodTestClass.new
     check: o.addToMem(2) == 2
     check: o.addToMem(3) == 5
-    
+    check: MethodTestClass.factory(5).addToMem(1) == 6

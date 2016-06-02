@@ -12,4 +12,10 @@ public class MethodTestClass {
         mem += x;
         return mem;
     }
+
+    public static MethodTestClass factory(int i) {
+        MethodTestClass o = new MethodTestClass();
+        o.addToMem(i);
+        return o;
+    }
 }
