@@ -17,7 +17,10 @@ proc nodeToString(n: NimNode): string =
     result = n[0].nodeToString & "." & n[1].nodeToString
   elif n.kind == nnkInfix and n[0].nodeToString == "$":
     result = n[1].nodeToString & "$" & n[2].nodeToString
+  elif n.kind == nnkBracketExpr:
+    result = n[0].nodeToString & "[" & n[1].nodeToString & "]"
   else:
+    echo treeRepr(n)
     assert false, "Can't stringify " & $n.kind
 
 #################################################################################################### 
@@ -246,21 +249,35 @@ proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
 
 proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
   var argsInit = newStmtList()
+
   for p in pd.params:
     let pi = ident(p.name)
-    if p.type == "string":
-      let po = ident(p.name & "Obj")
-      argsInit.add quote do:
-        let `po` = theEnv.NewStringUTF(theEnv, `pi`)
-        defer:
-          theEnv.DeleteLocalRef(theEnv, `po`)
-        `argsIdent`.add(`po`.toJValue)
-    else:
-      argsInit.add quote do:
+    argsInit.add quote do:
+      when compiles(toJVMObject(`pi`)):
+        `argsIdent`.add(`pi`.toJVMObject.toJValue)
+      else:
         `argsIdent`.add(`pi`.toJValue)
   result = quote do:
     var `argsIdent` = newSeq[jvalue]()
     `argsInit`
+          
+# proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
+#   var argsInit = newStmtList()
+#   for p in pd.params:
+#     let pi = ident(p.name)
+#     if p.type == "string":
+#       let po = ident(p.name & "Obj")
+#       argsInit.add quote do:
+#         let `po` = theEnv.NewStringUTF(theEnv, `pi`)
+#         defer:
+#           theEnv.DeleteLocalRef(theEnv, `po`)
+#         `argsIdent`.add(`po`.toJValue)
+#     else:
+#       argsInit.add quote do:
+#         `argsIdent`.add(`pi`.toJValue)
+#   result = quote do:
+#     var `argsIdent` = newSeq[jvalue]()
+#     `argsInit`
 
 proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert pd.isConstructor
@@ -301,5 +318,5 @@ proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
-  echo repr(result)
+  # echo repr(result)
   

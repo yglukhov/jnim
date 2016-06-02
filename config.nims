@@ -49,6 +49,7 @@ proc javac(file: string, outDir: string) =
 task int_test_bootstrap, "Prepare test environment":
   BUILD_DIR.mkDir
   javac "tests/java/TestClass.java", BUILD_DIR
+  javac "tests/java/ConstructorTestClass.java", BUILD_DIR
 
 task test, "Run all tests":
   dep int_test_bootstrap

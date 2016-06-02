@@ -156,11 +156,21 @@ suite "jni_generator":
   #   check: declared(JVMString2)
   #   check: JVMString2.jniSig == fqcn"java.lang.String"
 
-  test "jni_generator - import string":
-    jclass java.lang.String of JVMObject:
-      proc new
-      proc new(s: string)
-    var o = String.new
-    check: o.toStringRaw == ""
-    o = String.new("Hello, world!")
-    check: o.toStringRaw == "Hello, world!"
+  jclass ConstructorTestClass of JVMObject:
+    proc new
+    proc new(i: jint)
+    proc new(s: string)
+    proc new(i: jint, d: jdouble, s: string)
+    proc new(ints: seq[jint])
+
+  test "jni_generator - TestClass - constructors":
+    var o = ConstructorTestClass.new
+    check: o.toStringRaw == "Empty constructor called"
+    o = ConstructorTestClass.new(1)
+    check: o.toStringRaw == "Int constructor called, 1"
+    o = ConstructorTestClass.new("hi!")
+    check: o.toStringRaw == "String constructor called, hi!"
+    o = ConstructorTestClass.new(1, 2.0, "str")
+    check: o.toStringRaw == "Multiparameter constructor called, 1, 2.0, str"
+    o = ConstructorTestClass.new(@[1.jint,2,3])
+    check: o.toStringRaw == "Int array constructor called, 1, 2, 3"

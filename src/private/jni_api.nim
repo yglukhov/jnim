@@ -319,6 +319,10 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
   proc newArray*(t: typedesc[typ], arr: JVMObject): `JVM typName Array` =
     `newJVM typName Array`(arr.newRef)
 
+  proc toJVMObject*(a: `JVM typName Array`): JVMObject =
+    checkInit
+    newJVMObject(callVM theEnv.NewLocalRef(theEnv, a.arr.jobject))
+
   # getters/setters
   
   proc `get typName Array`*(c: JVMClass, name: string): `JVM typName Array` =
@@ -514,3 +518,18 @@ genMethod(jfloat, Float)
 genMethod(jdouble, Double)
 genMethod(jboolean, Boolean)
 
+####################################################################################################
+# Helpers
+
+proc toJVMObject*(s: string): JVMObject =
+  newJVMObject(s)
+
+type JPrimitiveType = jint | jfloat | jboolean | jdouble | jshort | jlong | jchar | jbyte
+
+proc toJVMObject*[T: JPrimitiveType](a: openarray[T]): JVMObject =
+  var arr = T.newArray(a.len)
+  for i, v in a:
+    arr[i] = v
+  arr.toJVMObject
+
+# proc toJVMObject*(a: seq): JVMObject = nil
