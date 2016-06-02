@@ -237,6 +237,7 @@ proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
   result = quote do:
     type `classNameEx` = ref object of `parentName`
     proc `jniSig`(t: typedesc[`className`]): string = fqcn(`jName`)
+    proc `jniSig`(t: typedesc[openarray[`className`]]): string = "[" & fqcn(`jName`)
     proc `freeId`(o: `className`) =
       o.JVMObject.free
     proc `create`(t: typedesc[`className`], o: jobject): `className` =
@@ -244,6 +245,8 @@ proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
       res.new(`freeId`)
       res.JVMObject.setObj(o)
       return res
+    proc toJVMObject(v: `className`): JVMObject =
+      v.JVMObject
     proc toJValue(v: `className`): jvalue =
       v.get.toJValue
 
@@ -318,5 +321,3 @@ proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
-  # echo repr(result)
-  

@@ -149,6 +149,7 @@ suite "jni_api":
     discard JVMClass.getByName("java.lang.Object").newArray(100)
 
     discard @[1.jint, 2, 3].toJVMObject()
+    discard @["a", "b", "c"].toJVMObject()
 
   test "JVM - TestClass - arrays":
     let cls = JVMClass.getByName("TestClass")

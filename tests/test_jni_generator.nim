@@ -161,7 +161,10 @@ suite "jni_generator":
     proc new(i: jint)
     proc new(s: string)
     proc new(i: jint, d: jdouble, s: string)
-    proc new(ints: seq[jint])
+    proc new(ints: openarray[jint])
+    proc new(strings: openarray[string])
+    proc new(c: ConstructorTestClass)
+    proc new(c: openarray[ConstructorTestClass])
 
   test "jni_generator - TestClass - constructors":
     var o = ConstructorTestClass.new
@@ -174,3 +177,10 @@ suite "jni_generator":
     check: o.toStringRaw == "Multiparameter constructor called, 1, 2.0, str"
     o = ConstructorTestClass.new(@[1.jint,2,3])
     check: o.toStringRaw == "Int array constructor called, 1, 2, 3"
+    o = ConstructorTestClass.new(@["a", "b", "c"])
+    check: o.toStringRaw == "String array constructor called, a, b, c"
+    o = ConstructorTestClass.new(o)
+    check: o.toStringRaw == "String array constructor called, a, b, c"
+    let cc = @[ConstructorTestClass.new(), ConstructorTestClass.new(1)]
+    o = ConstructorTestClass.new(cc)
+    check: o.toStringRaw == "Empty constructor called\nInt constructor called, 1\n"

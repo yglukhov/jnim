@@ -306,6 +306,9 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
     proc newArray*(c: JVMClass, len: int): `JVM typName Array` =
       `newJVM typName Array`(len.jsize, c)
 
+    proc newArray*(t: typedesc[JVMObject], len: int): `JVM typName Array` =
+      `newJVM typName Array`(len.jsize, JVMClass.getByName("java.lang.Object"))
+
   proc `newJVM typName Array`*(arr: jobject): `JVM typName Array` =
     checkInit
     new(result, `freeJVM typName Array`)
@@ -526,10 +529,21 @@ proc toJVMObject*(s: string): JVMObject =
 
 type JPrimitiveType = jint | jfloat | jboolean | jdouble | jshort | jlong | jchar | jbyte
 
-proc toJVMObject*[T: JPrimitiveType](a: openarray[T]): JVMObject =
-  var arr = T.newArray(a.len)
-  for i, v in a:
-    arr[i] = v
-  arr.toJVMObject
-
-# proc toJVMObject*(a: seq): JVMObject = nil
+proc toJVMObject*[T](a: openarray[T]): JVMObject =
+  when T is JVMObject:
+    var arr = JVMObject.newArray(a.len)
+    for i, v in a:
+      arr[i] = v
+    result = arr.toJVMObject
+  elif compiles(toJVMObject(a[0])):
+    var arr = JVMObject.newArray(a.len)
+    for i, v in a:
+      arr[i] = v.toJVMObject
+    result = arr.toJVMObject
+  elif T is JPrimitiveType:
+    var arr = T.newArray(a.len)
+    for i, v in a:
+      arr[i] = v
+    result = arr.toJVMObject
+  else:
+    {.error: "define toJVMObject method for the openarray element type".}
