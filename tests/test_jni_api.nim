@@ -119,6 +119,7 @@ suite "jni_api":
     let cls = JVMClass.getByName("TestClass")
 
     check: cls.callObjectMethod("objectSMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
+    check: string.callMethod(cls, cls.getStaticMethodId("objectSMethod", "($1)$1" % JVMObject.jniSig), ["test".newJVMObject.toJValue]) == "test"
     check: cls.callCharMethod("charSMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
     check: cls.callByteMethod("byteSMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
     check: cls.callShortMethod("shortSMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
@@ -133,6 +134,7 @@ suite "jni_api":
     let obj = cls.newObject("()V")
 
     check: obj.callObjectMethod("objectMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
+    check: string.callMethod(obj, cls.getMethodId("objectMethod", "($1)$1" % JVMObject.jniSig), ["test".newJVMObject.toJValue]) == "test"
     check: obj.callCharMethod("charMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
     check: obj.callByteMethod("byteMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
     check: obj.callShortMethod("shortMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2

@@ -511,6 +511,15 @@ template genMethod(typ: typedesc, typName: untyped): stmt =
     else:
       callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)
 
+  when `typ` is JVMObject:
+    proc `call typName MethodRaw`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): jobject =
+      let a = if args.len == 0: nil else: unsafeAddr args[0]
+      callVM theEnv.`CallStatic typName MethodA`(theEnv, c.get, id.get, a)
+
+    proc `call typName MethodRaw`*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []): jobject =
+      let a = if args.len == 0: nil else: unsafeAddr args[0]
+      callVM theEnv.`Call typName MethodA`(theEnv, o.get, id.get, a)
+
 genMethod(JVMObject, Object)
 genMethod(jchar, Char)
 genMethod(jbyte, Byte)
@@ -547,3 +556,29 @@ proc toJVMObject*[T](a: openarray[T]): JVMObject =
     result = arr.toJVMObject
   else:
     {.error: "define toJVMObject method for the openarray element type".}
+
+template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarray[jvalue]): expr =
+  when T is void:
+    o.callVoidMethod(methodId, args)
+  elif T is jchar:
+    o.callCharMethod(methodId, args)
+  elif T is jbyte:
+    o.callByteMethod(methodId, args)
+  elif T is jshort:
+    o.callShortMethod(methodId, args)
+  elif T is jint:
+    o.callIntMethod(methodId, args)
+  elif T is jlong:
+    o.callLongMethod(methodId, args)
+  elif T is jfloat:
+    o.callFloatMethod(methodId, args)
+  elif T is jdouble:
+    o.callDoubleMethod(methodId, args)
+  elif T is jboolean:
+    o.callBooleanMethod(methodId, args)
+  elif T is string:
+    o.callObjectMethod(methodId, args).toStringRaw
+  elif compiles(T.create(nil.jobject)):
+    T.create(o.callObjectMethodRaw(methodId, args))
+  else:
+    {.error: "Unknown return type".}

@@ -78,7 +78,10 @@ proc fillProcParams(pd: var ProcDef, n: NimNode) {.compileTime.} =
   pd.params = newSeq[ProcParam]()
   if hasParams:
     for i in 1..<n.len:
-      pd.params.add((n[i][0].nodeToString, n[i][1].nodeToString))
+      # Process ``x, y: jint`` like parameters definitions
+      let maxI = n[i].len-3
+      for v in 0..maxI:
+        pd.params.add((n[i][v].nodeToString, n[i][maxI+1].nodeToString))
   
 ####################################################################################################
 # Proc definition
@@ -234,10 +237,13 @@ proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
   let create = identEx(cd.isExported, "create")
   let freeId = ident("free" & cd.name)
   let jName = cd.jName.newStrLitNode
+  let getClassId = identEx(cd.isExported, "getTypeClass")
   result = quote do:
     type `classNameEx` = ref object of `parentName`
     proc `jniSig`(t: typedesc[`className`]): string = fqcn(`jName`)
     proc `jniSig`(t: typedesc[openarray[`className`]]): string = "[" & fqcn(`jName`)
+    proc `getClassId`(t: typedesc[`className`]): JVMClass =
+      JVMClass.getByFqcn(fqcn(`jName`))
     proc `freeId`(o: `className`) =
       o.JVMObject.free
     proc `create`(t: typedesc[`className`], o: jobject): `className` =
@@ -264,24 +270,6 @@ proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
     var `argsIdent` = newSeq[jvalue]()
     `argsInit`
           
-# proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
-#   var argsInit = newStmtList()
-#   for p in pd.params:
-#     let pi = ident(p.name)
-#     if p.type == "string":
-#       let po = ident(p.name & "Obj")
-#       argsInit.add quote do:
-#         let `po` = theEnv.NewStringUTF(theEnv, `pi`)
-#         defer:
-#           theEnv.DeleteLocalRef(theEnv, `po`)
-#         `argsIdent`.add(`po`.toJValue)
-#     else:
-#       argsInit.add quote do:
-#         `argsIdent`.add(`pi`.toJValue)
-#   result = quote do:
-#     var `argsIdent` = newSeq[jvalue]()
-#     `argsInit`
-
 proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert pd.isConstructor
 
@@ -301,11 +289,46 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
     let sig = `sig`
     `args`
     `ctype`.create(newObjectRaw(JVMClass.getByName(`cname`), sig, `ai`))
-  
-proc generateMethod(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
+
+proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
+  assert(not (pd.isConstructor or pd.isProp))
+
+  let sig = getProcSignature(pd)
+  let cname = cd.jName.newStrLitNode
+  let pname = pd.jName.newStrLitNode
+  let ctype = cd.name.ident
+  echo pd
+  result = def.copyNimTree
+  result.pragma = newEmptyNode()
+  var objToCall: NimNode
+  # Add first parameter
+  if pd.isStatic:
+    result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
+    objToCall = quote do:
+      `ctype`.getTypeClass
+  else:
+    result.params.insert(1, newIdentDefs(ident"this", ctype))
+    objToCall = ident"this"
+  let retType = parseExpr("typedesc[$#]" % pd.retType)
+  let mId =
+    if pd.isStatic:
+      quote do:
+        `objToCall`.getStaticMethodId(`pname`, `sig`)
+    else:
+      quote do:
+        `objToCall`.getClass.getMethodId(`pname`, `sig`)
+  let ai = ident"args"
+  let args = generateArgs(pd, ai)
+  result.body = quote do:
+    `args`
+    callMethod(`retType`, `objToCall`, `mId`, `ai`)
+
+proc generateProc(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
   let pd = parseProcDef(def)
   if pd.isConstructor:
     result = generateConstructor(cd, pd, def)
+  elif not pd.isProp:
+    result = generateMethod(cd, pd, def)
   else:
     assert false, "Don't know how to generate " & repr(def)
 
@@ -315,9 +338,10 @@ proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
   result.add generateClassType(cd)
   if body.kind == nnkStmtList:
     for def in body:
-      result.add generateMethod(cd, def)
+      result.add generateProc(cd, def)
   else:
-    result.add generateMethod(cd, body)
+    result.add generateProc(cd, body)
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
+  echo repr(result)

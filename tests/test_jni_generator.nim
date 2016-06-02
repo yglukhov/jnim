@@ -81,6 +81,18 @@ suite "jni_generator":
     check: pd.isExported
 
     parseProcDefTest pd:
+      proc `method`*(i, j: jint): jshort {.importc: "jmethod".}
+    check: pd.name == "method"
+    check: pd.jName == "jmethod"
+    check: pd.retType == "jshort"
+    check: pd.params == @[("i", "jint"), ("j", "jint")]
+    check: not pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isFinal
+    check: pd.isExported
+
+    parseProcDefTest pd:
       proc staticMethod(i: jint): jshort {.`static`.}
     check: pd.name == "staticMethod"
     check: pd.jName == "staticMethod"
@@ -181,6 +193,18 @@ suite "jni_generator":
     check: o.toStringRaw == "String array constructor called, a, b, c"
     o = ConstructorTestClass.new(o)
     check: o.toStringRaw == "String array constructor called, a, b, c"
-    let cc = @[ConstructorTestClass.new(), ConstructorTestClass.new(1)]
+    let cc = [ConstructorTestClass.new(), ConstructorTestClass.new(1)]
     o = ConstructorTestClass.new(cc)
     check: o.toStringRaw == "Empty constructor called\nInt constructor called, 1\n"
+
+  jclass MethodTestClass of JVMObject:
+    proc new
+    proc add(x, y: jint): jint {.`static`, importc: "addStatic".}
+    proc addToMem(x: jint): jint {.importc: "addToMem".}
+
+  test "jni_generator - TestClass - methods":
+    check: MethodTestClass.add(1, 2) == 3
+    let o = MethodTestClass.new
+    check: o.addToMem(2) == 2
+    check: o.addToMem(3) == 5
+    
