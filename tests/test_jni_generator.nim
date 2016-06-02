@@ -4,10 +4,10 @@ import private.jni_generator,
        macros,
        unittest
 
-jclass java.lang.String2* of JVMObject:
-  proc new
-jclass java.lang.String as JVMString2* of JVMObject:
-  proc length: jint {.importc: "length".}
+# jclass java.lang.String2* of JVMObject:
+#   proc new
+# jclass java.lang.String as JVMString2* of JVMObject:
+#   proc new
 
 suite "jni_generator":
   setup:
@@ -142,16 +142,25 @@ suite "jni_generator":
     check: cd.parent == "JVMObject"
     check: cd.isExported
 
-  test "jni_generator - import class":
-    jclass java.lang.String1 of JVMObject:
+  # test "jni_generator - import class":
+  #   jclass java.lang.String1 of JVMObject:
+  #     proc new
+  #   check: declared(String1)
+  #   check: String1.jniSig == fqcn"java.lang.String1"
+  #   jclass java.lang.String as JVMString1 of JVMObject:
+  #     proc new
+  #   check: declared(JVMString1)
+  #   check: JVMString1.jniSig == fqcn"java.lang.String"
+  #   check: declared(String2)
+  #   check: String2.jniSig == fqcn"java.lang.String2"
+  #   check: declared(JVMString2)
+  #   check: JVMString2.jniSig == fqcn"java.lang.String"
+
+  test "jni_generator - import string":
+    jclass java.lang.String of JVMObject:
       proc new
-    check: declared(String1)
-    check: String1.jniSig == fqcn"java.lang.String1"
-    jclass java.lang.String as JVMString1 of JVMObject:
-      proc length: jint {.importc: "length".}
-    check: declared(JVMString1)
-    check: JVMString1.jniSig == fqcn"java.lang.String"
-    check: declared(String2)
-    check: String2.jniSig == fqcn"java.lang.String2"
-    check: declared(JVMString2)
-    check: JVMString2.jniSig == fqcn"java.lang.String"
+      proc new(s: string)
+    var o = String.new
+    check: o.toStringRaw == ""
+    o = String.new("Hello, world!")
+    check: o.toStringRaw == "Hello, world!"

@@ -18,7 +18,7 @@ var theOptions = JVMOptions.none
 # Options for another threads
 var theOptionsPtr: pointer
 var theVM: JavaVMPtr
-var theEnv {.threadVar}: JNIEnvPtr
+var theEnv* {.threadVar}: JNIEnvPtr
 
 proc initJNIThread* {.gcsafe.}
 proc initJNI*(version: JNIVersion, options: seq[string]) =
@@ -75,7 +75,7 @@ proc deinitJNIThread* =
 
 proc isJNIThreadInitialized*: bool = theEnv != nil
 
-template checkInit = jniAssert(theEnv != nil, "You must call initJNIThread before using JNI API")
+template checkInit* = jniAssert(theEnv != nil, "You must call initJNIThread before using JNI API")
 
 ####################################################################################################
 # Types
@@ -107,7 +107,7 @@ template checkException: stmt =
     theEnv.ExceptionClear(theEnv)
     raise newJavaException(ex.toStringRaw)
   
-macro callVM(s: expr): expr =
+macro callVM*(s: expr): expr =
   result = quote do:
     let res = `s`
     checkException()
@@ -195,24 +195,38 @@ proc newObject*(c: JVMClass, sig: string, args: openarray[jvalue] = []): JVMObje
   let a = if args.len == 0: nil else: unsafeAddr args[0]
   (callVM theEnv.NewobjectA(theEnv, c.get, c.getMethodId("<init>", sig).get, a)).newJVMObject
 
+proc newObjectRaw*(c: JVMClass, sig: string, args: openarray[jvalue] = []): jobject =
+  checkInit
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  callVM theEnv.NewobjectA(theEnv, c.get, c.getMethodId("<init>", sig).get, a)
+
 ####################################################################################################
 # JVMObject type
 
 proc jniSig*(T: typedesc[JVMObject]): string = fqcn"java.lang.Object"
 
-proc freeJVMObject(o: JVMObject) =
+proc free*(o: JVMObject) =
   if o.obj != nil and theEnv != nil:
     theEnv.DeleteLocalRef(theEnv, o.obj)
+    o.obj = nil
+
+proc freeJVMObject*(o: JVMObject) =
+  o.free
 
 proc newJVMObject*(o: jobject): JVMObject =
   new(result, freeJVMObject)
   result.obj = o
+
+proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 
 proc newJVMObject*(s: string): JVMObject =
   (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObject
 
 proc get*(o: JVMObject): jobject =
   o.obj
+
+proc setObj*(o: var JVMObject, obj: jobject) =
+  o.obj = obj
 
 proc toJValue*(o: JVMObject): jvalue =
   o.get.toJValue
@@ -223,6 +237,7 @@ proc getClass*(o: JVMObject): JVMClass =
   
 proc toStringRaw(o: JVMObject): string =
   # This is low level ``toString`` version
+  assert o.obj != nil
   let cls = theEnv.GetObjectClass(theEnv, o.obj)
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
   let mthId = theEnv.GetMethodID(theEnv, cls, "toString", "()" & string.jniSig)

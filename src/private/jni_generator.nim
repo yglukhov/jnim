@@ -50,7 +50,7 @@ const ProcParamsPos = 3
 ####################################################################################################
 # Proc signature
 
-proc concat(s: varargs[string]): string = "(" & s.join() & ")"
+proc concatParams(s: varargs[string]): string = "(" & s.join() & ")"
 
 proc getProcSignature(pd: ProcDef): NimNode {.compileTime.} =
   let ret = parseExpr("jniSig($#)" % pd.retType)
@@ -58,7 +58,7 @@ proc getProcSignature(pd: ProcDef): NimNode {.compileTime.} =
     return quote do:
       `ret`
 
-  var params = newCall(bindSym("concat"))
+  var params = newCall(bindSym("concatParams"))
   for p in pd.params:
     params.add(parseExpr("jniSig($#)" % p.`type`))
   
@@ -223,30 +223,83 @@ macro parseClassDefTest*(i: untyped, s: expr): stmt =
 template identEx(isExported: bool, name: string): expr =
   if isExported: postfix(ident(name), "*") else: ident(name)
 
-proc generateClassType(def: NimNode): NimNode {.compileTime.} =
-  let cd = parseClassDef(def)
+proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
   let classNameEx = identEx(cd.isExported, cd.name)
   let parentName = ident(cd.parent)
   let jniSig = identEx(cd.isExported, "jniSig")
+  let create = identEx(cd.isExported, "create")
+  let freeId = ident("free" & cd.name)
   let jName = cd.jName.newStrLitNode
   result = quote do:
     type `classNameEx` = ref object of `parentName`
     proc `jniSig`(t: typedesc[`className`]): string = fqcn(`jName`)
+    proc `freeId`(o: `className`) =
+      o.JVMObject.free
+    proc `create`(t: typedesc[`className`], o: jobject): `className` =
+      var res: `className`
+      res.new(`freeId`)
+      res.JVMObject.setObj(o)
+      return res
+    proc toJValue(v: `className`): jvalue =
+      v.get.toJValue
 
-proc generateMethod(def: NimNode): NimNode {.compileTime.} =
+proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
+  var argsInit = newStmtList()
+  for p in pd.params:
+    let pi = ident(p.name)
+    if p.type == "string":
+      let po = ident(p.name & "Obj")
+      argsInit.add quote do:
+        let `po` = theEnv.NewStringUTF(theEnv, `pi`)
+        defer:
+          theEnv.DeleteLocalRef(theEnv, `po`)
+        `argsIdent`.add(`po`.toJValue)
+    else:
+      argsInit.add quote do:
+        `argsIdent`.add(`pi`.toJValue)
+  result = quote do:
+    var `argsIdent` = newSeq[jvalue]()
+    `argsInit`
+
+proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
+  assert pd.isConstructor
+
+  let sig = getProcSignature(pd)
+  let cname = cd.jName.newStrLitNode
+  let ctype = cd.name.ident
+
+  result = def.copyNimTree
+  # Change return type
+  result.params[0] = ident(cd.name)
+  # Add first parameter
+  result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
+  let ai = ident"args"
+  let args = generateArgs(pd, ai)
+  result.body = quote do:
+    checkInit
+    let sig = `sig`
+    `args`
+    `ctype`.create(newObjectRaw(JVMClass.getByName(`cname`), sig, `ai`))
+  
+proc generateMethod(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
   let pd = parseProcDef(def)
-  result = newStmtList()
+  if pd.isConstructor:
+    result = generateConstructor(cd, pd, def)
+  else:
+    assert false, "Don't know how to generate " & repr(def)
 
 proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
+  let cd = parseClassDef(head)
   result = newStmtList()
-  result.add generateClassType(head)
+  result.add generateClassType(cd)
   if body.kind == nnkStmtList:
     for def in body:
-      result.add generateMethod(def)
+      result.add generateMethod(cd, def)
   else:
-    result.add generateMethod(body)
+    result.add generateMethod(cd, body)
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   result = generateClassDef(head, body)
+  echo repr(result)
   
