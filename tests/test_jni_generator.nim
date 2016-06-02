@@ -228,6 +228,8 @@ suite "jni_generator":
     proc new
     proc staticInt: jint {.prop, `static`.}
     proc instanceInt: jint {.prop.}
+    proc inst: PropsTestClass {.prop, `static`.}
+    proc instanceString: string {.prop, final.}
 
   test "jni_generator - TestClass - properties":
     check: PropsTestClass.staticInt == 100
@@ -237,3 +239,5 @@ suite "jni_generator":
     check: o.instanceInt == 100
     o.instanceInt = 300
     check: o.instanceInt == 300
+    check PropsTestClass.inst.instanceInt == 100
+    check: PropsTestClass.inst.instanceString == "Hello"

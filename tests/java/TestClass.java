@@ -20,6 +20,7 @@ public class TestClass {
     public float floatField = 1.0f;
     public double doubleField = 2.0;
     public boolean booleanField = true;
+    public String checkStringProperty = "OK";
 
     // Static methods
     public static Object objectSMethod(Object v) {

@@ -84,6 +84,8 @@ suite "jni_api":
   test "API - TestClass - fields":
     let cls = JVMClass.getByName("TestClass")
     let obj = cls.newObject("()V")
+
+    check: getProp(string, obj, obj.getClass.getFieldId("checkStringProperty", jniSig(string))) == "OK"
     
     check: obj.getObject("objectField").toStringRaw == "obj"
     check: obj.getChar("charField") == 'A'.jchar

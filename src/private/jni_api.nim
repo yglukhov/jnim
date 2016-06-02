@@ -472,7 +472,7 @@ template genField(typ: typedesc, typName: untyped): stmt =
 
     proc getPropRaw*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID): jobject =
       checkInit
-      (callVM theEnv.`Get typName Field`(theEnv, o.getClass.get, id.get))
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, id.get))
 
     proc setPropRaw*(T: typedesc[`typ`], c: JVMClass, id: JVMFieldID, v: jobject) =
       checkInit
@@ -610,7 +610,7 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
 proc jarrayToSeq[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {.inline.} =
   jarrayToSeqImpl(arr, result)
 
-template getProp*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.} =
+template getPropValue*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.} =
   when T is JPrimitiveType:
     T.getProp(o, id)
   elif T is string:
@@ -622,7 +622,7 @@ template getProp*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.} =
   else:
     {.error: "Unknown property type".}
 
-template setProp*(T: typedesc, o: expr, id: JVMFieldID, v: T): expr {.immediate.} =
+template setPropValue*(T: typedesc, o: expr, id: JVMFieldID, v: T): expr {.immediate.} =
   when T is JPrimitiveType:
     T.setProp(o, id, v)
   elif compiles(toJVMObject(v)):
