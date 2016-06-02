@@ -557,6 +557,27 @@ proc toJVMObject*[T](a: openarray[T]): JVMObject =
   else:
     {.error: "define toJVMObject method for the openarray element type".}
 
+template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
+  checkInit
+  res = nil
+  if arr == nil:
+    return
+  let length = theEnv.GetArrayLength(theEnv, arr)
+  res = newSeq[T](length.int)
+  when T is JPrimitiveType:
+    theEnv.GetArrayRegion(theEnv, arr, 0, length, addr(res[0]))
+  elif compiles(T.fromJObject(nil.jobject)):
+    for i in 0..<res.len:
+      res[i] = theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize).fromJObject
+  elif T is string:
+    for i in 0..<res.len:
+      res[i] = theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize).newJVMObject.toStringRaw
+  else:
+    {.fatal: "Sequences is not supported for the supplied type".}
+
+proc jarrayToSeq[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {.inline.} =
+  jarrayToSeqImpl(arr, result)
+
 template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarray[jvalue]): expr {.immediate.} =
   when T is void:
     o.callVoidMethod(methodId, args)
@@ -576,6 +597,8 @@ template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarra
     o.callDoubleMethod(methodId, args)
   elif T is jboolean:
     o.callBooleanMethod(methodId, args)
+  elif T is seq:
+    T(jarrayToSeq(o.callObjectMethodRaw(methodId, args).jarray, T))
   elif T is string:
     o.callObjectMethod(methodId, args).toStringRaw
   elif compiles(T.fromJObject(nil.jobject)):

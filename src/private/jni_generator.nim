@@ -69,7 +69,7 @@ proc getProcSignature(pd: ProcDef): NimNode {.compileTime.} =
 
 proc fillProcParams(pd: var ProcDef, n: NimNode) {.compileTime.} =
   expectKind n, nnkFormalParams
-  let hasRet = n.len > 0 and n[0].kind == nnkIdent
+  let hasRet = n.len > 0 and n[0].kind != nnkEmpty
   let hasParams = n.len > 1
 
   pd.retType = if hasRet: n[0].nodeToString else: "void"

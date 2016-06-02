@@ -69,6 +69,18 @@ suite "jni_generator":
     var pd: ProcDef
 
     parseProcDefTest pd:
+      proc getStrings: seq[string]
+    check: pd.name == "getStrings"
+    check: pd.jName == "getStrings"
+    check: pd.retType == "seq[string]"
+    check: pd.params.len == 0
+    check: not pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isFinal
+    check: not pd.isExported
+
+    parseProcDefTest pd:
       proc `method`*(i: jint): jshort {.importc: "jmethod".}
     check: pd.name == "method"
     check: pd.jName == "jmethod"
@@ -202,6 +214,7 @@ suite "jni_generator":
     proc add(x, y: jint): jint {.`static`, importc: "addStatic".}
     proc addToMem(x: jint): jint {.importc: "addToMem".}
     proc factory(i: jint): MethodTestClass {.`static`.}
+    proc getStrings: seq[string]
 
   test "jni_generator - TestClass - methods":
     check: MethodTestClass.add(1, 2) == 3
@@ -209,3 +222,4 @@ suite "jni_generator":
     check: o.addToMem(2) == 2
     check: o.addToMem(3) == 5
     check: MethodTestClass.factory(5).addToMem(1) == 6
+    check: o.getStrings == @["Hello", "world!"]

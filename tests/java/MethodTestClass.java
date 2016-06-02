@@ -18,4 +18,9 @@ public class MethodTestClass {
         o.addToMem(i);
         return o;
     }
+
+    public String[] getStrings() {
+        String[] arr = {"Hello", "world!"};
+        return arr;
+    }
 }
