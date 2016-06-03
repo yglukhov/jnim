@@ -131,6 +131,14 @@ suite "jni_generator":
     check: pd.isFinal
     check: pd.isExported
 
+  test "jni_generator - proc def - generics":
+    var pd: ProcDef
+
+    parseProcDefTest pd:
+      proc setAt[K,V](k: K, v: V)
+    check: pd.name == "setAt"
+    check: pd.genericTypes == @["K", "V"]
+
   test "jni_generator - class def - header":
     var cd: ClassDef
     
@@ -173,6 +181,29 @@ suite "jni_generator":
     check: cd.parent == "JVMObject"
     check: not cd.isExported
 
+  test "jni_generator - class def - generic header":
+    var cd: ClassDef
+
+    parseClassDefTest cd:
+      java.util.List[T] of JVMObject
+    check: cd.name == "List"
+    check: cd.jName == "java.util.List"
+    check: cd.genericTypes == @["T"]
+
+    parseClassDefTest cd:
+      java.util.Map[K,V] of JVMObject
+    check: cd.name == "Map"
+    check: cd.jName == "java.util.Map"
+    check: cd.genericTypes == @["K", "V"]
+
+    parseClassDefTest cd:
+      java.util.HashMap[K,V] of Map[K,V]
+    check: cd.name == "HashMap"
+    check: cd.jName == "java.util.HashMap"
+    check: cd.genericTypes == @["K", "V"]
+    check: cd.parentGenericTypes == @["K", "V"]
+    check: cd.parent == "Map"
+
   test "jni_generator - import class":
     jclass java.lang.String1 of JVMObject:
       proc new
@@ -200,7 +231,7 @@ suite "jni_generator":
   test "jni_generator - TestClass - constructors":
     var o = ConstructorTestClass.new
     check: o.toStringRaw == "Empty constructor called"
-    o = ConstructorTestClass.new(1)
+    o = ConstructorTestClass.new(1.jint)
     check: o.toStringRaw == "Int constructor called, 1"
     o = ConstructorTestClass.new("hi!")
     check: o.toStringRaw == "String constructor called, hi!"

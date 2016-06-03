@@ -30,6 +30,7 @@ type ProcParam* = tuple[
   name: string,
   `type`: ParamType
 ]
+type GenericType* = string
 
 type
   ProcDef* = object
@@ -42,12 +43,37 @@ type
     isExported*: bool
     params*: seq[ProcParam]
     retType*: ParamType
+    genericTypes*: seq[GenericType]
     
-proc initProcDef(name: string, jName: string, isConstructor, isStatic, isProp, isFinal, isExported: bool, params: seq[ProcParam] = @[], retType = "void"): ProcDef =
-  ProcDef(name: name, jName: jName, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isFinal: isFinal, isExported: isExported, params: params, retType: retType)
+proc initProcDef(name: string, jName: string, isConstructor, isStatic, isProp, isFinal, isExported: bool, params: seq[ProcParam] = @[], retType = "void", genericTypes: seq[GenericType] = @[]): ProcDef =
+  ProcDef(name: name, jName: jName, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isFinal: isFinal, isExported: isExported, params: params, retType: retType, genericTypes: genericTypes)
 
 const ProcNamePos = 0
 const ProcParamsPos = 3
+
+proc findNameAndGenerics(n: NimNode): (NimNode, Option[NimNode]) =
+  if n.kind == nnkBracketExpr:
+    result[0] = n[0]
+    result[1] = n.some
+  else:
+    result[0] = n
+    result[1] = NimNode.none
+      
+proc parseGenericsNode(n: NimNode): seq[GenericType] =
+  expectKind n, nnkBracketExpr
+  result = newSeq[GenericType]()
+  for i in 1..<n.len:
+    expectKind n[i], nnkIdent
+    result.add($n[i])
+
+proc parseProcGenericsNode(n: NimNode): seq[GenericType] =
+  expectKind n, nnkProcDef
+  result = newSeq[GenericType]()
+  if n[2].kind == nnkGenericParams:
+    let idents = n[2][0]
+    for i in 0..<(idents.len-1):
+      if idents[i].kind == nnkIdent:
+        result.add($idents[i])
 
 ####################################################################################################
 # Proc signature
@@ -103,6 +129,7 @@ proc parseProcDef(n: NimNode): ProcDef {.compileTime.} =
   expectKind n, nnkProcDef
   expectKind n[ProcNamePos], {nnkIdent, nnkPostfix}
 
+
   if n[ProcNamePos].kind == nnkPostfix:
     assert $n[ProcNamePos][0].toStrLit == "*"
     result.name = n[ProcNamePos][1].nodeToString
@@ -124,6 +151,7 @@ proc parseProcDef(n: NimNode): ProcDef {.compileTime.} =
   result.isStatic = findPragma(n, "static")
   result.isProp = findPragma(n, "prop")
   result.isFinal = findPragma(n, "final")
+  result.genericTypes = parseProcGenericsNode(n)
 
   fillProcParams(result, n[ProcParamsPos])
 
@@ -140,7 +168,7 @@ proc fillProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
       isExported,
       params,
       retType : NimNode
-  
+
   let pd = parseProcDef(n)
 
   name = pd.name.newStrLitNode
@@ -157,6 +185,11 @@ proc fillProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
   result = quote do:
     `def` = initProcDef(`name`, `jName`, `isConstructor`, `isStatic`, `isProp`, `isFinal`, `isExported`, `params`, `retType`)
 
+  for g in pd.genericTypes:
+    let v = g.newStrLitNode
+    result.add quote do:
+      `def`.genericTypes.add(`v`)
+
 macro parseProcDefTest*(i: untyped, s: expr): stmt =
   result = fillProcDef(s[0], i)
 
@@ -169,9 +202,11 @@ type
     jName*: string
     parent*: string
     isExported*: bool
+    genericTypes*: seq[GenericType]
+    parentGenericTypes*: seq[GenericType]
 
-proc initClassDef(name, jName, parent: string, isExported: bool): ClassDef =
-  ClassDef(name: name, jName: jName, parent: parent, isExported: isExported)
+proc initClassDef(name, jName, parent: string, isExported: bool, genericTypes: seq[GenericType] = @[], parentGenericTypes: seq[GenericType] = @[]): ClassDef =
+  ClassDef(name: name, jName: jName, parent: parent, isExported: isExported, genericTypes: genericTypes, parentGenericTypes: parentGenericTypes)
 
 proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
   expectKind c, nnkInfix
@@ -180,6 +215,8 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
   var jNameNode,
       nameNode,
       parentNode: NimNode
+  var generics,
+      parentGenerics: Option[NimNode]
   var exported = false
 
   proc nameFromJName(jNameNode: NimNode): NimNode =
@@ -192,29 +229,29 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
 
   if $c[0] == "of":
     if c[1].kind == nnkInfix and $c[1][0] == "as":
-      jNameNode = c[1][1]
+      (jNameNode, generics) = c[1][1].findNameAndGenerics
       nameNode = c[1][2]
-      parentNode = c[2]
+      (parentNode, parentGenerics) = c[2].findNameAndGenerics
     else:
-      jNameNode = c[1]
-      parentNode = c[2]
+      (jNameNode, generics) = c[1].findNameAndGenerics
+      (parentNode, parentGenerics) = c[2].findNameAndGenerics
       nameNode = nameFromJName(jNameNode)
   else:
     exported = true
     if $c[0] == "as" and $c[2][0] == "*":
-      jNameNode = c[1]
+      (jNameNode, generics) = c[1].findNameAndGenerics
       nameNode = c[2][1]
-      parentNode = c[2][2][1]
+      (parentNode, parentGenerics) = c[2][2][1].findNameAndGenerics
     elif $c[0] == "*":
-      jNameNode = c[1]
+      (jNameNode, generics) = c[1].findNameAndGenerics
       nameNode = nameFromJName(jNameNode)
-      parentNode = c[2][1]
+      (parentNode, parentGenerics) = c[2][1].findNameAndGenerics
 
   let name = nameNode.nodeToString
   let jName = jNameNode.nodeToString
   let parent = parentNode.nodeToString
 
-  initClassDef(name, jName, parent, exported)
+  initClassDef(name, jName, parent, exported, generics.map(parseGenericsNode).getOrElse(@[]), parentGenerics.map(parseGenericsNode).getOrElse(@[]))
 
 proc fillClassDef(c: NimNode, def: NimNode): NimNode {.compileTime.} =
   let cd = parseClassDef(c)
@@ -226,6 +263,16 @@ proc fillClassDef(c: NimNode, def: NimNode): NimNode {.compileTime.} =
 
   result = quote do:
     `def` = initClassDef(`name`, `jName`, `parent`, `isExported`)
+
+  for g in cd.genericTypes:
+    let v = g.newStrLitNode
+    result.add quote do:
+      `def`.genericTypes.add(`v`)
+  
+  for g in cd.parentGenericTypes:
+    let v = g.newStrLitNode
+    result.add quote do:
+      `def`.parentGenericTypes.add(`v`)
   
 macro parseClassDefTest*(i: untyped, s: expr): stmt =
   result = fillClassDef(if s.kind == nnkStmtList: s[0] else: s, i)
