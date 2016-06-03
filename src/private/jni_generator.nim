@@ -241,7 +241,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let create = identEx(cd.isExported, "fromJObject")
   let freeId = ident("free" & cd.name)
   let jName = cd.jName.newStrLitNode
-  let getClassId = identEx(cd.isExported, "getTypeClass")
+  let getClassId = identEx(cd.isExported, "getJVMClassForType")
   result = quote do:
     type `classNameEx` = ref object of `parentName`
     proc `jniSig`(t: typedesc[`className`]): string = fqcn(`jName`)
@@ -308,7 +308,7 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   if pd.isStatic:
     result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
     objToCall = quote do:
-      `ctype`.getTypeClass
+      `ctype`.getJVMClassForType
   else:
     result.params.insert(1, newIdentDefs(ident"this", ctype))
     objToCall = ident"this"
@@ -319,7 +319,7 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
         `objToCall`.getStaticMethodId(`pname`, `sig`)
     else:
       quote do:
-        `objToCall`.getClass.getMethodId(`pname`, `sig`)
+        `objToCall`.getJVMClass.getMethodId(`pname`, `sig`)
   let ai = ident"args"
   let args = generateArgs(pd, ai)
   result.body = quote do:
@@ -341,7 +341,7 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
   if pd.isStatic:
     result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
     objToCall = quote do:
-      `ctype`.getTypeClass
+      `ctype`.getJVMClassForType
   else:
     result.params.insert(1, newIdentDefs(ident"this", ctype))
     objToCall = ident"this"
@@ -355,7 +355,7 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
         `objToCall`.getStaticFieldId(`pname`, `sig`)
     else:
       quote do:
-        `objToCall`.getClass.getFieldId(`pname`, `sig`)
+        `objToCall`.getJVMClass.getFieldId(`pname`, `sig`)
 
   if isSetter:
     result.body = quote do:

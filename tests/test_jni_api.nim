@@ -44,7 +44,7 @@ suite "jni_api":
     let cls = JVMClass.getByName("java.lang.System")
     let outId = cls.getStaticFieldId("out", fqcn"java.io.PrintStream")
     let `out` = cls.getObject(outId)
-    let outCls = `out`.getClass
+    let outCls = `out`.getJVMClass
     let printlnId = outCls.getMethodId("println", "($#)V" % string.jniSig)
     `out`.callVoidMethod(printlnId, ["Hello, world".newJVMObject.toJValue])
 
@@ -85,7 +85,7 @@ suite "jni_api":
     let cls = JVMClass.getByName("TestClass")
     let obj = cls.newObject("()V")
 
-    check: getProp(string, obj, obj.getClass.getFieldId("checkStringProperty", jniSig(string))) == "OK"
+    check: getPropValue(string, obj, obj.getJVMClass.getFieldId("checkStringProperty", jniSig(string))) == "OK"
     
     check: obj.getObject("objectField").toStringRaw == "obj"
     check: obj.getChar("charField") == 'A'.jchar

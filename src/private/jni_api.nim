@@ -94,18 +94,21 @@ type
 
 type
   JavaException* = object of Exception
+    ex: JVMObject
 
-proc newJavaException*(msg: string): ref JavaException =
-  newException(JavaException, msg)
+proc toStringRaw*(o: JVMObject): string
+
+proc newJavaException*(ex: JVMObject): ref JavaException =
+  result = newException(JavaException, ex.toStringRaw)
+  result.ex = ex
 
 proc newJVMObject*(o: jobject): JVMObject
-proc toStringRaw*(o: JVMObject): string
+
 template checkException: stmt =
-  #TODO: Add stack trace support
   if theEnv != nil and theEnv.ExceptionCheck(theEnv) == JVM_TRUE:
     let ex = theEnv.ExceptionOccurred(theEnv).newJVMObject
     theEnv.ExceptionClear(theEnv)
-    raise newJavaException(ex.toStringRaw)
+    raise newJavaException(ex)
   
 macro callVM*(s: expr): expr =
   result = quote do:
@@ -231,7 +234,7 @@ proc setObj*(o: var JVMObject, obj: jobject) =
 proc toJValue*(o: JVMObject): jvalue =
   o.get.toJValue
 
-proc getClass*(o: JVMObject): JVMClass =
+proc getJVMClass*(o: JVMObject): JVMClass =
   checkInit
   (callVM theEnv.GetObjectClass(theEnv, o.get)).newJVMClass
   
@@ -263,7 +266,7 @@ proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []
 proc callVoidMethod*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []) =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
-  theEnv.CallVoidMethodA(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)
+  theEnv.CallVoidMethodA(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)
   checkException
 
 ####################################################################################################
@@ -334,7 +337,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
 
   proc `get typName Array`*(o: JVMObject, name: string): `JVM typName Array` =
     checkInit
-    `typ`.newArray(callVM theEnv.GetObjectField(theEnv, o.get, o.getClass.getFieldId(`name`, seq[`typ`].jniSig).get))
+    `typ`.newArray(callVM theEnv.GetObjectField(theEnv, o.get, o.getJVMClass.getFieldId(`name`, seq[`typ`].jniSig).get))
 
   proc `set typName Array`*(c: JVMClass, name: string, arr: `JVM typName Array`) =
     checkInit
@@ -343,7 +346,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
 
   proc `set typName Array`*(o: JVMObject, name: string, arr: `JVM typName Array`) =
     checkInit
-    theEnv.SetObjectField(theEnv, o.get, o.getClass.getFieldId(`name`, seq[`typ`].jniSig).get, arr.arr)
+    theEnv.SetObjectField(theEnv, o.get, o.getJVMClass.getFieldId(`name`, seq[`typ`].jniSig).get, arr.arr)
     checkException
 
   # Array methods
@@ -389,7 +392,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
   proc `call typName ArrayMethod`*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []): `JVM typName Array` =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
-    `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)).newJVMObject)
+    `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)).newJVMObject)
 
 genArrayType(jchar, jcharArray, Char)
 genArrayType(jbyte, jbyteArray, Byte)
@@ -445,9 +448,9 @@ template genField(typ: typedesc, typName: untyped): stmt =
   proc `get typName`*(o: JVMObject, name: string): `typ` =
     checkInit
     when `typ` is JVMObject:
-      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get)).newJVMObject
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get)).newJVMObject
     else:
-      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get))
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get))
 
   proc `set typName`*(o: JVMObject, id: JVMFieldID, v: `typ`) =
     checkInit
@@ -460,9 +463,9 @@ template genField(typ: typedesc, typName: untyped): stmt =
   proc `set typName`*(o: JVMObject, name: string, v: `typ`) =
     checkInit
     when `typ` is JVMObject:
-      theEnv.`Set typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get, v.get)
+      theEnv.`Set typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get, v.get)
     else:
-      theEnv.`Set typName Field`(theEnv, o.get, o.getClass.getFieldId(`name`, `typ`).get, v)
+      theEnv.`Set typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get, v)
     checkException
 
   when `typ` is JVMObject:
@@ -481,7 +484,7 @@ template genField(typ: typedesc, typName: untyped): stmt =
       
     proc setPropRaw*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID, v: jobject) =
       checkInit
-      theEnv.`Set typName Field`(theEnv, o.getClass.get, id.get, v)
+      theEnv.`Set typName Field`(theEnv, o.getJVMClass.get, id.get, v)
       checkException
   else:
     # Need to find out, why I can't just call `get typName`. Guess it's Nim's bug
@@ -539,9 +542,9 @@ template genMethod(typ: typedesc, typName: untyped): stmt =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
     when `typ` is JVMObject:
-      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)).newJVMObject
+      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)).newJVMObject
     else:
-      callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getClass.getMethodId(name, sig).get, a)
+      callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)
 
   when `typ` is JVMObject:
     proc `call typName MethodRaw`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): jobject =
@@ -564,6 +567,9 @@ genMethod(jboolean, Boolean)
 
 ####################################################################################################
 # Helpers
+
+proc getJVMException*(ex: JavaException): JVMObject =
+  ex.ex
 
 proc toJVMObject*(s: string): JVMObject =
   newJVMObject(s)
@@ -600,7 +606,7 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
     theEnv.GetArrayRegion(theEnv, arr, 0, length, addr(res[0]))
   elif compiles(T.fromJObject(nil.jobject)):
     for i in 0..<res.len:
-      res[i] = theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize).fromJObject
+      res[i] = T.fromJObject(theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
   elif T is string:
     for i in 0..<res.len:
       res[i] = theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize).newJVMObject.toStringRaw

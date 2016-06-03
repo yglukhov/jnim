@@ -13,8 +13,7 @@ suite "javaapi.core":
     let o2 = Object.new
     check: not o1.toString.equals(o2.toString)
     check: not o1.equals(o2)
-    check: o1.toString != o2.toString
-    check: o1 != o2
+    check: o1.getClass.equals(o2.getClass)
 
   test "javaapi.core - String":
     let s1 = String.new("Hi")
@@ -27,3 +26,15 @@ suite "javaapi.core":
     check: $s1 == "Hi"
     check: s1.equals(s2)
     check: not s2.equals(s3)
+
+  jclass ExceptionTestClass of Object:
+    proc throwEx(msg: string) {.`static`.}
+
+  test "javaapi.core - Exception":
+    expect(JavaException):
+      ExceptionTestClass.throwEx("test")
+    try:
+      ExceptionTestClass.throwEx("test")
+    except JavaException:
+      let ex = getCurrentJVMException()
+      check: ex.getStackTrace.len == 1
