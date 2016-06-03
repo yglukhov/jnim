@@ -6,4 +6,6 @@ public class PropsTestClass {
     public final String instanceString = "Hello";
 
     public static PropsTestClass inst = new PropsTestClass();
+
+    public static boolean staticBool = false;
 }

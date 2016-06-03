@@ -611,7 +611,9 @@ proc jarrayToSeq[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {.inline.} =
   jarrayToSeqImpl(arr, result)
 
 template getPropValue*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.} =
-  when T is JPrimitiveType:
+  when T is bool:
+    (jboolean.getProp(o, id) == JVM_TRUE)
+  elif T is JPrimitiveType:
     T.getProp(o, id)
   elif T is string:
     JVMObject.getPropRaw(o, id).newJVMObject.toStringRaw
@@ -623,7 +625,9 @@ template getPropValue*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.}
     {.error: "Unknown property type".}
 
 template setPropValue*(T: typedesc, o: expr, id: JVMFieldID, v: T): expr {.immediate.} =
-  when T is JPrimitiveType:
+  when T is bool:
+    jboolean.setProp(o, id, if v: JVM_TRUE else: JVM_FALSE)
+  elif T is JPrimitiveType:
     T.setProp(o, id, v)
   elif compiles(toJVMObject(v)):
     JVMObject.setPropRaw(o, id, v.get)
@@ -649,6 +653,8 @@ template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarra
     o.callDoubleMethod(methodId, args)
   elif T is jboolean:
     o.callBooleanMethod(methodId, args)
+  elif T is bool:
+    (o.callBooleanMethod(methodId, args) == JVM_TRUE)
   elif T is seq:
     T(jarrayToSeq(o.callObjectMethodRaw(methodId, args).jarray, T))
   elif T is string:

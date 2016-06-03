@@ -324,6 +324,7 @@ proc toJValue*(v: jdouble): jvalue = result.d = v
 proc toJValue*(v: jint): jvalue = result.i = v
 proc toJValue*(v: jlong): jvalue = result.j = v
 proc toJValue*(v: jboolean): jvalue = result.z = v
+proc toJValue*(v: bool): jvalue = result.z = if v: JVM_TRUE else: JVM_FALSE
 proc toJValue*(v: jbyte): jvalue = result.b = v
 proc toJValue*(v: jchar): jvalue = result.c = v
 proc toJValue*(v: jshort): jvalue = result.s = v
@@ -331,6 +332,7 @@ proc toJValue*(v: jobject): jvalue = result.l = v
 
 template fromJValue*(T: typedesc, v: jvalue): auto =
   when T is jboolean: v.z
+  elif T is bool: (if v.z == JVM_TRUE: true else: false)
   elif T is jbyte: v.b
   elif T is jchar: v.c
   elif T is jshort: v.s

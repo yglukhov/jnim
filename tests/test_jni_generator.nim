@@ -224,12 +224,14 @@ suite "jni_generator":
     check: MethodTestClass.factory(5).addToMem(1) == 6
     check: o.getStrings == @["Hello", "world!"]
 
-  jclass PropsTestClass of JVMObject:
+  jclassDef PropsTestClass of JVMObject
+  jclassImpl PropsTestClass of JVMObject:
     proc new
     proc staticInt: jint {.prop, `static`.}
     proc instanceInt: jint {.prop.}
     proc inst: PropsTestClass {.prop, `static`.}
     proc instanceString: string {.prop, final.}
+    proc staticBool: bool {.prop, `static`.}
 
   test "jni_generator - TestClass - properties":
     check: PropsTestClass.staticInt == 100
@@ -241,3 +243,6 @@ suite "jni_generator":
     check: o.instanceInt == 300
     check PropsTestClass.inst.instanceInt == 100
     check: PropsTestClass.inst.instanceString == "Hello"
+    check: not PropsTestClass.staticBool
+    PropsTestClass.staticBool = true
+    check: PropsTestClass.staticBool

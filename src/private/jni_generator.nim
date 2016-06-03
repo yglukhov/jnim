@@ -233,7 +233,7 @@ template identEx(isExported: bool, name: string, isSetter = false): expr =
       ident(name)
   if isExported: postfix(id, "*") else: id
 
-proc generateClassType(cd: ClassDef): NimNode {.compileTime.} =
+proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
   let classNameEx = identEx(cd.isExported, cd.name)
   let parentName = ident(cd.parent)
@@ -376,16 +376,25 @@ proc generateProc(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
   else:
     result = generateMethod(cd, pd, def)
 
-proc generateClassDef(head: NimNode, body: NimNode): NimNode {.compileTime.} =
-  let cd = parseClassDef(head)
+proc generateClassImpl(cd: ClassDef, body: NimNode): NimNode {.compileTime.} = 
   result = newStmtList()
-  result.add generateClassType(cd)
   if body.kind == nnkStmtList:
     for def in body:
       result.add generateProc(cd, def)
-  else:
-    result.add generateProc(cd, body)
+  else: result.add generateProc(cd, body)
 
 macro jclass*(head: expr, body: expr): stmt {.immediate.} =
-  result = generateClassDef(head, body)
-  echo repr(result)
+  result = newStmtList()
+  let cd = parseClassDef(head)
+  result.add generateClassDef(cd)
+  result.add generateClassImpl(cd, body)
+
+macro jclassDef*(head: expr): stmt {.immediate.} =
+  result = newStmtList()
+  let cd = parseClassDef(head)
+  result.add generateClassDef(cd)
+
+macro jclassImpl*(head: expr, body: expr): stmt {.immediate.} =
+  result = newStmtList()
+  let cd = parseClassDef(head)
+  result.add generateClassImpl(cd, body)
