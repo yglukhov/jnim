@@ -166,6 +166,13 @@ suite "jni_generator":
     check: cd.parent == "JVMObject"
     check: cd.isExported
 
+    parseClassDefTest cd:
+      InnerTestClass$InnerClass of JVMObject
+    check: cd.name == "InnerClass"
+    check: cd.jName == "InnerTestClass$InnerClass"
+    check: cd.parent == "JVMObject"
+    check: not cd.isExported
+
   test "jni_generator - import class":
     jclass java.lang.String1 of JVMObject:
       proc new
@@ -246,3 +253,14 @@ suite "jni_generator":
     check: not PropsTestClass.staticBool
     PropsTestClass.staticBool = true
     check: PropsTestClass.staticBool
+
+  jclass InnerTestClass of JVMObject:
+    proc new
+  jclass InnerTestClass$InnerClass of JVMObject:
+    proc new(p: InnerTestClass)
+    proc intField: jint {.prop.}
+
+  test "jni_generator - TestClass - inner classes":
+    let p = InnerTestClass.new
+    let o = InnerClass.new(p)
+    check: o.intField == 100

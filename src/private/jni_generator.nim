@@ -182,6 +182,14 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
       parentNode: NimNode
   var exported = false
 
+  proc nameFromJName(jNameNode: NimNode): NimNode =
+    result = if jNameNode.kind == nnkDotExpr:
+               jNameNode[1].copyNimTree
+             elif jNameNode.kind == nnkInfix and jNameNode[0].nodeToString == "$":
+               jNameNode[2].copyNimTree
+             else:
+               jNameNode.copyNimTree
+
   if $c[0] == "of":
     if c[1].kind == nnkInfix and $c[1][0] == "as":
       jNameNode = c[1][1]
@@ -190,7 +198,7 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
     else:
       jNameNode = c[1]
       parentNode = c[2]
-      nameNode = if jNameNode.kind == nnkDotExpr: jNameNode[1].copyNimNode else: jNameNode.copyNimNode
+      nameNode = nameFromJName(jNameNode)
   else:
     exported = true
     if $c[0] == "as" and $c[2][0] == "*":
@@ -199,7 +207,7 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
       parentNode = c[2][2][1]
     elif $c[0] == "*":
       jNameNode = c[1]
-      nameNode = if jNameNode.kind == nnkDotExpr: jNameNode[1].copyNimNode else: jNameNode.copyNimNode
+      nameNode = nameFromJName(jNameNode)
       parentNode = c[2][1]
 
   let name = nameNode.nodeToString
