@@ -302,7 +302,7 @@ when not defined(macosx):
             result = home & "\\jre\\bin\\server\\jvm.dll"
             if fileExists(result): return
         elif defined(android):
-            result = "system/lib/libdvm.so"
+            result = "/system/lib/libdvm.so"
             if fileExists(result): return
         else:
             result = home & "/jre/lib/libjvm.so"
