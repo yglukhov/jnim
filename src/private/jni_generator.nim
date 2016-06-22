@@ -326,6 +326,9 @@ proc mkType(cd: ClassDef): NimNode {.compileTime.} =
     for name in cd.genericTypes:
       result.add(ident(name))
 
+proc mkTypedesc(cd: ClassDef): NimNode {.compileTime.} =
+  result = newNimNode(nnkBracketExpr).add(ident"typedesc").add(cd.mkType)
+
 proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
   let classNameEx = identEx(cd.isExported, cd.name)
@@ -439,11 +442,11 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
   var objToCall: NimNode
   # Add first parameter
   if pd.isStatic:
-    result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
+    result.params.insert(1, newIdentDefs(ident"theClassType", cd.mkTypedesc))
     objToCall = quote do:
       `ctype`.getJVMClassForType
   else:
-    result.params.insert(1, newIdentDefs(ident"this", ctype))
+    result.params.insert(1, newIdentDefs(ident"this", cd.mkType))
     objToCall = ident"this"
   if isSetter:
     result.params.insert(2, newIdentDefs(ident"value", result.params[0]))

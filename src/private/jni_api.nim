@@ -484,7 +484,7 @@ template genField(typ: typedesc, typName: untyped): stmt =
       
     proc setPropRaw*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID, v: jobject) =
       checkInit
-      theEnv.`Set typName Field`(theEnv, o.getJVMClass.get, id.get, v)
+      theEnv.`Set typName Field`(theEnv, o.get, id.get, v)
       checkException
   else:
     # Need to find out, why I can't just call `get typName`. Guess it's Nim's bug
@@ -636,7 +636,7 @@ template setPropValue*(T: typedesc, o: expr, id: JVMFieldID, v: T): expr {.immed
   elif T is JPrimitiveType:
     T.setProp(o, id, v)
   elif compiles(toJVMObject(v)):
-    JVMObject.setPropRaw(o, id, v.get)
+    JVMObject.setPropRaw(o, id, toJVMObject(v).get)
   else:
     {.error: "Unknown property type".}
 

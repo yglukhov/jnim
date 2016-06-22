@@ -274,8 +274,8 @@ suite "jni_generator":
     proc new
     proc staticInt: jint {.prop, `static`.}
     proc instanceInt: jint {.prop.}
-    proc inst: PropsTestClass {.prop, `static`.}
-    proc instanceString: string {.prop, final.}
+    proc inst: PropsTestClass {.prop, `static`, final.}
+    proc instanceString: string {.prop.}
     proc staticBool: bool {.prop, `static`.}
 
   test "jni_generator - TestClass - properties":
@@ -287,7 +287,8 @@ suite "jni_generator":
     o.instanceInt = 300
     check: o.instanceInt == 300
     check PropsTestClass.inst.instanceInt == 100
-    check: PropsTestClass.inst.instanceString == "Hello"
+    PropsTestClass.inst.instanceString = "Hello, world!"
+    check: PropsTestClass.inst.instanceString == "Hello, world!"
     check: not PropsTestClass.staticBool
     PropsTestClass.staticBool = true
     check: PropsTestClass.staticBool
@@ -305,10 +306,10 @@ suite "jni_generator":
 
   jclass GenericsTestClass[V] of JVMObject:
     proc new[V](v: V)
-    # proc genericProp[V]: V {.prop.}
+    proc genericProp[V]: V {.prop.}
 
   test "jni_generator - TestClass - generics":
     let o = GenericsTestClass[string].new("hello")
-    # o.genericProp[string] = "hello"
-    # check: o.genericProp[string]() == "hello"
-    check: getPropValue(string, o, o.getJVMClass.getFieldId("genericProp", jniSig(jobject))) == "hello"
+    check: o.genericProp == "hello"
+    o.genericProp = "hello, world!"
+    check: o.genericProp == "hello, world!"
