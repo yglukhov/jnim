@@ -304,12 +304,23 @@ suite "jni_generator":
     let o = InnerClass.new(p)
     check: o.intField == 100
 
+  jclass java.util.List[V] of JVMObject:
+    proc get[V](i: jint): V
+
   jclass GenericsTestClass[V] of JVMObject:
     proc new[V](v: V)
     proc genericProp[V]: V {.prop.}
+    proc getGenericValue[V]: V
+    proc setGenericValue[V](v: V)
+    proc getListOfValues[V](count: jint): List[V]
 
   test "jni_generator - TestClass - generics":
     let o = GenericsTestClass[string].new("hello")
     check: o.genericProp == "hello"
     o.genericProp = "hello, world!"
     check: o.genericProp == "hello, world!"
+    o.setGenericValue("hi!")
+    check: o.getGenericValue == "hi!"
+    let l = o.getListOfValues(3)
+    for i in 0..2:
+      check: l.get(i.jint) == "hi!"

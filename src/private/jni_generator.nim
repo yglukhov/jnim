@@ -409,11 +409,11 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   var objToCall: NimNode
   # Add first parameter
   if pd.isStatic:
-    result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
+    result.params.insert(1, newIdentDefs(ident"theClassType", cd.mkTypedesc))
     objToCall = quote do:
       `ctype`.getJVMClassForType
   else:
-    result.params.insert(1, newIdentDefs(ident"this", ctype))
+    result.params.insert(1, newIdentDefs(ident"this", cd.mkType))
     objToCall = ident"this"
   let retType = parseExpr(pd.retType)
   let mId =
