@@ -354,6 +354,7 @@ template jniSig*(t: typedesc[jshort]): string = "S"
 template jniSig*(t: typedesc[jfloat]): string = "F"
 template jniSig*(t: typedesc[jdouble]): string = "D"
 template jniSig*(t: typedesc[string]): string = fqcn"java.lang.String"
+template jniSig*(t: typedesc[jobject]): string = fqcn"java.lang.Object"
 template jniSig*(t: typedesc[void]): string = "V"
 proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = @[]): auto = dummy[0]
 template jniSig*(t: typedesc[openarray]): string = "[" & jniSig(type(elementTypeOfOpenArrayType[t]()))

@@ -139,6 +139,13 @@ suite "jni_generator":
     check: pd.name == "setAt"
     check: pd.genericTypes == @["K", "V"]
 
+    parseProcDefTest pd:
+      proc genericProp[V]: V {.prop.}
+    check: pd.name == "genericProp"
+    check: pd.genericTypes == @["V"]
+    check: pd.isProp
+    check: not pd.isStatic
+
   test "jni_generator - class def - header":
     var cd: ClassDef
     
@@ -295,3 +302,13 @@ suite "jni_generator":
     let p = InnerTestClass.new
     let o = InnerClass.new(p)
     check: o.intField == 100
+
+  jclass GenericsTestClass[V] of JVMObject:
+    proc new[V](v: V)
+    # proc genericProp[V]: V {.prop.}
+
+  test "jni_generator - TestClass - generics":
+    let o = GenericsTestClass[string].new("hello")
+    # o.genericProp[string] = "hello"
+    # check: o.genericProp[string]() == "hello"
+    check: getPropValue(string, o, o.getJVMClass.getFieldId("genericProp", jniSig(jobject))) == "hello"
