@@ -318,13 +318,19 @@ proc mkFuncName(cd: ClassDef, fName: string): NimNode {.compileTime.} =
     for name in cd.genericTypes:
       result.add(ident(name))
 
-proc mkType(cd: ClassDef): NimNode {.compileTime.} =
-  if cd.genericTypes.len == 0:
-    result = ident(cd.name)
+proc mkTypeHelper(name: string, params: seq[GenericType]): NimNode {.compileTime.} =
+  if params.len == 0:
+    result = ident(name)
   else:
-    result = newNimNode(nnkBracketExpr).add(ident(cd.name))
-    for name in cd.genericTypes:
-      result.add(ident(name))
+    result = newNimNode(nnkBracketExpr).add(ident(name))
+    for n in params:
+      result.add(ident(n))
+
+proc mkType(cd: ClassDef): NimNode {.compileTime.} =
+  result = mkTypeHelper(cd.name, cd.genericTypes)
+
+proc mkParentType(cd: ClassDef): NimNode {.compileTime.} =
+  result = mkTypeHelper(cd.parent, cd.parentGenericTypes)
 
 proc mkTypedesc(cd: ClassDef): NimNode {.compileTime.} =
   result = newNimNode(nnkBracketExpr).add(ident"typedesc").add(cd.mkType)
@@ -333,7 +339,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
   let classNameEx = identEx(cd.isExported, cd.name)
   let classNamePar = cd.mkType
-  let parentName = ident(cd.parent)
+  let parentType = cd.mkParentType
   let jniSigIdent = identEx(cd.isExported, "jniSig")
   let fromJObjectIdent = identEx(cd.isExported, "fromJObject")
   let freeIdent = ident("free" & cd.name)
@@ -348,7 +354,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   fromJObjectProc[0][2] = mkGenericParams(cd.genericTypes)
 
   result = quote do:
-    type `classNameEx` = ref object of `parentName`
+    type `classNameEx` = ref object of `parentType`
     proc `jniSigIdent`(t: typedesc[`className`]): string = fqcn(`jName`)
     proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string = "[" & fqcn(`jName`)
     proc `getClassId`(t: typedesc[`className`]): JVMClass =
@@ -491,7 +497,7 @@ macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   let cd = parseClassDef(head)
   result.add generateClassDef(cd)
   result.add generateClassImpl(cd, body)
-  echo repr(result)
+  # echo repr(result)
 
 macro jclassDef*(head: expr): stmt {.immediate.} =
   result = newStmtList()
@@ -502,3 +508,4 @@ macro jclassImpl*(head: expr, body: expr): stmt {.immediate.} =
   result = newStmtList()
   let cd = parseClassDef(head)
   result.add generateClassImpl(cd, body)
+

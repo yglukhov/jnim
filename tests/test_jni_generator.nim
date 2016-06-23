@@ -324,3 +324,19 @@ suite "jni_generator":
     let l = o.getListOfValues(3)
     for i in 0..2:
       check: l.get(i.jint) == "hi!"
+
+  jclass BaseClass[V] of JVMObject:
+    proc new[V](v: V)
+    proc baseMethod[V]: V
+    proc overridedMethod[V]: V
+
+  jclass ChildClass[V] of BaseClass[V]:
+    proc new[V](base, ch: V)
+    proc childMethod[V]: V
+
+  test "jni_generator - TestClass - inheritance":
+    let b = BaseClass[string].new("Base")
+    let c = ChildClass[string].new("Base", "Child")
+    check: b.baseMethod == b.overridedMethod
+    check: c.childMethod == c.overridedMethod
+    check: b.overridedMethod != c.overridedMethod

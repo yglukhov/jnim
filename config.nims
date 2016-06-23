@@ -44,7 +44,7 @@ proc test(name: string) =
   buildExe true, "bin" / "test_" & name, "tests" / "test_" & name 
 
 proc javac(file: string, outDir: string) =
-  exec "javac".toExe & " -d " & outDir & " " & file
+  exec "javac".toExe & " -d " & outDir & " -cp " & outDir & " " & file
 
 task int_test_bootstrap, "Prepare test environment":
   BUILD_DIR.mkDir
@@ -55,6 +55,8 @@ task int_test_bootstrap, "Prepare test environment":
   javac "tests/java/InnerTestClass.java", BUILD_DIR
   javac "tests/java/ExceptionTestClass.java", BUILD_DIR
   javac "tests/java/GenericsTestClass.java", BUILD_DIR
+  javac "tests/java/BaseClass.java", BUILD_DIR
+  javac "tests/java/ChildClass.java", BUILD_DIR
 
 task test, "Run all tests":
   dep int_test_bootstrap
