@@ -5,9 +5,9 @@ import private.jni_generator,
        unittest
 
 jclass java.lang.String2* of JVMObject:
-  proc jnew
+  proc new
 jclass java.lang.String as JVMString2* of JVMObject:
-  proc jnew
+  proc new
 
 suite "jni_generator":
   setup:
@@ -18,8 +18,8 @@ suite "jni_generator":
     var pd: ProcDef
 
     parseProcDefTest pd:
-      proc jnew
-    check: pd.name == "jnew"
+      proc new
+    check: pd.name == "new"
     check: pd.jName == "<init>"
     check: pd.retType == "void"
     check: pd.params.len == 0
@@ -30,8 +30,8 @@ suite "jni_generator":
     check: not pd.isExported
 
     parseProcDefTest pd:
-      proc jnew*
-    check: pd.name == "jnew"
+      proc new*
+    check: pd.name == "new"
     check: pd.jName == "<init>"
     check: pd.retType == "void"
     check: pd.params.len == 0
@@ -42,8 +42,8 @@ suite "jni_generator":
     check: pd.isExported
       
     parseProcDefTest pd:
-      proc jnew(o: JVMObject)
-    check: pd.name == "jnew"
+      proc new(o: JVMObject)
+    check: pd.name == "new"
     check: pd.jName == "<init>"
     check: pd.retType == "void"
     check: pd.params == @[("o", "JVMObject")]
@@ -54,8 +54,8 @@ suite "jni_generator":
     check: not pd.isExported
       
     parseProcDefTest pd:
-      proc jnew*(i: jint, s: string)
-    check: pd.name == "jnew"
+      proc new*(i: jint, s: string)
+    check: pd.name == "new"
     check: pd.jName == "<init>"
     check: pd.retType == "void"
     check: pd.params == @[("i", "jint"), ("s", "string")]
@@ -237,11 +237,11 @@ suite "jni_generator":
     
   test "jni_generator - import class":
     jclass java.lang.String1 of JVMObject:
-      proc jnew
+      proc new
     check: declared(String1)
     check: String1.jniSig == fqcn"java.lang.String1"
     jclass java.lang.String as JVMString1 of JVMObject:
-      proc jnew
+      proc new
     check: declared(JVMString1)
     check: JVMString1.jniSig == fqcn"java.lang.String"
     check: declared(String2)
@@ -250,36 +250,36 @@ suite "jni_generator":
     check: JVMString2.jniSig == fqcn"java.lang.String"
 
   jclass ConstructorTestClass of JVMObject:
-    proc jnew
-    proc jnew(i: jint)
-    proc jnew(s: string)
-    proc jnew(i: jint, d: jdouble, s: string)
-    proc jnew(ints: openarray[jint])
-    proc jnew(strings: openarray[string])
-    proc jnew(c: ConstructorTestClass)
-    proc jnew(c: openarray[ConstructorTestClass])
+    proc new
+    proc new(i: jint)
+    proc new(s: string)
+    proc new(i: jint, d: jdouble, s: string)
+    proc new(ints: openarray[jint])
+    proc new(strings: openarray[string])
+    proc new(c: ConstructorTestClass)
+    proc new(c: openarray[ConstructorTestClass])
 
   test "jni_generator - TestClass - constructors":
-    var o = ConstructorTestClass.jnew
+    var o = ConstructorTestClass.new
     check: o.toStringRaw == "Empty constructor called"
-    o = ConstructorTestClass.jnew(1.jint)
+    o = ConstructorTestClass.new(1.jint)
     check: o.toStringRaw == "Int constructor called, 1"
-    o = ConstructorTestClass.jnew("hi!")
+    o = ConstructorTestClass.new("hi!")
     check: o.toStringRaw == "String constructor called, hi!"
-    o = ConstructorTestClass.jnew(1, 2.0, "str")
+    o = ConstructorTestClass.new(1, 2.0, "str")
     check: o.toStringRaw == "Multiparameter constructor called, 1, 2.0, str"
-    o = ConstructorTestClass.jnew(@[1.jint,2,3])
+    o = ConstructorTestClass.new(@[1.jint,2,3])
     check: o.toStringRaw == "Int array constructor called, 1, 2, 3"
-    o = ConstructorTestClass.jnew(@["a", "b", "c"])
+    o = ConstructorTestClass.new(@["a", "b", "c"])
     check: o.toStringRaw == "String array constructor called, a, b, c"
-    o = ConstructorTestClass.jnew(o)
+    o = ConstructorTestClass.new(o)
     check: o.toStringRaw == "String array constructor called, a, b, c"
-    let cc = [ConstructorTestClass.jnew(), ConstructorTestClass.jnew(1)]
-    o = ConstructorTestClass.jnew(cc)
+    let cc = [ConstructorTestClass.new(), ConstructorTestClass.new(1)]
+    o = ConstructorTestClass.new(cc)
     check: o.toStringRaw == "Empty constructor called\nInt constructor called, 1\n"
 
   jclass MethodTestClass of JVMObject:
-    proc jnew
+    proc new
     proc add(x, y: jint): jint {.`static`, importc: "addStatic".}
     proc addToMem(x: jint): jint {.importc: "addToMem".}
     proc factory(i: jint): MethodTestClass {.`static`.}
@@ -287,7 +287,7 @@ suite "jni_generator":
 
   test "jni_generator - TestClass - methods":
     check: MethodTestClass.add(1, 2) == 3
-    let o = MethodTestClass.jnew
+    let o = MethodTestClass.new
     check: o.addToMem(2) == 2
     check: o.addToMem(3) == 5
     check: MethodTestClass.factory(5).addToMem(1) == 6
@@ -295,7 +295,7 @@ suite "jni_generator":
 
   jclassDef PropsTestClass of JVMObject
   jclassImpl PropsTestClass of JVMObject:
-    proc jnew
+    proc new
     proc staticInt: jint {.prop, `static`.}
     proc instanceInt: jint {.prop.}
     proc inst: PropsTestClass {.prop, `static`, final.}
@@ -306,7 +306,7 @@ suite "jni_generator":
     check: PropsTestClass.staticInt == 100
     PropsTestClass.staticInt = 200
     check: PropsTestClass.staticInt == 200
-    let o = PropsTestClass.jnew
+    let o = PropsTestClass.new
     check: o.instanceInt == 100
     o.instanceInt = 300
     check: o.instanceInt == 300
@@ -318,28 +318,28 @@ suite "jni_generator":
     check: PropsTestClass.staticBool
 
   jclass InnerTestClass of JVMObject:
-    proc jnew
+    proc new
   jclass InnerTestClass$InnerClass of JVMObject:
-    proc jnew(p: InnerTestClass)
+    proc new(p: InnerTestClass)
     proc intField: jint {.prop.}
 
   test "jni_generator - TestClass - inner classes":
-    let p = InnerTestClass.jnew
-    let o = InnerClass.jnew(p)
+    let p = InnerTestClass.new
+    let o = InnerClass.new(p)
     check: o.intField == 100
 
   jclass java.util.List[V] of JVMObject:
     proc get[V](i: jint): V
 
   jclass GenericsTestClass[V] of JVMObject:
-    proc jnew[V](v: V)
+    proc new[V](v: V)
     proc genericProp[V]: V {.prop.}
     proc getGenericValue[V]: V
     proc setGenericValue[V](v: V)
     proc getListOfValues[V](count: jint): List[V]
 
   test "jni_generator - TestClass - generics":
-    let o = GenericsTestClass[string].jnew("hello")
+    let o = GenericsTestClass[string].new("hello")
     o.genericProp = "hello, world!"
     check: o.genericProp == "hello, world!"
     o.setGenericValue("hi!")
@@ -349,17 +349,17 @@ suite "jni_generator":
       check: l.get(i.jint) == "hi!"
 
   jclass BaseClass[V] of JVMObject:
-    proc jnew[V](v: V)
+    proc new[V](v: V)
     proc baseMethod[V]: V
     proc overridedMethod[V]: V
 
   jclass ChildClass[V] of BaseClass[V]:
-    proc jnew[V](base, ch: V)
+    proc new[V](base, ch: V)
     proc childMethod[V]: V
 
   test "jni_generator - TestClass - inheritance":
-    let b = BaseClass[string].jnew("Base")
-    let c = ChildClass[string].jnew("Base", "Child")
+    let b = BaseClass[string].new("Base")
+    let c = ChildClass[string].new("Base", "Child")
     check: b.baseMethod == b.overridedMethod
     check: c.childMethod == c.overridedMethod
     check: b.overridedMethod != c.overridedMethod

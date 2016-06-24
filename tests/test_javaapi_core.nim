@@ -9,16 +9,16 @@ suite "javaapi.core":
       initJNIForTests()
     
   test "javaapi.core - Object":
-    let o1 = Object.jnew
-    let o2 = Object.jnew
+    let o1 = Object.new
+    let o2 = Object.new
     check: not o1.toString.equals(o2.toString)
     check: not o1.equals(o2)
     check: o1.getClass.equals(o2.getClass)
 
   test "javaapi.core - String":
-    let s1 = String.jnew("Hi")
-    let s2 = String.jnew("Hi")
-    let s3 = String.jnew("Hello")
+    let s1 = String.new("Hi")
+    let s2 = String.new("Hi")
+    let s3 = String.new("Hello")
     # Check inheritance
     check: s1 of String
     check: s1 of Object

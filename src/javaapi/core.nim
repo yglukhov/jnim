@@ -6,7 +6,7 @@ jclassDef java.lang.Class* of Object
 jclassDef java.lang.String* of Object
 
 jclassImpl java.lang.Object* of JVMObject:
-  proc jnew*
+  proc new*
   proc equals*(o: Object): bool
   proc getClass*: Class
   proc hashCode*: jint
@@ -25,15 +25,15 @@ proc `$`*(o: Object): string =
 #   o1.equals(o2)
   
 jclassImpl java.lang.String* of Object:
-  proc jnew*
-  proc jnew*(s: string)
+  proc new*
+  proc new*(s: string)
   proc length*: jint
 
 #################################################################################################### 
 # Exceptions
 
 jclass java.lang.StackTraceElement* of Object:
-  proc jnew*(declaringClass: String, methodName: String, fileName: String, lineNumber: jint)
+  proc new*(declaringClass: String, methodName: String, fileName: String, lineNumber: jint)
   proc getClassName*: String
   proc getFileName*: String
   proc getLineNumber*: jint
@@ -41,10 +41,10 @@ jclass java.lang.StackTraceElement* of Object:
   proc isNativeMethod*: bool
 
 jclass java.lang.Throwable* of Object:
-  proc jnew*
-  proc jnew*(message: String)
-  proc jnew*(message: String, cause: Throwable)
-  proc jnew*(cause: Throwable)
+  proc new*
+  proc new*(message: String)
+  proc new*(message: String, cause: Throwable)
+  proc new*(cause: Throwable)
   proc getCause*: Throwable
   proc getLocalizedMessage*: String
   proc getMessage*: String

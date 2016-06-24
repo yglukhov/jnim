@@ -6,7 +6,7 @@ import jni_api,
 
 ####################################################################################################
 # Module parameters
-const CONSTRUCTOR_NAME = "jnew"
+const CONSTRUCTOR_NAME = "new"
 
 proc nodeToString(n: NimNode): string =
   if n.kind == nnkIdent:

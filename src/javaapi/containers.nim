@@ -9,4 +9,4 @@ jclass java.util.List*[V] of Collection[V]:
   proc get*[V](i: jint): V
 
 jclass java.util.ArrayList*[V] of List[V]:
-  proc jnew*[V]
+  proc new*[V]
