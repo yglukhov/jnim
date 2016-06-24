@@ -238,6 +238,8 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
       parentGenerics: Option[NimNode]
   var exported = false
 
+  proc hasExportMarker(n: NimNode): bool = n.findChild(it.kind == nnkIdent and $it == "*") != nil
+
   proc nameFromJName(jNameNode: NimNode): NimNode =
     result = if jNameNode.kind == nnkDotExpr:
                jNameNode[1].copyNimTree
@@ -249,6 +251,7 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
   if $c[0] == "of":
     if c[1].kind == nnkInfix:
       if $c[1][0] == "as":
+        exported = c[1][1].hasExportMarker
         (jNameNode, generics) = c[1][1].findNameAndGenerics
         nameNode = c[1][2]
         (parentNode, parentGenerics) = c[2].findNameAndGenerics

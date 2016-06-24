@@ -234,7 +234,14 @@ suite "jni_generator":
     check: cd.parentGenericTypes == @["K", "V"]
     check: cd.parent == "Map2"
     check: cd.isExported
-    
+
+    parseClassDefTest cd:
+      java.util.Map$Entry*[K,V] as MapEntry of JVMObject
+    check: cd.name == "MapEntry"
+    check: cd.jName == "java.util.Map$Entry"
+    check: cd.genericTypes == @["K", "V"]
+    check: cd.isExported
+
   test "jni_generator - import class":
     jclass java.lang.String1 of JVMObject:
       proc new
