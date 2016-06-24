@@ -146,6 +146,14 @@ suite "jni_generator":
     check: pd.isProp
     check: not pd.isStatic
 
+    parseProcDefTest pd:
+      proc genericProp*[V]: V {.prop.}
+    check: pd.name == "genericProp"
+    check: pd.genericTypes == @["V"]
+    check: pd.isProp
+    check: pd.isExported
+    check: not pd.isStatic
+
   test "jni_generator - class def - header":
     var cd: ClassDef
     
@@ -211,6 +219,22 @@ suite "jni_generator":
     check: cd.parentGenericTypes == @["K", "V"]
     check: cd.parent == "Map"
 
+    parseClassDefTest cd:
+      java.util.Map2*[K,V] of JVMObject
+    check: cd.name == "Map2"
+    check: cd.jName == "java.util.Map2"
+    check: cd.genericTypes == @["K", "V"]
+    check: cd.isExported
+
+    parseClassDefTest cd:
+      java.util.HashMap2*[K,V] of Map2[K,V]
+    check: cd.name == "HashMap2"
+    check: cd.jName == "java.util.HashMap2"
+    check: cd.genericTypes == @["K", "V"]
+    check: cd.parentGenericTypes == @["K", "V"]
+    check: cd.parent == "Map2"
+    check: cd.isExported
+    
   test "jni_generator - import class":
     jclass java.lang.String1 of JVMObject:
       proc new
@@ -316,7 +340,6 @@ suite "jni_generator":
 
   test "jni_generator - TestClass - generics":
     let o = GenericsTestClass[string].new("hello")
-    check: o.genericProp == "hello"
     o.genericProp = "hello, world!"
     check: o.genericProp == "hello, world!"
     o.setGenericValue("hi!")

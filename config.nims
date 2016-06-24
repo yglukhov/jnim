@@ -81,3 +81,7 @@ task test_jni_generator, "Run jni_api test":
 task test_javaapi_core, "Run javaapi_core test":
   dep int_test_bootstrap
   test "javaapi_core"
+
+task test_javaapi_containers, "Run javaapi_core test":
+  dep int_test_bootstrap
+  test "javaapi_containers"

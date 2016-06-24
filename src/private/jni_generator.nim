@@ -55,14 +55,17 @@ proc findNameAndGenerics(n: NimNode): (NimNode, Option[NimNode]) =
   if n.kind == nnkBracketExpr:
     result[0] = n[0]
     result[1] = n.some
+  elif n.kind == nnkInfix and n[2].kind == nnkBracket:
+    result[0] = n[1]
+    result[1] = n[2].some
   else:
     result[0] = n
     result[1] = NimNode.none
       
 proc parseGenericsNode(n: NimNode): seq[GenericType] =
-  expectKind n, nnkBracketExpr
+  expectKind n, {nnkBracketExpr, nnkBracket}
   result = newSeq[GenericType]()
-  for i in 1..<n.len:
+  for i in (ord(n.kind)-ord(nnkBracket))..<n.len:
     expectKind n[i], nnkIdent
     result.add($n[i])
 
@@ -240,10 +243,20 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
                jNameNode.copyNimTree
 
   if $c[0] == "of":
-    if c[1].kind == nnkInfix and $c[1][0] == "as":
-      (jNameNode, generics) = c[1][1].findNameAndGenerics
-      nameNode = c[1][2]
-      (parentNode, parentGenerics) = c[2].findNameAndGenerics
+    if c[1].kind == nnkInfix:
+      if $c[1][0] == "as":
+        (jNameNode, generics) = c[1][1].findNameAndGenerics
+        nameNode = c[1][2]
+        (parentNode, parentGenerics) = c[2].findNameAndGenerics
+      elif $c[1][0] == "*":
+        exported = true
+        (jNameNode, generics) = c[1].findNameAndGenerics
+        nameNode = nameFromJName(jNameNode)
+        (parentNode, parentGenerics) = c[2].findNameAndGenerics
+      else:
+        (jNameNode, generics) = c[1].findNameAndGenerics
+        (parentNode, parentGenerics) = c[2].findNameAndGenerics
+        nameNode = nameFromJName(jNameNode)
     else:
       (jNameNode, generics) = c[1].findNameAndGenerics
       (parentNode, parentGenerics) = c[2].findNameAndGenerics
@@ -497,7 +510,6 @@ macro jclass*(head: expr, body: expr): stmt {.immediate.} =
   let cd = parseClassDef(head)
   result.add generateClassDef(cd)
   result.add generateClassImpl(cd, body)
-  # echo repr(result)
 
 macro jclassDef*(head: expr): stmt {.immediate.} =
   result = newStmtList()
