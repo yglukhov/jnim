@@ -411,7 +411,7 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   # Change return type
   result.params[0] = ctypeWithParams
   # Add first parameter
-  result.params.insert(1, newIdentDefs(ident"theClassType", parseExpr("typedesc[$#]" % cd.name)))
+  result.params.insert(1, newIdentDefs(ident"theClassType", cd.mkTypedesc))
   let ai = ident"args"
   let args = generateArgs(pd, ai)
   result.body = quote do:

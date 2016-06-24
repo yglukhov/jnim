@@ -9,4 +9,4 @@ suite "javaapi.containers":
       initJNIForTests()
 
   test "javaapi.containers - List":
-    let l = ArrayList.new[string]()
+    let l = ArrayList[string].jnew()
