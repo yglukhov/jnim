@@ -4,6 +4,10 @@ import jni_api,
        macros,
        fp.option
 
+####################################################################################################
+# Module parameters
+const CONSTRUCTOR_NAME = "jnew"
+
 proc nodeToString(n: NimNode): string =
   if n.kind == nnkIdent:
     result = $n
@@ -155,7 +159,7 @@ proc parseProcDef(n: NimNode): ProcDef {.compileTime.} =
   expectKind n[ProcParamsPos], nnkFormalParams
 
   # Check constructor by name
-  if result.name == "new":
+  if result.name == CONSTRUCTOR_NAME:
     result.jName = "<init>"
     result.isConstructor = true
   else:
