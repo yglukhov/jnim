@@ -1,2 +1,5 @@
-nimcache/
 *.class
+nimcache
+bin
+build
+*.log
