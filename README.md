@@ -1,5 +1,21 @@
-JNI library for Nim language
+jnim - JNI library for Nim language
 ======================================
+
+Native language integration with Java VM has never been easier!
+```nim
+import jnim
+
+# Import a couple of classes
+jclass java.io.PrintStream of JVMObject:
+  proc println(s: string)
+jclass java.lang.System of JVMObject:
+  proc `out`: PrintStream {.prop, final, `static`.}
+
+# Initialize JVM
+initJNI()
+# Call!
+System.`out`.println("This string is printed with System.out.println!")
+```
 
 Overview
 --------
@@ -17,33 +33,6 @@ For example, [tests/test_javaapi_core.nim](tests/test_javaapi_core.nim) and [tes
 shows how to use high level API.
 
 If you want to run the tests, use ``nim test`` command.
-
-Here is the old README.md:
-
-# jnim [![Build Status](https://semaphoreci.com/api/v1/projects/0d22c364-1d81-4f38-8ba9-c440e1b6cd64/611216/badge.svg)](https://semaphoreci.com/yglukhov/jnim) [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble.png)](https://github.com/yglukhov/nimble-tag)
-
-Native language integration with Java VM has never been easier!
-```nim
-import jnim
-
-jnimport:
-    # Import a couple of classes
-    import java.lang.System
-    import java.io.PrintStream
-
-    # Import static property declaration
-    proc `out`(s: typedesc[System]): PrintStream {.property.}
-
-    # Import method declaration
-    proc println(s: PrintStream, str: string)
-
-# Prepare the Java environment. In this case we start a new VM.
-# Not needed if you are already in JNI context.
-let jvm = newJavaVM()
-
-# Call! :)
-System.`out`.println("This string is printed with System.out.println!")
-```
 
 ## Installation
 ```sh

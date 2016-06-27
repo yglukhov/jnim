@@ -165,7 +165,7 @@ proc findPragmaValue(n: NimNode, name: string): Option[string] {.compileTime.} =
 
 proc parseProcDef(n: NimNode): ProcDef {.compileTime.} =
   expectKind n, nnkProcDef
-  expectKind n[ProcNamePos], {nnkIdent, nnkPostfix}
+  expectKind n[ProcNamePos], {nnkIdent, nnkPostfix, nnkAccQuoted}
 
 
   if n[ProcNamePos].kind == nnkPostfix:
