@@ -319,12 +319,12 @@ macro parseClassDefTest*(i: untyped, s: expr): stmt =
 ####################################################################################################
 # Type generator
 
-template identEx(isExported: bool, name: string, isSetter = false): expr =
+template identEx(isExported: bool, name: string, isSetter = false, isQuoted = false): expr =
   let id =
     if isSetter:
       newNimNode(nnkAccQuoted).add(ident(name), ident("="))
     else:
-      ident(name)
+      if isQuoted: newNimNode(nnkAccQuoted).add(ident(name)) else: ident(name)
   if isExported: postfix(id, "*") else: id
 
 proc mkGenericParams(p: seq[GenericType]): NimNode {.compileTime.} =
@@ -372,6 +372,8 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let freeIdent = ident("free" & cd.name)
   let jName = cd.jName.newStrLitNode
   let getClassId = identEx(cd.isExported, "getJVMClassForType")
+  let eqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
+  let seqEqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
   let fromJObjectProc = quote do:
     proc `fromJObjectIdent`(t: typedesc[`classNamePar`], o: jobject): `classNamePar` =
       var res: `classNamePar`
@@ -379,7 +381,6 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
       res.JVMObject.setObj(o)
       return res
   fromJObjectProc[0][2] = mkGenericParams(cd.genericTypes)
-
   result = quote do:
     type `classNameEx` = ref object of `parentType`
     proc `jniSigIdent`(t: typedesc[`className`]): string = fqcn(`jName`)
@@ -393,6 +394,16 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
       v.JVMObject
     proc toJValue(v: `className`): jvalue =
       v.get.toJValue
+    proc `eqOpIdent`(v1, v2: `className`): bool =
+      return (v1.equalsRaw(v2) == JVM_TRUE)
+    proc `seqEqOpIdent`(v1, v2: seq[`className`]): bool =
+      if v1.len != v2.len:
+        return false
+      else:
+        for i in 0..<v1.len:
+          if v1[i] != v2[i]:
+            return false
+        return true
   result[0][0][1] = mkGenericParams(cd.genericTypes)
 
 proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =

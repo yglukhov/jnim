@@ -35,4 +35,5 @@ suite "javaapi.containers":
     check: m.get(2.jint) == "B"
     check: m.get(3.jint) == "C"
     check: m.keySet.toSeq.mapIt(it.intValue) == @[1.jint, 2, 3]
+    check: m.keySet.toSeq == @[1.jint, 2, 3].mapIt(Integer.new(it))
     check: m.values.toSeq == @["A", "B", "C"]

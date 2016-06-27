@@ -49,3 +49,5 @@ suite "javaapi.core":
       discard Byte.new("1000")
     check: Short.MIN_VALUE == low(int16)
     check: Short.MAX_VALUE == high(int16)
+
+    check: Integer.new(1) == Integer.new(1)

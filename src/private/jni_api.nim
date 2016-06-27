@@ -1,4 +1,4 @@
-import jni_wrapper, fp.option, macros
+import jni_wrapper, fp.option, macros, strutils
 
 export jni_wrapper
 
@@ -238,6 +238,16 @@ proc getJVMClass*(o: JVMObject): JVMClass =
   checkInit
   (callVM theEnv.GetObjectClass(theEnv, o.get)).newJVMClass
   
+proc equalsRaw*(v1, v2: JVMObject): jboolean =
+  # This is low level ``equals`` version
+  assert v1.obj != nil
+  let cls = theEnv.GetObjectClass(theEnv, v1.obj)
+  jniAssertEx(cls.pointer != nil, "Can't find object's class")
+  let mthId = theEnv.GetMethodID(theEnv, cls, "equals", "($#)$#" % [jobject.jniSig, jboolean.jniSig])
+  jniAssertEx(mthId != nil, "Can't find ``equals`` method")
+  var v2w = v2.obj.toJValue
+  result = theEnv.CallBooleanMethodA(theEnv, v1.obj, mthId, addr v2w)
+
 proc toStringRaw(o: JVMObject): string =
   # This is low level ``toString`` version
   if o.obj.isNil:
