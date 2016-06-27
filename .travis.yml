@@ -1,10 +1,13 @@
 language: c
-compiler:
-  - gcc
 sudo: required
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.9
 before_install:
-  # Install 
-  sudo apt-get install java
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 90
   # Install nim
   - git clone -b devel git://github.com/nim-lang/Nim.git --depth 1
   - cd Nim
