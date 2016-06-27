@@ -13,6 +13,10 @@ The list of the main features:
 Original library is still available as [jnim1.nim](jnim1.nim).
 
 The documentation is coming soon. Now you can look the examples in the [tests](tests) directory.
+For example, [tests/test_javaapi_core.nim](tests/test_javaapi_core.nim) and [tests/test_javaapi_containers.nim](tests/test_javaapi_containers.nim)
+shows how to use high level API.
+
+If you want to run the tests, use ``nim test`` command.
 
 Here is the old README.md:
 
