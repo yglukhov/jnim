@@ -1,4 +1,4 @@
-import jbridge,
+import jnim,
        javaapi.containers,
        javaapi.core,
        common,

@@ -1,4 +1,4 @@
-import jbridge,
+import jnim,
        javaapi.core,
        common,
        unittest

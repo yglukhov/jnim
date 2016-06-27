@@ -1,4 +1,4 @@
-import jbridge
+import jnim
 
 # Forward declarations
 jclassDef java.lang.Object* of JVMObject
