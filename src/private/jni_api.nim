@@ -170,11 +170,7 @@ proc getFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
 
 proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
   checkInit
-  try:
-    return (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
-  except:
-    echo sig
-    raise
+  (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
 
 proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
   checkInit
