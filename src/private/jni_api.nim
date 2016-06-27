@@ -170,7 +170,11 @@ proc getFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
 
 proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
   checkInit
-  (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
+  try:
+    return (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
+  except:
+    echo sig
+    raise
 
 proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
   checkInit
@@ -240,7 +244,8 @@ proc getJVMClass*(o: JVMObject): JVMClass =
   
 proc toStringRaw(o: JVMObject): string =
   # This is low level ``toString`` version
-  assert o.obj != nil
+  if o.obj.isNil:
+    return nil
   let cls = theEnv.GetObjectClass(theEnv, o.obj)
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
   let mthId = theEnv.GetMethodID(theEnv, cls, "toString", "()" & string.jniSig)

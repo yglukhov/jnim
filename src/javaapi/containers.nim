@@ -47,11 +47,14 @@ jclass java.util.Map*[K,V] of Object:
   proc get*(k: K): V
   proc isEmpty*: bool
   proc keySet*: Set[K]
-  proc put*(k: K, v: V) 
+  proc put*(k: K, v: V): V
   proc putAll*(m: Map[K,V])
   proc remove*(k: K): V
   proc size*: jint
   proc values*: Collection[V]
+
+jclass java.util.HashMap*[K,V] of Map[K,V]:
+  proc new*
 
 #################################################################################################### 
 # Helpers

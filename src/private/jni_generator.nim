@@ -106,8 +106,6 @@ proc collectGenericParameters(cd: ClassDef, pd: ProcDef): seq[GenericType] =
   result = newSeq[GenericType]()
   for t in cd.genericTypes:
     result.add t
-  for t in cd.parentGenericTypes:
-    if not(t in result): result.add t
   for t in pd.genericTypes:
     if not(t in result): result.add t
 
