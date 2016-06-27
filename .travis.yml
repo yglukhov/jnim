@@ -1,7 +1,10 @@
 language: c
 compiler:
   - gcc
+sudo: required
 before_install:
+  # Install 
+  sudo apt-get install java
   # Install nim
   - git clone -b devel git://github.com/nim-lang/Nim.git --depth 1
   - cd Nim

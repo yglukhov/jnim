@@ -1,6 +1,8 @@
 jnim - JNI library for Nim language
 ======================================
 
+[![Build Status](https://travis-ci.org/vegansk/jnim.svg?branch=master)](https://travis-ci.org/vegansk/jnim)
+
 Native language integration with Java VM has never been easier!
 ```nim
 import jnim
