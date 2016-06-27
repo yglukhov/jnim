@@ -46,6 +46,9 @@ jclass java.lang.Byte* of Number:
   proc new*(v: jbyte)
   proc new*(s: string)
 
+converter toValueType*(v: Byte): jbyte = v.byteValue
+converter toWrapperType*(v: jbyte): Byte = Byte.new(v)
+
 jclass java.lang.Short* of Number:
   # Static fields
   proc MAX_VALUE*: jshort {.prop, `static`, final.}
@@ -55,6 +58,9 @@ jclass java.lang.Short* of Number:
 
   proc new*(v: jshort)
   proc new*(s: string)
+
+converter toValueType*(v: Short): jshort = v.shortValue
+converter toWrapperType*(v: jshort): Short = Short.new(v)
 
 jclass java.lang.Integer* of Number:
   # Static fields
@@ -66,6 +72,9 @@ jclass java.lang.Integer* of Number:
   proc new*(v: jint)
   proc new*(s: string)
 
+converter toValueType*(v: Integer): jint = v.intValue
+converter toWrapperType*(v: jint): Integer = Integer.new(v)
+
 jclass java.lang.Long* of Number:
   # Static fields
   proc MAX_VALUE*: jlong {.prop, `static`, final.}
@@ -75,6 +84,9 @@ jclass java.lang.Long* of Number:
 
   proc new*(v: jlong)
   proc new*(s: string)
+
+converter toValueType*(v: Long): jlong = v.longValue
+converter toWrapperType*(v: jlong): Long = Long.new(v)
 
 jclass java.lang.Float* of Number:
   # Static fields
@@ -93,6 +105,9 @@ jclass java.lang.Float* of Number:
   proc new*(v: jdouble)
   proc new*(s: string)
 
+converter toValueType*(v: Float): jfloat = v.floatValue
+converter toWrapperType*(v: jfloat): Float = Float.new(v)
+
 jclass java.lang.Double* of Number:
   # Static fields
   proc MAX_EXPONENT*: jint {.prop, `static`, final.}
@@ -108,6 +123,9 @@ jclass java.lang.Double* of Number:
 
   proc new*(v: jdouble)
   proc new*(s: string)
+
+converter toValueType*(v: Double): jdouble = v.doubleValue
+converter toWrapperType*(v: jdouble): Double = Double.new(v)
 
 #################################################################################################### 
 # Exceptions

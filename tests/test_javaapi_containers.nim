@@ -1,7 +1,9 @@
 import jbridge,
        javaapi.containers,
+       javaapi.core,
        common,
        unittest
+import sequtils except toSeq
 
 suite "javaapi.containers":
   setup:
@@ -25,12 +27,12 @@ suite "javaapi.containers":
     check: xs.toSeq == @["Hello"]
 
   test "javaapi.containers - Map":
-    let m = HashMap[string, string].new()
-    discard m.put("a", "A")
-    discard m.put("b", "B")
-    discard m.put("c", "C")
-    check: m.get("a") == "A"
-    check: m.get("b") == "B"
-    check: m.get("c") == "C"
-    check: m.keySet.toSeq == @["a", "b", "c"]
+    let m = HashMap[Integer, string].new()
+    discard m.put(1.jint, "A")
+    discard m.put(2.jint, "B")
+    discard m.put(3.jint, "C")
+    check: m.get(1.jint) == "A"
+    check: m.get(2.jint) == "B"
+    check: m.get(3.jint) == "C"
+    check: m.keySet.toSeq.mapIt(it.intValue) == @[1.jint, 2, 3]
     check: m.values.toSeq == @["A", "B", "C"]
