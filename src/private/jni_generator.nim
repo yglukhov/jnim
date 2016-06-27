@@ -27,7 +27,7 @@ proc nodeToString(n: NimNode): string =
     assert false, "Can't stringify " & $n.kind
 
 #################################################################################################### 
-# Proc signature parser 
+# Types declarations
 
 type ParamType* = string
 type ProcParam* = tuple[
@@ -51,6 +51,21 @@ type
     
 proc initProcDef(name: string, jName: string, isConstructor, isStatic, isProp, isFinal, isExported: bool, params: seq[ProcParam] = @[], retType = "void", genericTypes: seq[GenericType] = @[]): ProcDef =
   ProcDef(name: name, jName: jName, isConstructor: isConstructor, isStatic: isStatic, isProp: isProp, isFinal: isFinal, isExported: isExported, params: params, retType: retType, genericTypes: genericTypes)
+
+type
+  ClassDef* = object
+    name*: string
+    jName*: string
+    parent*: string
+    isExported*: bool
+    genericTypes*: seq[GenericType]
+    parentGenericTypes*: seq[GenericType]
+
+proc initClassDef(name, jName, parent: string, isExported: bool, genericTypes: seq[GenericType] = @[], parentGenericTypes: seq[GenericType] = @[]): ClassDef =
+  ClassDef(name: name, jName: jName, parent: parent, isExported: isExported, genericTypes: genericTypes, parentGenericTypes: parentGenericTypes)
+
+#################################################################################################### 
+# Proc signature parser 
 
 const ProcNamePos = 0
 const ProcParamsPos = 3
@@ -87,27 +102,33 @@ proc parseProcGenericsNode(n: NimNode): seq[GenericType] =
 
 proc concatParams(s: varargs[string]): string = "(" & s.join() & ")"
 
-proc isGenericType(pd: ProcDef, `type`: ParamType): bool =
-  result = false
-  for p in pd.genericTypes:
-    if `type` == p:
-      return true
+proc collectGenericParameters(cd: ClassDef, pd: ProcDef): seq[GenericType] =
+  result = newSeq[GenericType]()
+  for t in cd.genericTypes:
+    result.add t
+  for t in cd.parentGenericTypes:
+    if not(t in result): result.add t
+  for t in pd.genericTypes:
+    if not(t in result): result.add t
 
-proc genJniSig(pd: ProcDef, `type`: ParamType): NimNode {.compileTime.} =
-  if pd.isGenericType(`type`):
+proc isGenericType(cd: ClassDef, pd: ProcDef, `type`: ParamType): bool =
+  `type` in collectGenericParameters(cd, pd)
+
+proc genJniSig(cd: ClassDef, pd: ProcDef, `type`: ParamType): NimNode {.compileTime.} =
+  if isGenericType(cd, pd, `type`):
     parseExpr("jniSig(jobject)")
   else:
     parseExpr("jniSig($#)" % `type`)
 
-proc getProcSignature(pd: ProcDef): NimNode {.compileTime.} =
-  let ret = pd.genJniSig(pd.retType)
+proc getProcSignature(cd: ClassDef, pd: ProcDef): NimNode {.compileTime.} =
+  let ret = genJniSig(cd, pd, pd.retType)
   if pd.isProp == true:
     return quote do:
       `ret`
 
   var params = newCall(bindSym("concatParams"))
   for p in pd.params:
-    params.add(pd.genJniSig(p.`type`))
+    params.add(genJniSig(cd, pd, p.`type`))
   
   result = quote do:
     `params` & `ret`
@@ -214,18 +235,6 @@ macro parseProcDefTest*(i: untyped, s: expr): stmt =
 
 ####################################################################################################
 # Class definition parser
-
-type
-  ClassDef* = object
-    name*: string
-    jName*: string
-    parent*: string
-    isExported*: bool
-    genericTypes*: seq[GenericType]
-    parentGenericTypes*: seq[GenericType]
-
-proc initClassDef(name, jName, parent: string, isExported: bool, genericTypes: seq[GenericType] = @[], parentGenericTypes: seq[GenericType] = @[]): ClassDef =
-  ClassDef(name: name, jName: jName, parent: parent, isExported: isExported, genericTypes: genericTypes, parentGenericTypes: parentGenericTypes)
 
 proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
   expectKind c, nnkInfix
@@ -390,7 +399,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
 
 proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
   var argsInit = newStmtList()
-
+  
   for p in pd.params:
     let pi = ident(p.name)
     argsInit.add quote do:
@@ -401,16 +410,21 @@ proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
   result = quote do:
     var `argsIdent` = newSeq[jvalue]()
     `argsInit`
+
+proc fillGenericParameters(cd: ClassDef, pd: ProcDef, n: NimNode) {.compileTime.} =
+  # Combines generic parameters from `pd`, `cd` and puts t into proc definition `n`
+  n[2] = mkGenericParams(collectGenericParameters(cd, pd))
           
 proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert pd.isConstructor
 
-  let sig = getProcSignature(pd)
+  let sig = getProcSignature(cd, pd)
   let cname = cd.jName.newStrLitNode
   let ctype = cd.name.ident
   let ctypeWithParams = cd.mkType
 
   result = def.copyNimTree
+  fillGenericParameters(cd, pd, result)
   # Change return type
   result.params[0] = ctypeWithParams
   # Add first parameter
@@ -426,11 +440,12 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
 proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert(not (pd.isConstructor or pd.isProp))
 
-  let sig = getProcSignature(pd)
+  let sig = getProcSignature(cd, pd)
   let cname = cd.jName.newStrLitNode
   let pname = pd.jName.newStrLitNode
   let ctype = cd.name.ident
   result = def.copyNimTree
+  fillGenericParameters(cd, pd, result)
   result.pragma = newEmptyNode()
   var objToCall: NimNode
   # Add first parameter
@@ -458,11 +473,12 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
 proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): NimNode =
   assert pd.isProp
 
-  let sig = getProcSignature(pd)
+  let sig = getProcSignature(cd, pd)
   let cname = cd.jName.newStrLitNode
   let pname = pd.jName.newStrLitNode
   let ctype = cd.name.ident
   result = def.copyNimTree
+  fillGenericParameters(cd, pd, result)
   result.pragma = newEmptyNode()
   result.name = identEx(pd.isExported, pd.name, isSetter)
   var objToCall: NimNode
