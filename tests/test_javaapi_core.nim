@@ -38,3 +38,14 @@ suite "javaapi.core":
     except JavaException:
       let ex = getCurrentJVMException()
       check: ex.getStackTrace.len == 1
+
+  test "javaapi.core - Wrappers":
+    check: Byte.MIN_VALUE == low(int8)
+    check: Byte.MAX_VALUE == high(int8)
+    check: Byte.SIZE == 8
+    check: $Byte.TYPE == "byte"
+    check: Byte.new(100).byteValue == Byte.new("100").byteValue
+    expect JavaException:
+      discard Byte.new("1000")
+    check: Short.MIN_VALUE == low(int16)
+    check: Short.MAX_VALUE == high(int16)
