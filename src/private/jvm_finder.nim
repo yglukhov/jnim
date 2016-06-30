@@ -36,7 +36,7 @@ proc searchInJavaHome: Option[JVMPath] =
   "JAVA_HOME".getEnv.some.notEmpty.flatMap((p: string) => p.findJvmInPath.map(lib => (p, lib)))
 
 proc runJavaProcess: string =
-  when defined(nimvm):
+  when nimvm:
     result = staticExec("java -verbose:class -version")
   else:
     result = execProcess("java -verbose:class -version")
