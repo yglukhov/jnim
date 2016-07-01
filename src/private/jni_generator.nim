@@ -22,7 +22,9 @@ proc nodeToString(n: NimNode): string =
   elif n.kind == nnkInfix and n[0].nodeToString == "$":
     result = n[1].nodeToString & "$" & n[2].nodeToString
   elif n.kind == nnkBracketExpr:
-    result = n[0].nodeToString & "[" & n[1].nodeToString & "]"
+    let children = toSeq(n.children)
+    let params = children[1..^1].map(nodeToString).join(",")
+    result = "$#[$#]" % [n[0].nodeToString, params]
   else:
     assert false, "Can't stringify " & $n.kind
 
@@ -393,7 +395,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
     proc toJVMObject(v: `className`): JVMObject =
       v.JVMObject
     proc toJValue(v: `className`): jvalue =
-      v.get.toJValue
+      v.JVMObject.get.toJValue
     proc `eqOpIdent`(v1, v2: `className`): bool =
       return (v1.equalsRaw(v2) == JVM_TRUE)
     proc `seqEqOpIdent`(v1, v2: seq[`className`]): bool =

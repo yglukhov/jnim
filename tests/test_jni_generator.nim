@@ -9,6 +9,21 @@ jclass java.lang.String2* of JVMObject:
 jclass java.lang.String as JVMString2* of JVMObject:
   proc new
 
+# These classes are not used in actual tests -
+# but they should compile.
+
+jclass java.util.Map[K,V] of JVMObject:
+  proc get(k: K): V
+
+# Class with a method that returns a generic with two arguments
+jclass java.lang.ProcessBuilder of JVMObject:
+  proc environment: Map[string, string]
+
+# Class that inherits from another with get() method
+jclass java.util.Properties of Map[JVMObject, JVMObject]:
+  proc new
+
+
 suite "jni_generator":
   setup:
     if not isJNIThreadInitialized():
@@ -115,6 +130,30 @@ suite "jni_generator":
     check: not pd.isProp
     check: not pd.isFinal
     check: not pd.isExported
+
+    parseProcDefTest pd:
+      proc `method`*: Map[string,jint]
+    check: pd.name == "method"
+    check: pd.jName == "method"
+    check: pd.retType == "Map[string,jint]"
+    check: pd.params == newSeq[ProcParam]()
+    check: not pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isFinal
+    check: pd.isExported
+
+    parseProcDefTest pd:
+      proc `method`*(m: Map[string,jint]): jshort
+    check: pd.name == "method"
+    check: pd.jName == "method"
+    check: pd.retType == "jshort"
+    check: pd.params == @[("m", "Map[string,jint]")]
+    check: not pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isFinal
+    check: pd.isExported
 
   test "jni_generator - proc def - properties":
     var pd: ProcDef
