@@ -395,7 +395,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
     proc toJVMObject(v: `className`): JVMObject =
       v.JVMObject
     proc toJValue(v: `className`): jvalue =
-      v.get.toJValue
+      v.JVMObject.get.toJValue
     proc `eqOpIdent`(v1, v2: `className`): bool =
       return (v1.equalsRaw(v2) == JVM_TRUE)
     proc `seqEqOpIdent`(v1, v2: seq[`className`]): bool =
