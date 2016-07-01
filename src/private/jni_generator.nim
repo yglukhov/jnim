@@ -22,7 +22,9 @@ proc nodeToString(n: NimNode): string =
   elif n.kind == nnkInfix and n[0].nodeToString == "$":
     result = n[1].nodeToString & "$" & n[2].nodeToString
   elif n.kind == nnkBracketExpr:
-    result = n[0].nodeToString & "[" & n[1].nodeToString & "]"
+    let children = toSeq(n.children)
+    let params = children[1..^1].map(nodeToString).join(",")
+    result = "$#[$#]" % [n[0].nodeToString, params]
   else:
     assert false, "Can't stringify " & $n.kind
 

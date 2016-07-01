@@ -116,6 +116,30 @@ suite "jni_generator":
     check: not pd.isFinal
     check: not pd.isExported
 
+    parseProcDefTest pd:
+      proc `method`*: Map[string,jint]
+    check: pd.name == "method"
+    check: pd.jName == "method"
+    check: pd.retType == "Map[string,jint]"
+    check: pd.params == newSeq[ProcParam]()
+    check: not pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isFinal
+    check: pd.isExported
+
+    parseProcDefTest pd:
+      proc `method`*(m: Map[string,jint]): jshort
+    check: pd.name == "method"
+    check: pd.jName == "method"
+    check: pd.retType == "jshort"
+    check: pd.params == @[("m", "Map[string,jint]")]
+    check: not pd.isConstructor
+    check: not pd.isStatic
+    check: not pd.isProp
+    check: not pd.isFinal
+    check: pd.isExported
+
   test "jni_generator - proc def - properties":
     var pd: ProcDef
 
