@@ -51,3 +51,24 @@ suite "javaapi.core":
     check: Short.MAX_VALUE == high(int16)
 
     check: Integer.new(1) == Integer.new(1)
+
+  test "javaapi.core - instanceOf":
+    let
+      i = newJVMObject(Integer.new(1).get)
+      s = newJVMObject(String.new("foo").get)
+
+    check: i.instanceOf(Integer)
+    check: i.instanceOf(Object)
+    check: s.instanceOf(String)
+    check: s.instanceOf(Object)
+    check: not i.instanceOf(String)
+    check: not s.instanceOf(Integer)
+
+  test "javaapi.core - jcast":
+    let
+      s = newJVMObject(String.new("foo").get)
+
+    check: jcast[String](s) is String
+    check: jcast[Object](s) is Object
+    expect ObjectConversionError:
+      discard jcast[Integer](s)

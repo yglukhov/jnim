@@ -260,6 +260,7 @@ type
     SetLongArrayRegion*: proc(env: JNIEnvPtr, arr: jlongArray, start, len: jsize, buf: ptr jlong) {.cdecl.}
     SetFloatArrayRegion*: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
     SetDoubleArrayRegion*: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
+    IsInstanceOf*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass): jboolean {.cdecl.}
 
   JNIEnv* = ptr JNINativeInterface
   JNIEnvPtr* = ptr JNIEnv
