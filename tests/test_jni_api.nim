@@ -172,7 +172,7 @@ suite "jni_api":
       arr[idx] = (i * 2).jint
       check: arr[idx] == i * 2
 
-    let objArray = newJVMObjectArray(2)
+    let objArray: JVMObjectArray = newJVMObjectArray(2)
     objArray[0] = "Hello".newJVMObject
     objArray[1] = "world".newJVMObject
     obj.setObjectArray("objectArray", objArray)
@@ -187,3 +187,5 @@ suite "jni_api":
     let strArray = cls.callObjectArrayMethod("getStringArrayS", "()" & seq[string].jniSig)
     for idx, val in ["Hello", "from", "java!"]:
       check: strArray[idx].toStringRaw == val
+
+

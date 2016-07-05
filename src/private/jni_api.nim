@@ -289,11 +289,11 @@ proc newRef*(o: JVMObject): jobject =
 ####################################################################################################
 # Arrays support
 
-template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt =
+template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate.} =
 
   # Creation
 
-  type `JVM typName Array`* = ref object
+  type `JVM typName Array`* {.inject.} = ref object
     arr: `arrTyp`
 
   proc get*(arr: `JVM typName Array`): `arrTyp` = arr.arr
