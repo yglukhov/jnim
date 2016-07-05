@@ -680,3 +680,7 @@ template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarra
     T.fromJObject(o.callObjectMethodRaw(methodId, args))
   else:
     {.error: "Unknown return type".}
+
+proc instanceOfRaw*(obj: JVMObject, cls: JVMClass): bool =
+  checkInit
+  callVM theEnv.IsInstanceOf(theEnv, obj.obj, cls.cls) == JVM_TRUE
