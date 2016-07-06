@@ -23,7 +23,11 @@ proc `$`*(o: Object): string =
 jclassImpl java.lang.String* of Object:
   proc new*
   proc new*(s: string)
+  proc new*(chars: seq[jbyte])
+  proc new*(chars: seq[jbyte], charsetName: string)
   proc length*: jint
+  proc getBytes*: seq[jbyte]
+  proc getBytes*(charsetName: string): seq[jbyte]
 
 ####################################################################################################
 # Wrapper types

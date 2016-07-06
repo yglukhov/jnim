@@ -1,7 +1,8 @@
 import jnim,
        java.lang,
        common,
-       unittest
+       unittest,
+       encodings
 
 suite "javaapi.core":
   setup:
@@ -26,6 +27,8 @@ suite "javaapi.core":
     check: $s1 == "Hi"
     check: s1.equals(s2)
     check: not s2.equals(s3)
+    let s = String.new("Привет!")
+    check: String.new(s.getBytes("CP1251"), "CP1251") == s
 
   jclass ExceptionTestClass of Object:
     proc throwEx(msg: string) {.`static`.}

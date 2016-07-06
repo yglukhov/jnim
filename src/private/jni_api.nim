@@ -375,6 +375,10 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate
       theEnv.SetObjectArrayElement(theEnv, arr.get, idx.jsize, obj.get)
       checkException
   else:
+    proc getArrayRegion*(a: arrTyp, start, length: jint, address: ptr typ) =
+      checkInit
+      theEnv.`Get typName ArrayRegion`(theEnv, a, start, length, address)
+
     proc `[]`*(arr: `JVM typName Array`, idx: Natural): `typ` =
       checkInit
       theEnv.`Get typName ArrayRegion`(theEnv, arr.get, idx.jsize, 1.jsize, addr result)
@@ -614,7 +618,7 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
   let length = theEnv.GetArrayLength(theEnv, arr)
   res = newSeq[T](length.int)
   when T is JPrimitiveType:
-    theEnv.GetArrayRegion(theEnv, arr, 0, length, addr(res[0]))
+    getArrayRegion(arr, 0, length, addr(res[0]))
   elif compiles(T.fromJObject(nil.jobject)):
     for i in 0..<res.len:
       res[i] = T.fromJObject(theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
