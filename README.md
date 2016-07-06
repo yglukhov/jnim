@@ -30,7 +30,7 @@ The list of the main features:
 Original library is still available as [src/jnim1.nim](src/jnim1.nim).
 
 The documentation is coming soon. Now you can look the examples in the [tests](tests) directory.
-For example, [tests/test_javaapi_core.nim](tests/test_javaapi_core.nim) and [tests/test_javaapi_containers.nim](tests/test_javaapi_containers.nim)
+For example, [tests/test_java_lang.nim](tests/test_java_lang.nim) and [tests/test_java_util.nim](tests/test_java_util.nim)
 shows how to use high level API.
 
 If you want to run the tests, use ``nim test`` command.
