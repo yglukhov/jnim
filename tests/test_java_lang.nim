@@ -1,5 +1,5 @@
 import jnim,
-       javaapi.core,
+       java.lang,
        common,
        unittest
 
@@ -7,15 +7,15 @@ suite "javaapi.core":
   setup:
     if not isJNIThreadInitialized():
       initJNIForTests()
-    
-  test "javaapi.core - Object":
+
+  test "java.lang.Object":
     let o1 = Object.new
     let o2 = Object.new
     check: not o1.toString.equals(o2.toString)
     check: not o1.equals(o2)
     check: o1.getClass.equals(o2.getClass)
 
-  test "javaapi.core - String":
+  test "java.lang.String":
     let s1 = String.new("Hi")
     let s2 = String.new("Hi")
     let s3 = String.new("Hello")
@@ -30,7 +30,7 @@ suite "javaapi.core":
   jclass ExceptionTestClass of Object:
     proc throwEx(msg: string) {.`static`.}
 
-  test "javaapi.core - Exception":
+  test "java.lang.Exception":
     expect(JavaException):
       ExceptionTestClass.throwEx("test")
     try:
@@ -39,7 +39,7 @@ suite "javaapi.core":
       let ex = getCurrentJVMException()
       check: ex.getStackTrace.len == 1
 
-  test "javaapi.core - Wrappers":
+  test "java.lang - Numbers":
     check: Byte.MIN_VALUE == low(int8)
     check: Byte.MAX_VALUE == high(int8)
     check: Byte.SIZE == 8
@@ -51,24 +51,3 @@ suite "javaapi.core":
     check: Short.MAX_VALUE == high(int16)
 
     check: Integer.new(1) == Integer.new(1)
-
-  test "javaapi.core - instanceOf":
-    let
-      i = newJVMObject(Integer.new(1).get)
-      s = newJVMObject(String.new("foo").get)
-
-    check: i.instanceOf(Integer)
-    check: i.instanceOf(Object)
-    check: s.instanceOf(String)
-    check: s.instanceOf(Object)
-    check: not i.instanceOf(String)
-    check: not s.instanceOf(Integer)
-
-  test "javaapi.core - jcast":
-    let
-      s = newJVMObject(String.new("foo").get)
-
-    check: jcast[String](s) is String
-    check: jcast[Object](s) is Object
-    expect ObjectConversionError:
-      discard jcast[Integer](s)

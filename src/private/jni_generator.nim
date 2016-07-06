@@ -4,6 +4,8 @@ import jni_api,
        macros,
        fp.option
 
+from typetraits import name
+
 ####################################################################################################
 # Module parameters
 const CONSTRUCTOR_NAME = "new"
@@ -555,3 +557,48 @@ macro jclassImpl*(head: expr, body: expr): stmt {.immediate.} =
   let cd = parseClassDef(head)
   result.add generateClassImpl(cd, body)
 
+
+####################################################################################################
+# Operators
+
+proc instanceOf*[T: JVMObject](obj: JVMObject, t: typedesc[T]): bool =
+  ## Returns true if java object `obj` is an instance of class, represented
+  ## by `T`. Behaves the same as `instanceof` operator in Java.
+  ## **WARNING**: since generic parameters are not represented on JVM level,
+  ## they are ignored (even though they are required by Nim syntax). This
+  ## means that the following returns true:
+  ## .. code-block:: nim
+  ##   let a = ArrayList[Integer].new()
+  ##   # true!
+  ##   a.instanceOf[List[String]]
+
+  instanceOfRaw(obj, T.getJVMClassForType)
+
+proc jcast*[T: JVMObject](obj: JVMObject): T =
+  ## Downcast operator for Java objects.
+  ## Behaves like Java code `(T) obj`. That is:
+  ## - If java object, referenced by `obj`, is an instance of class,
+  ## represented by `T` - returns an object of `T` that references
+  ## the same java object.
+  ## - Otherwise raises an exception (`ObjectConversionError`).
+  ## **WARNING**: since generic parameters are not represented on JVM level,
+  ## they are ignored (even though they are required by Nim syntax). This
+  ## means that the following won't raise an error:
+  ## .. code-block:: nim
+  ##   let a = ArrayList[Integer].new()
+  ##   # no error here!
+  ##   let b = jcast[List[String]](a)
+  ## **WARNING**: To simplify reference handling, this implementation directly
+  ## casts JVMObject to a subtype. This works, since all mapped classes have
+  ## the same structure, but also breaks Nim's runtime type determination
+  ## (such as `of` keyword and methods). However, native runtime type
+  ## determination should not be used with mapped classes anyway.
+
+  if not obj.instanceOf(T):
+    raise newException(
+      ObjectConversionError,
+      "Failed to convert " & typetraits.name(obj.type) &
+        " to " & typetraits.name(T)
+    )
+  # Since it is just a ref
+  cast[T](obj)

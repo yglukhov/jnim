@@ -1,16 +1,16 @@
 import jnim,
-       javaapi.containers,
-       javaapi.core,
+       java.util,
+       java.lang,
        common,
        unittest
 import sequtils except toSeq
 
-suite "javaapi.containers":
+suite "java.util":
   setup:
     if not isJNIThreadInitialized():
       initJNIForTests()
 
-  test "javaapi.containers - List":
+  test "java.util.List":
     let xs = ArrayList[string].new()
     discard xs.add("Hello")
     xs.add(1, "world")
@@ -26,7 +26,7 @@ suite "javaapi.containers":
     discard xs.removeAll(ArrayList[string].new(["world", "!"]))
     check: xs.toSeq == @["Hello"]
 
-  test "javaapi.containers - Map":
+  test "java.util.Map":
     let m = HashMap[Integer, string].new()
     discard m.put(1.jint, "A")
     discard m.put(2.jint, "B")

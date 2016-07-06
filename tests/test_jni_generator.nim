@@ -23,6 +23,12 @@ jclass java.lang.ProcessBuilder of JVMObject:
 jclass java.util.Properties of Map[JVMObject, JVMObject]:
   proc new
 
+jclass java.lang.Object* of JVMObject:
+  proc new
+jclass java.lang.String* of Object:
+  proc new
+jclass java.lang.Integer* of Object:
+  proc new(v: jint)
 
 suite "jni_generator":
   setup:
@@ -409,3 +415,26 @@ suite "jni_generator":
     check: b.baseMethod == b.overridedMethod
     check: c.childMethod == c.overridedMethod
     check: b.overridedMethod != c.overridedMethod
+
+  test "jni_generator - instanceOf":
+
+    let
+      i = newJVMObject(Integer.new(1).get)
+      s = newJVMObject(String.new().get)
+
+    check: i.instanceOf(Integer)
+    check: i.instanceOf(Object)
+    check: s.instanceOf(String)
+    check: s.instanceOf(Object)
+    check: not i.instanceOf(String)
+    check: not s.instanceOf(Integer)
+
+  test "jni_generator - jcast":
+
+    let
+      s = newJVMObject(String.new().get)
+
+    check: jcast[String](s) is String
+    check: jcast[Object](s) is Object
+    expect ObjectConversionError:
+      discard jcast[Integer](s)
