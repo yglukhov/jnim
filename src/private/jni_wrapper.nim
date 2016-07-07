@@ -1,9 +1,10 @@
 import os,
        dynlib,
        strutils,
-       macros
+       macros,
+       fp.option
 
-from jvm_finder import CT_JVM
+from jvm_finder import CT_JVM, findJVM
 
 const JNI_INC_DIR = CT_JVM.root / "include"
 const JNI_HDR = "<jni.h>"
@@ -307,11 +308,21 @@ proc linkWithJVMLib* =
     if not handle.isNil:
       linkWithJVMModule(handle)
 
+    # Then try locating JVM dynamically
     if not isJVMLoaded():
       if not handle.isNil:
         unloadLib(handle)
-        handle = loadLib(CT_JVM.lib)
+      let foundJVM = findJVM()
+      if foundJVM.isDefined:
+        handle = loadLib(foundJVM.get.lib)
         linkWithJVMModule(handle)
+
+    # If everything fails - try JVM we compiled with
+    if not isJVMLoaded():
+      if not handle.isNil:
+        unloadLib(handle)
+      handle = loadLib(CT_JVM.lib)
+      linkWithJVMModule(handle)
 
   if not isJVMLoaded():
     raise newException(Exception, "JVM could not be loaded")
