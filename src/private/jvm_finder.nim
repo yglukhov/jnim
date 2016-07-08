@@ -53,13 +53,12 @@ proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
     let p1 = jar.splitPath[0].splitPath[0]
     searchInPaths([p1, p1.splitPath[0]].asList)
 
-  proc catOptions[A](opts: List[Option[A]]): List[A] =
-    opts.sequence.getOrElse(Nil[A]())
-
   data.splitLines.asList
   .map(s => s.getRtJar.flatMap(findUsingRtJar))
-  .catOptions
-  .headOption
+  .foldLeft(
+      JVMPath.none,
+      (a: Option[JVMPath], b: Option[JVMPath]) => a.orElse(b)
+  )
 
 proc searchInCurrentEnv: Option[JVMPath] =
   searchInJavaProcessOutput(runJavaProcess())
