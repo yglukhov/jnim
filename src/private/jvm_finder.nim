@@ -43,7 +43,7 @@ proc runJavaProcess: string =
 
 proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
   proc getRtJar(s: string): Option[string] =
-    if not s.contains("[") or not s.contains("]"):
+    if not s.startsWith("[Opened ") or not s.contains("]"):
       string.none
     else:
       let path = s[s.find(" ") + 1 .. s.rfind("]") - 1]
@@ -53,9 +53,13 @@ proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
     let p1 = jar.splitPath[0].splitPath[0]
     searchInPaths([p1, p1.splitPath[0]].asList)
 
-  data.splitLines[0].some.notEmpty
-  .flatMap(getRtJar)
-  .flatMap(findUsingRtJar)
+  proc catOptions[A](opts: List[Option[A]]): List[A] =
+    opts.sequence.getOrElse(Nil[A]())
+
+  data.splitLines.asList
+  .map(s => s.getRtJar.flatMap(findUsingRtJar))
+  .catOptions
+  .headOption
 
 proc searchInCurrentEnv: Option[JVMPath] =
   searchInJavaProcessOutput(runJavaProcess())
