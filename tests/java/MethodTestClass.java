@@ -23,4 +23,16 @@ public class MethodTestClass {
         String[] arr = {"Hello", "world!"};
         return arr;
     }
+
+    public int readBytes(byte[] buf) {
+        byte[] bs = {0, 1, 2, 3};
+
+        int result = 0;
+        for (int i = 0; i < bs.length && i < buf.length; i++) {
+            buf[i] = bs[i];
+            result = i + 1;
+        }
+
+        return result;
+    }
 }

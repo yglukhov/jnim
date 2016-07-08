@@ -298,6 +298,8 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate
 
   proc get*(arr: `JVM typName Array`): `arrTyp` = arr.arr
 
+  proc jniSig*(T: typedesc[`JVM typName Array`]): string = "[" & jniSig(typ)
+
   proc `freeJVM typName Array`(a: `JVM typName Array`) =
     if a.arr != nil and theEnv != nil:
       theEnv.DeleteLocalRef(theEnv, a.arr)

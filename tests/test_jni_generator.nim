@@ -336,6 +336,7 @@ suite "jni_generator":
     proc addToMem(x: jint): jint {.importc: "addToMem".}
     proc factory(i: jint): MethodTestClass {.`static`.}
     proc getStrings: seq[string]
+    proc readBytes(buf: JVMByteArray): jint
 
   test "jni_generator - TestClass - methods":
     check: MethodTestClass.add(1, 2) == 3
@@ -344,6 +345,16 @@ suite "jni_generator":
     check: o.addToMem(3) == 5
     check: MethodTestClass.factory(5).addToMem(1) == 6
     check: o.getStrings == @["Hello", "world!"]
+
+    let buf = newJVMByteArray(10)
+    check: o.readBytes(buf) == 4
+    for i in countup(0, 3):
+      check: buf[i] == i
+
+    let buf2 = newJVMByteArray(2)
+    check: o.readBytes(buf2) == 2
+    for i in countup(0, 1):
+      check: buf2[i] == i
 
   jclassDef PropsTestClass of JVMObject
   jclassImpl PropsTestClass of JVMObject:
