@@ -153,6 +153,15 @@ jclass java.lang.Throwable* of Object:
   proc getStackTrace*: seq[StackTraceElement]
   proc printStackTrace*
 
+jclass java.lang.Exception* of Throwable:
+  proc new*
+  proc new*(message: String)
+  proc new*(message: String, cause: Throwable)
+  proc new*(
+    message: String,
+    cause: Throwable,
+    enableSuppression, writableStackTrace: bool)
+  proc new*(cause: Throwable)
 
 proc asJVM*(ex: JavaException): Throwable =
   Throwable.fromJObject(ex.getJVMException.newRef)
