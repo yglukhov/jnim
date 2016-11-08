@@ -30,10 +30,10 @@ proc findJvmInPath(p: string): Option[string] =
   return string.none
 
 proc searchInPaths(paths = Nil[string]()): Option[JVMPath] =
-  paths.foldLeft(JVMPath.none, (res, p) => (if res.isDefined: res else: p.findJvmInPath.map(lib => (p, lib))))
+  paths.foldLeft(JVMPath.none, (res, p) => (if res.isDefined: res else: p.findJvmInPath.map(lib => (root:p, lib:lib))))
 
 proc searchInJavaHome: Option[JVMPath] =
-  "JAVA_HOME".getEnv.some.notEmpty.flatMap((p: string) => p.findJvmInPath.map(lib => (p, lib)))
+  "JAVA_HOME".getEnv.some.notEmpty.flatMap((p: string) => p.findJvmInPath.map(lib => (root:p, lib:lib)))
 
 proc runJavaProcess: string =
   when nimvm:
@@ -51,7 +51,12 @@ proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
 
   proc findUsingRtJar(jar: string): Option[JVMPath] =
     let p1 = jar.splitPath[0].splitPath[0]
-    searchInPaths([p1, p1.splitPath[0]].asList)
+    if p1.endsWith("/Contents/Home/jre"):
+      # Assume MacOS. MacOS may not have libjvm, and jvm is loaded in a
+      # different way, so just return java home here.
+      (root: p1.parentDir, lib: nil.string).some
+    else:
+      searchInPaths([p1, p1.splitPath[0]].asList)
 
   data.splitLines.asList
   .map(s => s.getRtJar.flatMap(findUsingRtJar))
