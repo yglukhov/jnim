@@ -24,7 +24,7 @@ proc initJNIThread* {.gcsafe.}
 proc initJNI*(version: JNIVersion = JNIVersion.v1_6, options: seq[string] = @[]) =
   ## Setup JNI API
   jniAssert(not theOptions.isDefined, "JNI API already initialized, you must deinitialize it first")
-  theOptions = (version, options).some
+  theOptions = (version: version, options: options).some
   theOptionsPtr = cast[pointer](theOptions)
   initJNIThread()
 
