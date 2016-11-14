@@ -387,8 +387,8 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   fromJObjectProc[0][2] = mkGenericParams(cd.genericTypes)
   result = quote do:
     type `classNameEx` = ref object of `parentType`
-    proc `jniSigIdent`(t: typedesc[`className`]): string = fqcn(`jName`)
-    proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string = "[" & fqcn(`jName`)
+    proc `jniSigIdent`(t: typedesc[`className`]): string = sigForClass(`jName`)
+    proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string = "[" & sigForClass(`jName`)
     proc `getClassId`(t: typedesc[`className`]): JVMClass =
       JVMClass.getByFqcn(fqcn(`jName`))
     proc `freeIdent`(o: `className`) =
