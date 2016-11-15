@@ -155,7 +155,7 @@ proc get*(id: JVMFieldID): jfieldID =
 proc newJVMClass*(c: jclass): JVMClass =
   JVMClass(cls: c)
 
-proc getByFqcn*(T: typedesc[JVMClass], name: string): JVMClass =
+proc getByFqcn*(T: typedesc[JVMClass], name: cstring): JVMClass =
   ## Finds class by it's full qualified class name
   checkInit
   let c = callVM theEnv.FindClass(theEnv, name)
@@ -170,27 +170,27 @@ proc get*(c: JVMClass): jclass =
 
 # Static fields
 
-proc getStaticFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
+proc getStaticFieldId*(c: JVMClass, name, sig: cstring): JVMFieldID =
   checkInit
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, sig)).newJVMFieldID
 
-proc getStaticFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
+proc getStaticFieldId*(c: JVMClass, name: cstring, t: typedesc): JVMFieldID =
   checkInit
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
 
-proc getFieldId*(c: JVMClass, name: string, sig: string): JVMFieldID =
+proc getFieldId*(c: JVMClass, name, sig: cstring): JVMFieldID =
   checkInit
   (callVM theEnv.GetFieldID(theEnv, c.get, name, sig)).newJVMFieldID
 
-proc getFieldId*(c: JVMClass, name: string, t: typedesc): JVMFieldID =
+proc getFieldId*(c: JVMClass, name: cstring, t: typedesc): JVMFieldID =
   checkInit
   (callVM theEnv.GetFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
 
-proc getMethodId*(c: JVMClass, name, sig: string): JVMMethodID =
+proc getMethodId*(c: JVMClass, name, sig: cstring): JVMMethodID =
   checkInit
   (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
 
-proc getStaticMethodId*(c: JVMClass, name: string, sig: string): JVMMethodID =
+proc getStaticMethodId*(c: JVMClass, name, sig: cstring): JVMMethodID =
   checkInit
   (callVM theEnv.GetStaticMethodID(theEnv, c.get, name, sig)).newJVMMethodID
 
@@ -200,7 +200,7 @@ proc callVoidMethod*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = [])
   theEnv.CallStaticVoidMethodA(theEnv, c.get, id.get, a)
   checkException
 
-proc callVoidMethod*(c: JVMClass, name, sig: string, args: openarray[jvalue] = []) =
+proc callVoidMethod*(c: JVMClass, name, sig: cstring, args: openarray[jvalue] = []) =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
   theEnv.CallStaticVoidMethodA(theEnv, c.get, c.getStaticMethodId(name, sig).get, a)
@@ -211,12 +211,12 @@ proc newObject*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): JVM
   let a = if args.len == 0: nil else: unsafeAddr args[0]
   (callVM theEnv.NewobjectA(theEnv, c.get, id.get, a)).newJVMObject
 
-proc newObject*(c: JVMClass, sig: string, args: openarray[jvalue] = []): JVMObject =
+proc newObject*(c: JVMClass, sig: cstring, args: openarray[jvalue] = []): JVMObject =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
   (callVM theEnv.NewobjectA(theEnv, c.get, c.getMethodId("<init>", sig).get, a)).newJVMObject
 
-proc newObjectRaw*(c: JVMClass, sig: string, args: openarray[jvalue] = []): jobject =
+proc newObjectRaw*(c: JVMClass, sig: cstring, args: openarray[jvalue] = []): jobject =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
   callVM theEnv.NewobjectA(theEnv, c.get, c.getMethodId("<init>", sig).get, a)
@@ -261,7 +261,8 @@ proc equalsRaw*(v1, v2: JVMObject): jboolean =
   assert v1.obj != nil
   let cls = theEnv.GetObjectClass(theEnv, v1.obj)
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
-  let mthId = theEnv.GetMethodID(theEnv, cls, "equals", "($#)$#" % [jobject.jniSig, jboolean.jniSig])
+  const sig = "($#)$#" % [jobject.jniSig, jboolean.jniSig]
+  let mthId = theEnv.GetMethodID(theEnv, cls, "equals", sig)
   jniAssertEx(mthId != nil, "Can't find ``equals`` method")
   var v2w = v2.obj.toJValue
   result = theEnv.CallBooleanMethodA(theEnv, v1.obj, mthId, addr v2w)
@@ -272,7 +273,8 @@ proc toStringRaw(o: JVMObject): string =
     return nil
   let cls = theEnv.GetObjectClass(theEnv, o.obj)
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
-  let mthId = theEnv.GetMethodID(theEnv, cls, "toString", "()" & string.jniSig)
+  const sig = "()" & string.jniSig
+  let mthId = theEnv.GetMethodID(theEnv, cls, "toString", sig)
   jniAssertEx(mthId != nil, "Can't find ``toString`` method")
   let s = theEnv.CallObjectMethodA(theEnv, o.obj, mthId, nil).jstring
   defer:
@@ -292,7 +294,7 @@ proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []
   theEnv.CallVoidMethodA(theEnv, o.get, id.get, a)
   checkException
 
-proc callVoidMethod*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []) =
+proc callVoidMethod*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []) =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
   theEnv.CallVoidMethodA(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)
@@ -424,7 +426,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate
     let a = if args.len == 0: nil else: unsafeAddr args[0]
     `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, id.get, a)).newJVMObject)
 
-  proc `call typName ArrayMethod`*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []): `JVM typName Array` =
+  proc `call typName ArrayMethod`*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []): `JVM typName Array` =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
     `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)).newJVMObject)
@@ -573,7 +575,7 @@ template genMethod(typ: typedesc, typName: untyped): stmt =
     else:
       callVM theEnv.`Call typName MethodA`(theEnv, o.get, id.get, a)
 
-  proc `call typName Method`*(o: JVMObject, name, sig: string, args: openarray[jvalue] = []): `typ` =
+  proc `call typName Method`*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []): `typ` =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
     when `typ` is JVMObject:
