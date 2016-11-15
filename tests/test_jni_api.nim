@@ -42,7 +42,7 @@ suite "jni_api":
 
   test "API - call System.out.println":
     let cls = JVMClass.getByName("java.lang.System")
-    let outId = cls.getStaticFieldId("out", fqcn"java.io.PrintStream")
+    let outId = cls.getStaticFieldId("out", sigForClass"java.io.PrintStream")
     let `out` = cls.getObject(outId)
     let outCls = `out`.getJVMClass
     let printlnId = outCls.getMethodId("println", "($#)V" % string.jniSig)

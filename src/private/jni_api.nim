@@ -75,7 +75,25 @@ proc deinitJNIThread* =
 
 proc isJNIThreadInitialized*: bool = theEnv != nil
 
-template checkInit* = jniAssert(theEnv != nil, "You must call initJNIThread before using JNI API")
+proc findRunningVM() =
+    if JNI_GetCreatedJavaVMs.isNil:
+        linkWithJVMLib()
+
+    var vmBuf: array[1, JavaVMPtr]
+    var bufSize : jsize = 0
+    discard JNI_GetCreatedJavaVMs(addr vmBuf[0], jsize(vmBuf.len), addr bufSize)
+    if bufSize > 0:
+        let res = vmBuf[0].GetEnv(vmBuf[0], cast[ptr pointer](theEnv.addr), JNI_VERSION_1_6)
+        if res != 0:
+            raise newJNIException("GetEnv result: " & $res)
+        if theEnv.isNil:
+            raise newJNIException("No JVM found")
+        theVM = vmBuf[0]
+    else:
+        raise newJNIException("No JVM is running. You must call initJNIThread before using JNI API.")
+
+template checkInit* =
+  if theEnv.isNil: findRunningVM()
 
 ####################################################################################################
 # Types
@@ -206,7 +224,7 @@ proc newObjectRaw*(c: JVMClass, sig: string, args: openarray[jvalue] = []): jobj
 ####################################################################################################
 # JVMObject type
 
-proc jniSig*(T: typedesc[JVMObject]): string = fqcn"java.lang.Object"
+proc jniSig*(T: typedesc[JVMObject]): string = sigForClass"java.lang.Object"
 
 proc free*(o: JVMObject) =
   if o.obj != nil and theEnv != nil:

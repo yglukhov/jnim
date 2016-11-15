@@ -291,15 +291,15 @@ suite "jni_generator":
     jclass java.lang.String1 of JVMObject:
       proc new
     check: declared(String1)
-    check: String1.jniSig == fqcn"java.lang.String1"
+    check: String1.jniSig == sigForClass"java.lang.String1"
     jclass java.lang.String as JVMString1 of JVMObject:
       proc new
     check: declared(JVMString1)
-    check: JVMString1.jniSig == fqcn"java.lang.String"
+    check: JVMString1.jniSig == sigForClass"java.lang.String"
     check: declared(String2)
-    check: String2.jniSig == fqcn"java.lang.String2"
+    check: String2.jniSig == sigForClass"java.lang.String2"
     check: declared(JVMString2)
-    check: JVMString2.jniSig == fqcn"java.lang.String"
+    check: JVMString2.jniSig == sigForClass"java.lang.String"
 
   jclass ConstructorTestClass of JVMObject:
     proc new

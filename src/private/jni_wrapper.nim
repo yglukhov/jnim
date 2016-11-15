@@ -329,7 +329,11 @@ proc linkWithJVMLib* =
 
 proc fqcn*(cls: string): string =
   ## Create fullqualified class name
-  result = "L" & cls.replace(".", "/") & ";"
+  cls.replace(".", "/")
+
+proc sigForClass*(cls: string): string =
+  ## Create method/field signature part for class name
+  "L" & fqcn(cls) & ";"
 
 proc toJValue*(v: cfloat): jvalue = result.f = v
 proc toJValue*(v: jdouble): jvalue = result.d = v
@@ -365,8 +369,8 @@ template jniSig*(t: typedesc[jchar]): string = "C"
 template jniSig*(t: typedesc[jshort]): string = "S"
 template jniSig*(t: typedesc[jfloat]): string = "F"
 template jniSig*(t: typedesc[jdouble]): string = "D"
-template jniSig*(t: typedesc[string]): string = fqcn"java.lang.String"
-template jniSig*(t: typedesc[jobject]): string = fqcn"java.lang.Object"
+template jniSig*(t: typedesc[string]): string = sigForClass"java.lang.String"
+template jniSig*(t: typedesc[jobject]): string = sigForClass"java.lang.Object"
 template jniSig*(t: typedesc[void]): string = "V"
 proc elementTypeOfOpenArrayType[OpenArrayType](dummy: OpenArrayType = @[]): auto = dummy[0]
 template jniSig*(t: typedesc[openarray]): string = "[" & jniSig(type(elementTypeOfOpenArrayType[t]()))
