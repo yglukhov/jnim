@@ -366,6 +366,10 @@ proc mkParentType(cd: ClassDef): NimNode {.compileTime.} =
 proc mkTypedesc(cd: ClassDef): NimNode {.compileTime.} =
   result = newNimNode(nnkBracketExpr).add(ident"typedesc").add(cd.mkType)
 
+template toConstCString(e: string): cstring =
+  const t: cstring = e
+  t
+
 proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
   let classNameEx = identEx(cd.isExported, cd.name)
@@ -390,7 +394,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
     proc `jniSigIdent`(t: typedesc[`className`]): string = sigForClass(`jName`)
     proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string = "[" & sigForClass(`jName`)
     proc `getClassId`(t: typedesc[`className`]): JVMClass =
-      JVMClass.getByFqcn(fqcn(`jName`))
+      JVMClass.getByFqcn(toConstCString(fqcn(`jName`)))
     proc `freeIdent`(o: `className`) =
       o.JVMObject.free
     `fromJObjectProc`
@@ -411,23 +415,25 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   result[0][0][1] = mkGenericParams(cd.genericTypes)
 
 proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
-  var argsInit = newStmtList()
-  
-  for p in pd.params:
-    let pi = ident(p.name)
-    argsInit.add quote do:
-      when compiles(toJVMObject(`pi`)):
-        `argsIdent`.add(`pi`.toJVMObject.toJValue)
-      else:
-        `argsIdent`.add(`pi`.toJValue)
-  result = quote do:
-    var `argsIdent` = newSeq[jvalue]()
-    `argsInit`
+  if pd.params.len > 0:
+    let args = newNimNode(nnkBracket)
+    for p in pd.params:
+      let pi = ident(p.name)
+      args.add quote do:
+        when compiles(toJVMObject(`pi`)):
+          `pi`.toJVMObject.toJValue
+        else:
+          `pi`.toJValue
+    result = quote do:
+      let `argsIdent` = `args`
+  else:
+    result = quote do:
+      template `argsIdent` : untyped = []
 
 proc fillGenericParameters(cd: ClassDef, pd: ProcDef, n: NimNode) {.compileTime.} =
   # Combines generic parameters from `pd`, `cd` and puts t into proc definition `n`
   n[2] = mkGenericParams(collectGenericParameters(cd, pd))
-          
+
 proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert pd.isConstructor
 
@@ -446,9 +452,8 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   let args = generateArgs(pd, ai)
   result.body = quote do:
     checkInit
-    let sig = `sig`
     `args`
-    `ctypeWithParams`.fromJObject(newObjectRaw(JVMClass.getByName(`cname`), sig, `ai`))
+    `ctypeWithParams`.fromJObject(newObjectRaw(JVMClass.getByName(`cname`), toConstCString(`sig`), `ai`))
 
 proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert(not (pd.isConstructor or pd.isProp))
@@ -473,10 +478,10 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   let mId =
     if pd.isStatic:
       quote do:
-        `objToCall`.getStaticMethodId(`pname`, `sig`)
+        `objToCall`.getStaticMethodId(`pname`, toConstCString(`sig`))
     else:
       quote do:
-        `objToCall`.getJVMClass.getMethodId(`pname`, `sig`)
+        `objToCall`.getJVMClass.getMethodId(`pname`, toConstCString(`sig`))
   let ai = ident"args"
   let args = generateArgs(pd, ai)
   result.body = quote do:
