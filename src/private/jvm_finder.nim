@@ -11,14 +11,13 @@ type
     CurrentEnv
 
 proc findJvmInPath(p: string): Option[string] =
-  const libs =
-    when defined(windows): [
+  const libs = [
+      # Windows
       "bin\\server\\jvm.dll",
       "bin\\client\\jvm.dll",
       "jre\\bin\\server\\jvm.dll",
-      "jre\\bin\\client\\jvm.dll"
-    ]
-    else: [
+      "jre\\bin\\client\\jvm.dll",
+      # *nix
       "jre/lib/libjvm.so",
       "jre/lib/libjvm.dylib",
       "jre/lib/amd64/jamvm/libjvm.so",
@@ -33,7 +32,11 @@ proc searchInPaths(paths = Nil[string]()): Option[JVMPath] =
   paths.foldLeft(JVMPath.none, (res, p) => (if res.isDefined: res else: p.findJvmInPath.map(lib => (root:p, lib:lib))))
 
 proc searchInJavaHome: Option[JVMPath] =
-  "JAVA_HOME".getEnv.some.notEmpty.flatMap((p: string) => p.findJvmInPath.map(lib => (root:p, lib:lib)))
+  when defined(android):
+    ## Hack for Kindle fire.
+    (root:nil.string, lib: "/system/lib/libdvm.so").some
+  else:
+    "JAVA_HOME".getEnv.some.notEmpty.flatMap((p: string) => p.findJvmInPath.map(lib => (root:p, lib:lib)))
 
 proc runJavaProcess: string =
   when nimvm:
