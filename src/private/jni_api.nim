@@ -710,3 +710,10 @@ template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarra
 proc instanceOfRaw*(obj: JVMObject, cls: JVMClass): bool =
   checkInit
   callVM theEnv.IsInstanceOf(theEnv, obj.obj, cls.cls) == JVM_TRUE
+
+proc `$`*(s: jstring): string =
+    checkInit
+    if s != nil:
+        var cstr = theEnv.GetStringUTFChars(theEnv, s, nil)
+        result = $cstr
+        theEnv.ReleaseStringUTFChars(theEnv, s, cstr)
