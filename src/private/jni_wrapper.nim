@@ -84,6 +84,7 @@ type
   jlongArray* {.header: JNI_HDR.} = jarray
   jfloatArray* {.header: JNI_HDR.} = jarray
   jdoubleArray* {.header: JNI_HDR.} = jarray
+  jweak* {.header: JNI_HDR.} = jobject
 
   jvalue* {.header: JNI_HDR, union.} = object
     z*: jboolean
@@ -111,41 +112,171 @@ const JNIInvokeInterfaceImportName = when defined(android):
 
 type
   JNIInvokeInterface* {.importc: JNIInvokeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
+    # WARNING: The fields should be defined in exact same order as they are
+    # defined in jni.h to preserve ABI compatibility.
+    reserved0: pointer
+    reserved1: pointer
+    reserved2: pointer
+    when defined(not_TARGET_RT_MAC_CFM_and_ppc): # No idea what this means.
+      cfm_vectors: array[4, pointer]
+
     DestroyJavaVM*: proc(vm: JavaVMPtr): jint {.cdecl.}
     AttachCurrentThread*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
     DetachCurrentThread*: proc(vm: JavaVMPtr): jint {.cdecl.}
     GetEnv*: proc(vm: JavaVMPtr, penv: ptr pointer, version: jint): jint {.cdecl.}
     AttachCurrentThreadAsDaemon*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
+
   JavaVM* = ptr JNIInvokeInterface
   JavaVMPtr* = ptr JavaVM
   JavaVMOption* {.header: JNI_HDR.} = object
+    # WARNING: The fields should be defined in exact same order as they are
+    # defined in jni.h to preserve ABI compatibility.
     optionString*: cstring
     extraInfo*: pointer
+
   JavaVMInitArgs* {.header: JNI_HDR.} = object
+    # WARNING: The fields should be defined in exact same order as they are
+    # defined in jni.h to preserve ABI compatibility.
     version*: jint
     nOptions*: jint
     options*: ptr JavaVMOption
     ignoreUnrecognized*: jboolean
 
   JNINativeInterface* {.importc: JNINativeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
+    # WARNING: The fields should be defined in exact same order as they are
+    # defined in jni.h to preserve ABI compatibility.
+
+    reserved0: pointer
+    reserved1: pointer
+    reserved2: pointer
+    reserved3: pointer
+
+    when defined(not_TARGET_RT_MAC_CFM_and_ppc): # No idea what this means.
+      cfm_vectors: array[225, pointer]
+
     GetVersion*: proc(env: JNIEnvPtr): jint {.cdecl.}
-    ExceptionCheck*: proc(env: JNIEnvPtr): jboolean {.cdecl.}
-    ExceptionOccurred*: proc(env: JNIEnvPtr): jthrowable {.cdecl.}
-    ExceptionClear*: proc(env: JNIEnvPtr) {.cdecl.}
-    GetObjectClass*: proc(env: JNIEnvPtr, obj: jobject): jclass {.cdecl.}
+
+    DefineClass*: proc(env: JNIEnvPtr, name: cstring, loader: jobject, buf: ptr jbyte, len: jsize): jclass {.cdecl.}
     FindClass*: proc(env: JNIEnvPtr, name: cstring): jclass {.cdecl.}
-    GetStringUTFChars*: proc(env: JNIEnvPtr, s: jstring, isCopy: ptr jboolean): cstring {.cdecl.}
-    ReleaseStringUTFChars*: proc(env: JNIEnvPtr, s: jstring, cstr: cstring) {.cdecl.}
-    NewStringUTF*: proc(env: JNIEnvPtr, s: cstring): jstring {.cdecl.}
+
+    FromReflectedMethod*: proc(env: JNIEnvPtr, meth: jobject): jmethodID {.cdecl.}
+    FromReflectedField*: proc(env: JNIEnvPtr, field: jobject): jfieldID {.cdecl.}
+
+    ToReflectedMethod*: proc(env: JNIEnvPtr, cls: jclass, methodID: jmethodID, isStatic: jboolean): jobject {.cdecl.}
+
+    GetSuperclass*: proc(env: JNIEnvPtr, sub: jclass): jclass {.cdecl.}
+    IsAssignableFrom*: proc(env: JNIEnvPtr, sub, sup: jclass): jboolean {.cdecl.}
+
+    ToReflectedField*: proc(env: JNIEnvPtr, cls: jclass, fieldID: jfieldID, isStatic: jboolean): jobject {.cdecl.}
+
+    Throw*: proc(env: JNIEnvPtr, obj: jthrowable): jint {.cdecl.}
+    ThrowNew*: proc(env: JNIEnvPtr, clazz: jclass, msg: cstring): jint {.cdecl.}
+    ExceptionOccurred*: proc(env: JNIEnvPtr): jthrowable {.cdecl.}
+    ExceptionDescribe*: proc(env: JNIEnvPtr) {.cdecl.}
+    ExceptionClear*: proc(env: JNIEnvPtr) {.cdecl.}
+    FatalError*: proc(env: JNIEnvPtr, msg: cstring) {.cdecl.}
+
+    PushLocalFrame*: proc(env: JNIEnvPtr, capacity: jint): jint {.cdecl.}
+    PopLocalFrame*: proc(env: JNIEnvPtr, res: jobject): jobject {.cdecl.}
+
     NewGlobalRef*: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
-    NewLocalRef*: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
     DeleteGlobalRef*: proc(env: JNIEnvPtr, obj: jobject) {.cdecl.}
     DeleteLocalRef*: proc(env: JNIEnvPtr, obj: jobject) {.cdecl.}
+    IsSameObject*: proc(env: JNIEnvPtr, obj1, obj2: jobject): jboolean {.cdecl.}
+    NewLocalRef*: proc(env: JNIEnvPtr, obj: jobject): jobject {.cdecl.}
+    EnsureLocalCapacity*: proc(env: JNIEnvPtr, capacity: jint): jint {.cdecl.}
 
-    GetStaticFieldID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jfieldID {.cdecl.}
-    GetStaticMethodID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jmethodID {.cdecl.}
+    AllocObject*: proc(env: JNIEnvPtr, clazz: jclass): jobject {.cdecl.}
+    NewObject*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jobject {.cdecl, varargs.}
+    NewObjectV: pointer # This function utilizes va_list which is not needed in Nim
+    NewObjectA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
+
+    GetObjectClass*: proc(env: JNIEnvPtr, obj: jobject): jclass {.cdecl.}
+    IsInstanceOf*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass): jboolean {.cdecl.}
+
+    GetMethodID*: proc(env: JNIEnvPtr, clazz: jclass, name, sig: cstring): jmethodID {.cdecl.}
+
+    CallObjectMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jobject {.cdecl, varargs.}
+    CallObjectMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallObjectMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
+
+    CallBooleanMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jboolean {.cdecl, varargs.}
+    CallBooleanMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallBooleanMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jboolean {.cdecl.}
+
+    CallByteMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jbyte {.cdecl, varargs.}
+    CallByteMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallByteMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jbyte {.cdecl.}
+
+    CallCharMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jchar {.cdecl, varargs.}
+    CallCharMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallCharMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jchar {.cdecl.}
+
+    CallShortMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jshort {.cdecl, varargs.}
+    CallShortMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallShortMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jshort {.cdecl.}
+
+    CallIntMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jint {.cdecl, varargs.}
+    CallIntMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallIntMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jint {.cdecl.}
+
+    CallLongMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jlong {.cdecl, varargs.}
+    CallLongMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallLongMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
+
+    CallFloatMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jfloat {.cdecl, varargs.}
+    CallFloatMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallFloatMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
+
+    CallDoubleMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID): jdouble {.cdecl, varargs.}
+    CallDoubleMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallDoubleMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
+
+    CallVoidMethod*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID) {.cdecl, varargs.}
+    CallVoidMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallVoidMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+
+    CallNonvirtualObjectMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jobject {.cdecl, varargs.}
+    CallNonvirtualObjectMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualObjectMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
+
+    CallNonvirtualBooleanMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jboolean {.cdecl, varargs.}
+    CallNonvirtualBooleanMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualBooleanMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jboolean {.cdecl.}
+
+    CallNonvirtualByteMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jbyte {.cdecl, varargs.}
+    CallNonvirtualByteMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualByteMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jbyte {.cdecl.}
+
+    CallNonvirtualCharMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jchar {.cdecl, varargs.}
+    CallNonvirtualCharMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualCharMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jchar {.cdecl.}
+
+    CallNonvirtualShortMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jshort {.cdecl, varargs.}
+    CallNonvirtualShortMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualShortMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jshort {.cdecl.}
+
+    CallNonvirtualIntMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jint {.cdecl, varargs.}
+    CallNonvirtualIntMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualIntMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jint {.cdecl.}
+
+    CallNonvirtualLongMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jlong {.cdecl, varargs.}
+    CallNonvirtualLongMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualLongMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
+
+    CallNonvirtualFloatMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jfloat {.cdecl, varargs.}
+    CallNonvirtualFloatMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualFloatMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
+
+    CallNonvirtualDoubleMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID): jdouble {.cdecl, varargs.}
+    CallNonvirtualDoubleMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualDoubleMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
+
+    CallNonvirtualVoidMethod*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID) {.cdecl, varargs.}
+    CallNonvirtualVoidMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallNonvirtualVoidMethodA*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+
     GetFieldID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jfieldID {.cdecl.}
-    GetMethodID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jmethodID {.cdecl.}
 
     GetObjectField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jobject {.cdecl.}
     GetBooleanField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jboolean {.cdecl.}
@@ -156,6 +287,7 @@ type
     GetLongField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jlong {.cdecl.}
     GetFloatField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jfloat {.cdecl.}
     GetDoubleField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID): jdouble {.cdecl.}
+
     SetObjectField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jobject) {.cdecl.}
     SetBooleanField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jboolean) {.cdecl.}
     SetByteField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jbyte) {.cdecl.}
@@ -166,6 +298,50 @@ type
     SetFloatField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jfloat) {.cdecl.}
     SetDoubleField*: proc(env: JNIEnvPtr, obj: jobject, fieldId: jfieldID, val: jdouble) {.cdecl.}
 
+    GetStaticMethodID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jmethodID {.cdecl.}
+
+    CallStaticObjectMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jobject {.cdecl, varargs.}
+    CallStaticObjectMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticObjectMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
+
+    CallStaticBooleanMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jboolean {.cdecl, varargs.}
+    CallStaticBooleanMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticBooleanMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jboolean {.cdecl.}
+
+    CallStaticByteMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jbyte {.cdecl, varargs.}
+    CallStaticByteMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticByteMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jbyte {.cdecl.}
+
+    CallStaticCharMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jchar {.cdecl, varargs.}
+    CallStaticCharMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticCharMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jchar {.cdecl.}
+
+    CallStaticShortMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jshort {.cdecl, varargs.}
+    CallStaticShortMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticShortMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jshort {.cdecl.}
+
+    CallStaticIntMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jint {.cdecl, varargs.}
+    CallStaticIntMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticIntMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jint {.cdecl.}
+
+    CallStaticLongMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jlong {.cdecl, varargs.}
+    CallStaticLongMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticLongMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
+
+    CallStaticFloatMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jfloat {.cdecl, varargs.}
+    CallStaticFloatMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticFloatMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
+
+    CallStaticDoubleMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID): jdouble {.cdecl, varargs.}
+    CallStaticDoubleMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticDoubleMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
+
+    CallStaticVoidMethod*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID) {.cdecl, varargs.}
+    CallStaticVoidMethodV: pointer # This function utilizes va_list which is not needed in Nim
+    CallStaticVoidMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+
+    GetStaticFieldID*: proc(env: JNIEnvPtr, cls: jclass, name, sig: cstring): jfieldID {.cdecl.}
+
     GetStaticObjectField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jobject {.cdecl.}
     GetStaticBooleanField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jboolean {.cdecl.}
     GetStaticByteField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jbyte {.cdecl.}
@@ -175,7 +351,7 @@ type
     GetStaticLongField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jlong {.cdecl.}
     GetStaticFloatField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jfloat {.cdecl.}
     GetStaticDoubleField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID): jdouble {.cdecl.}
-    
+
     SetStaticObjectField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jobject) {.cdecl.}
     SetStaticBooleanField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jboolean) {.cdecl.}
     SetStaticByteField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jbyte) {.cdecl.}
@@ -185,35 +361,20 @@ type
     SetStaticLongField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jlong) {.cdecl.}
     SetStaticFloatField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jfloat) {.cdecl.}
     SetStaticDoubleField*: proc(env: JNIEnvPtr, obj: jclass, fieldId: jfieldID, val: jdouble) {.cdecl.}
-    
-    NewObjectA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
 
-    CallStaticVoidMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
-    CallVoidMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue) {.cdecl.}
+    NewString*: proc(env: JNIEnvPtr, unicode: ptr jchar, len: jsize): jstring {.cdecl.}
+    GetStringLength*: proc(env: JNIEnvPtr, str: jstring): jsize {.cdecl.}
+    GetStringChars*: proc(env: JNIEnvPtr, str: jstring, isCopy: ptr jboolean): ptr jchar {.cdecl.}
+    ReleaseStringChars*: proc(env: JNIEnvPtr, str: jstring, chars: ptr jchar) {.cdecl.}
 
-    CallStaticObjectMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
-    CallStaticBooleanMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jboolean {.cdecl.}
-    CallStaticByteMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jbyte {.cdecl.}
-    CallStaticCharMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jchar {.cdecl.}
-    CallStaticShortMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jshort {.cdecl.}
-    CallStaticIntMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jint {.cdecl.}
-    CallStaticLongMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
-    CallStaticFloatMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
-    CallStaticDoubleMethodA*: proc(env: JNIEnvPtr, clazz: jclass, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
-    CallObjectMethodA*: proc(env: JNIEnvPtr, obj: jobject, methodID: jmethodID, args: ptr jvalue): jobject {.cdecl.}
-    CallBooleanMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jboolean {.cdecl.}
-    CallByteMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jbyte {.cdecl.}
-    CallCharMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jchar {.cdecl.}
-    CallShortMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jshort {.cdecl.}
-    CallIntMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jint {.cdecl.}
-    CallLongMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jlong {.cdecl.}
-    CallFloatMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jfloat {.cdecl.}
-    CallDoubleMethodA*: proc(env: JNIEnvPtr, clazz: jobject, methodID: jmethodID, args: ptr jvalue): jdouble {.cdecl.}
-    
+    NewStringUTF*: proc(env: JNIEnvPtr, s: cstring): jstring {.cdecl.}
+    GetStringUTFLength*: proc(env: JNIEnvPtr, str: jstring): jsize {.cdecl.}
+    GetStringUTFChars*: proc(env: JNIEnvPtr, s: jstring, isCopy: ptr jboolean): cstring {.cdecl.}
+    ReleaseStringUTFChars*: proc(env: JNIEnvPtr, s: jstring, cstr: cstring) {.cdecl.}
+
     GetArrayLength*: proc(env: JNIEnvPtr, arr: jarray): jsize {.cdecl.}
-    
-    NewObjectArray*: proc(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray {.cdecl.}
 
+    NewObjectArray*: proc(env: JNIEnvPtr, size: jsize, clazz: jclass, init: jobject): jobjectArray {.cdecl.}
     GetObjectArrayElement*: proc(env: JNIEnvPtr, arr: jobjectArray, index: jsize): jobject {.cdecl.}
     SetObjectArrayElement*: proc(env: JNIEnvPtr, arr: jobjectArray, index: jsize, val: jobject) {.cdecl.}
 
@@ -261,7 +422,36 @@ type
     SetLongArrayRegion*: proc(env: JNIEnvPtr, arr: jlongArray, start, len: jsize, buf: ptr jlong) {.cdecl.}
     SetFloatArrayRegion*: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
     SetDoubleArrayRegion*: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
-    IsInstanceOf*: proc(env: JNIEnvPtr, obj: jobject, clazz: jclass): jboolean {.cdecl.}
+
+    RegisterNatives*: proc(env: JNIEnvPtr, clazz: jclass, methodsTODO: pointer, nMethods: jint): jint {.cdecl.}
+    UnregisterNatives*: proc(env: JNIEnvPtr, clazz: jclass): jint {.cdecl.}
+
+    MonitorEnter*: proc(env: JNIEnvPtr, obj: jobject): jint {.cdecl.}
+    MonitorExit*: proc(env: JNIEnvPtr, obj: jobject): jint {.cdecl.}
+
+    GetJavaVM*: proc(env: JNIEnvPtr, vm: ptr JavaVMPtr): jint {.cdecl.}
+
+    GetStringRegion*: proc(env: JNIEnvPtr, str: jstring, start, len: jsize, buf: ptr jchar) {.cdecl.}
+    GetStringUTFRegion*: proc(env: JNIEnvPtr, str: jstring, start, len: jsize, buf: ptr char) {.cdecl.}
+
+    GetPrimitiveArrayCritical*: proc(env: JNIEnvPtr, arr: jarray, isCopy: ptr jboolean): pointer {.cdecl.}
+    ReleasePrimitiveArrayCritical*: proc(env: JNIEnvPtr, arr: jarray, carray: jarray, mode: jint) {.cdecl.}
+
+    GetStringCritical*: proc(env: JNIEnvPtr, str: jstring, isCopy: ptr jboolean): ptr jchar {.cdecl.}
+    ReleaseStringCritical*: proc(env: JNIEnvPtr, str: jstring, cstr: ptr jchar) {.cdecl.}
+
+    NewWeakGlobalRef*: proc(env: JNIEnvPtr, obj: jobject): jweak {.cdecl.}
+    DeleteWeakGlobalRef*: proc(env: JNIEnvPtr, r: jweak) {.cdecl.}
+
+    ExceptionCheck*: proc(env: JNIEnvPtr): jboolean {.cdecl.}
+
+    NewDirectByteBuffer*: proc(env: JNIEnvPtr, address: pointer, capacity: jlong): jobject {.cdecl.}
+    GetDirectBufferAddress*: proc(env: JNIEnvPtr, buf: jobject): pointer {.cdecl.}
+    GetDirectBufferCapacity*: proc(env: JNIEnvPtr, buf: jobject): jlong {.cdecl.}
+
+    # New JNI 1.6 Features
+
+    GetObjectRefType*: proc(env: JNIEnvPtr, obj: jobject): cint {.cdecl.} # TODO: Define jobjectRefType properly
 
   JNIEnv* = ptr JNINativeInterface
   JNIEnvPtr* = ptr JNIEnv
