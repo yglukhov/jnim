@@ -131,6 +131,7 @@ suite "jni_api":
     check: cls.callDoubleMethod("doubleSMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
     check: cls.callBooleanMethod("booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
 
+
   test "JVM - TestClass - methods":
     let cls = JVMClass.getByName("TestClass")
     let obj = cls.newObject("()V")
@@ -187,5 +188,8 @@ suite "jni_api":
     let strArray = cls.callObjectArrayMethod("getStringArrayS", "()" & seq[string].jniSig)
     for idx, val in ["Hello", "from", "java!"]:
       check: strArray[idx].toStringRaw == val
+
+  test "API - jstring $":
+    check: $(theEnv.NewStringUTF(theEnv, "test")) == "test"
 
 
