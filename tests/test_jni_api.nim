@@ -130,6 +130,8 @@ suite "jni_api":
     check: cls.callFloatMethod("floatSMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
     check: cls.callDoubleMethod("doubleSMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
     check: cls.callBooleanMethod("booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
+    check: $(string.callMethod(cls, cls.getStaticMethodId("stringSMethod", "($1)$1" % JVMObject.jniSig), ["test".newJVMObject.toJValue])) == "test"
+
 
   test "JVM - TestClass - methods":
     let cls = JVMClass.getByName("TestClass")

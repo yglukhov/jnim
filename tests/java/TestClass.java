@@ -50,6 +50,9 @@ public class TestClass {
     public static boolean booleanSMethod(boolean v) {
         return v;
     }
+    public static String stringSMethod(String v) {
+        return v;
+    }
 
     // Methods
     public Object objectMethod(Object v) {
@@ -77,6 +80,9 @@ public class TestClass {
         return v;
     }
     public boolean booleanMethod(boolean v) {
+        return v;
+    }
+    public String stringMethod(String v) {
         return v;
     }
 
