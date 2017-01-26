@@ -712,8 +712,8 @@ proc instanceOfRaw*(obj: JVMObject, cls: JVMClass): bool =
   callVM theEnv.IsInstanceOf(theEnv, obj.obj, cls.cls) == JVM_TRUE
 
 proc `$`*(s: jstring): string =
-    checkInit
-    if s != nil:
-        var cstr = theEnv.GetStringUTFChars(theEnv, s, nil)
-        result = $cstr
-        theEnv.ReleaseStringUTFChars(theEnv, s, cstr)
+  checkInit
+  if s != nil:
+    let sz = theEnv.GetStringUTFLength(theEnv, s)
+    result = newString(sz)
+    theEnv.GetStringUTFRegion(theEnv, s, 0, sz, addr result[0])
