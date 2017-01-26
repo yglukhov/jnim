@@ -144,8 +144,12 @@ template get*(id: JVMFieldID): jfieldID = jfieldID(id)
 
 ####################################################################################################
 # JVMClass type
+proc freeClass(c: JVMClass) =
+  theEnv.DeleteLocalRef(theEnv, cast[jobject](c.cls))
+
 proc newJVMClass*(c: jclass): JVMClass =
-  JVMClass(cls: c)
+  result.new(freeClass)
+  result.cls = c
 
 proc getByFqcn*(T: typedesc[JVMClass], name: cstring): JVMClass =
   ## Finds class by it's full qualified class name
@@ -255,6 +259,7 @@ proc equalsRaw*(v1, v2: JVMObject): jboolean =
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
   const sig = "($#)$#" % [jobject.jniSig, jboolean.jniSig]
   let mthId = theEnv.GetMethodID(theEnv, cls, "equals", sig)
+  theEnv.DeleteLocalRef(theEnv, cast[jobject](cls))
   jniAssertEx(mthId != nil, "Can't find ``equals`` method")
   var v2w = v2.obj.toJValue
   result = theEnv.CallBooleanMethodA(theEnv, v1.obj, mthId, addr v2w)
@@ -267,6 +272,7 @@ proc toStringRaw(o: JVMObject): string =
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
   const sig = "()" & string.jniSig
   let mthId = theEnv.GetMethodID(theEnv, cls, "toString", sig)
+  theEnv.DeleteLocalRef(theEnv, cast[jobject](cls))
   jniAssertEx(mthId != nil, "Can't find ``toString`` method")
   let s = theEnv.CallObjectMethodA(theEnv, o.obj, mthId, nil).jstring
   defer:
