@@ -98,10 +98,8 @@ template checkInit* =
 ####################################################################################################
 # Types
 type
-  JVMMethodID* = ref object
-    id: jmethodID
-  JVMFieldID* = ref object
-    id: jfieldID
+  JVMMethodID* = distinct jmethodID
+  JVMFieldID* = distinct jfieldID
   JVMClass* = ref object
     cls: jclass
   JVMObject* = ref object {.inheritable.}
@@ -136,19 +134,13 @@ macro callVM*(s: expr): expr =
 
 ####################################################################################################
 # JVMMethodID type
-proc newJVMMethodID*(id: jmethodID): JVMMethodID =
-  JVMMethodID(id: id)
-
-proc get*(id: JVMMethodID): jmethodID =
-  id.id
+template newJVMMethodID*(id: jmethodID): JVMMethodID = JVMMethodID(id)
+template get*(id: JVMMethodID): jmethodID = jmethodID(id)
 
 ####################################################################################################
 # JVMFieldID type
-proc newJVMFieldID*(id: jfieldID): JVMFieldID =
-  JVMFieldID(id: id)
-
-proc get*(id: JVMFieldID): jfieldID =
-  id.id
+template newJVMFieldID*(id: jfieldID): JVMFieldID = JVMFieldID(id)
+template get*(id: JVMFieldID): jfieldID = jfieldID(id)
 
 ####################################################################################################
 # JVMClass type
