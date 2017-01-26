@@ -423,7 +423,7 @@ type
     SetFloatArrayRegion*: proc(env: JNIEnvPtr, arr: jfloatArray, start, len: jsize, buf: ptr jfloat) {.cdecl.}
     SetDoubleArrayRegion*: proc(env: JNIEnvPtr, arr: jdoubleArray, start, len: jsize, buf: ptr jdouble) {.cdecl.}
 
-    RegisterNatives*: proc(env: JNIEnvPtr, clazz: jclass, methodsTODO: pointer, nMethods: jint): jint {.cdecl.}
+    RegisterNatives*: proc(env: JNIEnvPtr, clazz: jclass, methods: ptr JNINativeMethod, nMethods: jint): jint {.cdecl.}
     UnregisterNatives*: proc(env: JNIEnvPtr, clazz: jclass): jint {.cdecl.}
 
     MonitorEnter*: proc(env: JNIEnvPtr, obj: jobject): jint {.cdecl.}
@@ -455,6 +455,11 @@ type
 
   JNIEnv* = ptr JNINativeInterface
   JNIEnvPtr* = ptr JNIEnv
+
+  JNINativeMethod* = object
+    name*: cstring
+    signature*: cstring
+    fnPtr*: pointer
 
 const JNI_VERSION_1_1* = 0x00010001.jint
 const JNI_VERSION_1_2* = 0x00010002.jint
