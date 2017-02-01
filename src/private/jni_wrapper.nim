@@ -6,22 +6,11 @@ import os,
 
 from jvm_finder import CT_JVM, findJVM
 
-const JNI_INC_DIR = CT_JVM.root / "include"
-const JNI_HDR = "<jni.h>"
-
 when defined macosx:
-  {.passC: "-I" & JNI_INC_DIR.}
   {.emit: """
   #include <CoreFoundation/CoreFoundation.h>
   """.}
-  {.passC: "-I" & JNI_INC_DIR / "darwin".}
   {.passL: "-framework CoreFoundation".}
-elif defined windows:
-  {.passC: "-I\"" & JNI_INC_DIR & "\"".}
-  {.passC: "-I\"" & JNI_INC_DIR / "win32\"".}
-elif defined linux:
-  {.passC: "-I" & JNI_INC_DIR.}
-  {.passC: "-I" & JNI_INC_DIR / "linux".}
 
 {.warning[SmallLshouldNotBeUsed]: off.}
 
@@ -59,34 +48,34 @@ template jniCallEx*(call: expr, msg: string): stmt =
     raise newJNIException(msg & " (" & call.astToStr & " returned " & $res & ")")
 
 type
-  jint* {.header: JNI_HDR.} = cint
-  jsize* {.header: JNI_HDR.} = jint
-  jchar* {.header: JNI_HDR.} = uint16
-  jlong* {.header: JNI_HDR.} = int64
-  jshort* {.header: JNI_HDR.} = int16
-  jbyte* {.header: JNI_HDR.} = int8
-  jfloat* {.header: JNI_HDR.} = cfloat
-  jdouble* {.header: JNI_HDR.} = cdouble
-  jboolean* {.header: JNI_HDR.} = uint8
-  jclass* {.header: JNI_HDR.} = distinct pointer
-  jmethodID* {.header: JNI_HDR.} = pointer
-  jobject* {.header: JNI_HDR.} = pointer
-  jfieldID* {.header: JNI_HDR.} = pointer
-  jstring* {.header: JNI_HDR.} = jobject
-  jthrowable* {.header: JNI_HDR.} = jobject
-  jarray* {.header: JNI_HDR.} = jobject
-  jobjectArray* {.header: JNI_HDR.} = jarray
-  jbooleanArray* {.header: JNI_HDR.} = jarray
-  jbyteArray* {.header: JNI_HDR.} = jarray
-  jcharArray* {.header: JNI_HDR.} = jarray
-  jshortArray* {.header: JNI_HDR.} = jarray
-  jintArray* {.header: JNI_HDR.} = jarray
-  jlongArray* {.header: JNI_HDR.} = jarray
-  jfloatArray* {.header: JNI_HDR.} = jarray
-  jdoubleArray* {.header: JNI_HDR.} = jarray
-  jweak* {.header: JNI_HDR.} = jobject
+  jint* = int32
+  jsize* = jint
+  jchar* = uint16
+  jlong* = int64
+  jshort* = int16
+  jbyte* = int8
+  jfloat* = cfloat
+  jdouble* = cdouble
+  jboolean* = uint8
+  jclass* = distinct pointer
+  jmethodID* = pointer
+  jobject* = pointer
+  jfieldID* = pointer
+  jstring* = jobject
+  jthrowable* = jobject
+  jarray* = jobject
+  jobjectArray* = jarray
+  jbooleanArray* = jarray
+  jbyteArray* = jarray
+  jcharArray* = jarray
+  jshortArray* = jarray
+  jintArray* = jarray
+  jlongArray* = jarray
+  jfloatArray* = jarray
+  jdoubleArray* = jarray
+  jweak* = jobject
 
-  jvalue* {.header: JNI_HDR, union.} = object
+  jvalue* {.union.} = object
     z*: jboolean
     b*: jbyte
     c*: jchar
@@ -100,18 +89,8 @@ type
 const JVM_TRUE* = 1.jboolean
 const JVM_FALSE* = 0.jboolean
 
-const JNINativeInterfaceImportName = when defined(android):
-                                       "struct JNINativeInterface"
-                                     else:
-                                       "struct JNINativeInterface_"
-
-const JNIInvokeInterfaceImportName = when defined(android):
-                                       "struct JNIInvokeInterface"
-                                     else:
-                                       "struct JNIInvokeInterface_"
-
 type
-  JNIInvokeInterface* {.importc: JNIInvokeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
+  JNIInvokeInterface* = object
     # WARNING: The fields should be defined in exact same order as they are
     # defined in jni.h to preserve ABI compatibility.
     reserved0: pointer
@@ -128,13 +107,13 @@ type
 
   JavaVM* = ptr JNIInvokeInterface
   JavaVMPtr* = ptr JavaVM
-  JavaVMOption* {.header: JNI_HDR.} = object
+  JavaVMOption* = object
     # WARNING: The fields should be defined in exact same order as they are
     # defined in jni.h to preserve ABI compatibility.
     optionString*: cstring
     extraInfo*: pointer
 
-  JavaVMInitArgs* {.header: JNI_HDR.} = object
+  JavaVMInitArgs* = object
     # WARNING: The fields should be defined in exact same order as they are
     # defined in jni.h to preserve ABI compatibility.
     version*: jint
@@ -142,7 +121,7 @@ type
     options*: ptr JavaVMOption
     ignoreUnrecognized*: jboolean
 
-  JNINativeInterface* {.importc: JNINativeInterfaceImportName, nodecl, header: JNI_HDR, incompleteStruct.} = object
+  JNINativeInterface* = object
     # WARNING: The fields should be defined in exact same order as they are
     # defined in jni.h to preserve ABI compatibility.
 
