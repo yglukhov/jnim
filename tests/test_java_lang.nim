@@ -54,3 +54,7 @@ suite "javaapi.core":
     check: Short.MAX_VALUE == high(int16)
 
     check: Integer.new(1) == Integer.new(1)
+
+  test "java.lang - Booleans":
+    check: Boolean.new(JVM_TRUE).booleanValue == JVM_TRUE
+    check: Boolean.new(JVM_FALSE).booleanValue == JVM_FALSE
