@@ -481,7 +481,7 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
         `objToCall`.getStaticMethodId(`pname`, toConstCString(`sig`))
     else:
       quote do:
-        `objToCall`.getJVMClass.getMethodId(`pname`, toConstCString(`sig`))
+        `objToCall`.getMethodId(`pname`, toConstCString(`sig`))
   let ai = ident"args"
   let args = generateArgs(pd, ai)
   result.body = quote do:
@@ -518,7 +518,7 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
         `objToCall`.getStaticFieldId(`pname`, `sig`)
     else:
       quote do:
-        `objToCall`.getJVMClass.getFieldId(`pname`, `sig`)
+        `objToCall`.getFieldId(`pname`, `sig`)
 
   if isSetter:
     result.body = quote do:

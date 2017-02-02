@@ -95,6 +95,12 @@ proc findRunningVM() =
 template checkInit* =
   if theEnv.isNil: findRunningVM()
 
+template deleteLocalRef*(env: JNIEnvPtr, r: jclass | jobject) =
+  env.DeleteLocalRef(env, cast[jobject](r))
+
+template deleteGlobalRef*(env: JNIEnvPtr, r: jclass | jobject) =
+  env.DeleteGlobalRef(env, cast[jobject](r))
+
 ####################################################################################################
 # Types
 type
@@ -145,17 +151,20 @@ template get*(id: JVMFieldID): jfieldID = jfieldID(id)
 ####################################################################################################
 # JVMClass type
 proc freeClass(c: JVMClass) =
-  theEnv.DeleteLocalRef(theEnv, cast[jobject](c.cls))
+  if theEnv != nil:
+    theEnv.deleteGlobalRef(c.cls)
 
 proc newJVMClass*(c: jclass): JVMClass =
+  assert(cast[pointer](c) != nil)
   result.new(freeClass)
-  result.cls = c
+  result.cls = cast[jclass](theEnv.NewGlobalRef(theEnv, cast[jobject](c)))
 
 proc getByFqcn*(T: typedesc[JVMClass], name: cstring): JVMClass =
   ## Finds class by it's full qualified class name
   checkInit
   let c = callVM theEnv.FindClass(theEnv, name)
-  c.newJVMClass
+  result = c.newJVMClass
+  theEnv.deleteLocalRef(c)
 
 proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
   ## Finds class by it's name (not fqcn)
@@ -170,21 +179,34 @@ proc getStaticFieldId*(c: JVMClass, name, sig: cstring): JVMFieldID =
   checkInit
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, sig)).newJVMFieldID
 
-proc getStaticFieldId*(c: JVMClass, name: cstring, t: typedesc): JVMFieldID =
-  checkInit
-  (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
+proc getStaticFieldId*(c: JVMClass, name: cstring, t: typedesc): JVMFieldID {.inline.} =
+  getStaticFieldId(c, name, jniSig(t))
 
 proc getFieldId*(c: JVMClass, name, sig: cstring): JVMFieldID =
   checkInit
   (callVM theEnv.GetFieldID(theEnv, c.get, name, sig)).newJVMFieldID
 
-proc getFieldId*(c: JVMClass, name: cstring, t: typedesc): JVMFieldID =
+proc getFieldId*(c: JVMClass, name: cstring, t: typedesc): JVMFieldID {.inline.} =
+  getFieldId(c, name, jniSig(t))
+
+proc getFieldId*(c: JVMObject, name, sig: cstring): JVMFieldID =
   checkInit
-  (callVM theEnv.GetFieldID(theEnv, c.get, name, jniSig(t))).newJVMFieldID
+  let clazz = callVM theEnv.GetObjectClass(theEnv, c.obj)
+  result = (callVM theEnv.GetFieldID(theEnv, clazz, name, sig)).newJVMFieldID
+  theEnv.deleteLocalRef(clazz)
+
+proc getFieldId*(c: JVMObject, name: cstring, t: typedesc): JVMFieldID {.inline.} =
+  getFieldId(c, name, jniSig(t))
 
 proc getMethodId*(c: JVMClass, name, sig: cstring): JVMMethodID =
   checkInit
   (callVM theEnv.GetMethodID(theEnv, c.get, name, sig)).newJVMMethodID
+
+proc getMethodId*(c: JVMObject, name, sig: cstring): JVMMethodID =
+  checkInit
+  let clazz = callVM theEnv.GetObjectClass(theEnv, c.obj)
+  result = (callVM theEnv.GetMethodID(theEnv, clazz, name, sig)).newJVMMethodID
+  theEnv.deleteLocalRef(clazz)
 
 proc getStaticMethodId*(c: JVMClass, name, sig: cstring): JVMMethodID =
   checkInit
@@ -224,7 +246,7 @@ proc jniSig*(T: typedesc[JVMObject]): string = sigForClass"java.lang.Object"
 
 proc free*(o: JVMObject) =
   if o.obj != nil and theEnv != nil:
-    theEnv.DeleteLocalRef(theEnv, o.obj)
+    theEnv.deleteLocalRef(o.obj)
     o.obj = nil
 
 proc freeJVMObject*(o: JVMObject) =
@@ -242,7 +264,7 @@ proc newJVMObject*(s: string): JVMObject =
 proc get*(o: JVMObject): jobject =
   o.obj
 
-proc setObj*(o: var JVMObject, obj: jobject) =
+proc setObj*(o: JVMObject, obj: jobject) =
   o.obj = obj
 
 proc toJValue*(o: JVMObject): jvalue =
@@ -250,8 +272,11 @@ proc toJValue*(o: JVMObject): jvalue =
 
 proc getJVMClass*(o: JVMObject): JVMClass =
   checkInit
-  (callVM theEnv.GetObjectClass(theEnv, o.get)).newJVMClass
-  
+  assert(o.get != nil)
+  let c = callVM theEnv.GetObjectClass(theEnv, o.get)
+  result = c.newJVMClass
+  theEnv.deleteLocalRef(c)
+
 proc equalsRaw*(v1, v2: JVMObject): jboolean =
   # This is low level ``equals`` version
   assert v1.obj != nil
@@ -295,7 +320,7 @@ proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []
 proc callVoidMethod*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []) =
   checkInit
   let a = if args.len == 0: nil else: unsafeAddr args[0]
-  theEnv.CallVoidMethodA(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)
+  theEnv.CallVoidMethodA(theEnv, o.get, o.getMethodId(name, sig).get, a)
   checkException
 
 ####################################################################################################
@@ -368,7 +393,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate
 
   proc `get typName Array`*(o: JVMObject, name: string): `JVM typName Array` =
     checkInit
-    `typ`.newArray(callVM theEnv.GetObjectField(theEnv, o.get, o.getJVMClass.getFieldId(`name`, seq[`typ`].jniSig).get))
+    `typ`.newArray(callVM theEnv.GetObjectField(theEnv, o.get, o.getFieldId(`name`, seq[`typ`].jniSig).get))
 
   proc `set typName Array`*(c: JVMClass, name: string, arr: `JVM typName Array`) =
     checkInit
@@ -377,7 +402,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate
 
   proc `set typName Array`*(o: JVMObject, name: string, arr: `JVM typName Array`) =
     checkInit
-    theEnv.SetObjectField(theEnv, o.get, o.getJVMClass.getFieldId(`name`, seq[`typ`].jniSig).get, arr.arr)
+    theEnv.SetObjectField(theEnv, o.get, o.getFieldId(`name`, seq[`typ`].jniSig).get, arr.arr)
     checkException
 
   # Array methods
@@ -427,7 +452,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate
   proc `call typName ArrayMethod`*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []): `JVM typName Array` =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
-    `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)).newJVMObject)
+    `typ`.newArray((callVM theEnv.CallObjectMethodA(theEnv, o.get, o.getMethodId(name, sig).get, a)).newJVMObject)
 
 genArrayType(jchar, jcharArray, Char)
 genArrayType(jbyte, jbyteArray, Byte)
@@ -483,9 +508,9 @@ template genField(typ: typedesc, typName: untyped): stmt =
   proc `get typName`*(o: JVMObject, name: string): `typ` =
     checkInit
     when `typ` is JVMObject:
-      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get)).newJVMObject
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getFieldId(`name`, `typ`).get)).newJVMObject
     else:
-      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get))
+      (callVM theEnv.`Get typName Field`(theEnv, o.get, o.getFieldId(`name`, `typ`).get))
 
   proc `set typName`*(o: JVMObject, id: JVMFieldID, v: `typ`) =
     checkInit
@@ -498,9 +523,9 @@ template genField(typ: typedesc, typName: untyped): stmt =
   proc `set typName`*(o: JVMObject, name: string, v: `typ`) =
     checkInit
     when `typ` is JVMObject:
-      theEnv.`Set typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get, v.get)
+      theEnv.`Set typName Field`(theEnv, o.get, o.getFieldId(`name`, `typ`).get, v.get)
     else:
-      theEnv.`Set typName Field`(theEnv, o.get, o.getJVMClass.getFieldId(`name`, `typ`).get, v)
+      theEnv.`Set typName Field`(theEnv, o.get, o.getFieldId(`name`, `typ`).get, v)
     checkException
 
   when `typ` is JVMObject:
@@ -577,9 +602,9 @@ template genMethod(typ: typedesc, typName: untyped): stmt =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
     when `typ` is JVMObject:
-      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)).newJVMObject
+      (callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getMethodId(name, sig).get, a)).newJVMObject
     else:
-      callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getJVMClass.getMethodId(name, sig).get, a)
+      callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getMethodId(name, sig).get, a)
 
   when `typ` is JVMObject:
     proc `call typName MethodRaw`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): jobject =
