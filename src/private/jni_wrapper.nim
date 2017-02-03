@@ -430,7 +430,7 @@ type
 
     # New JNI 1.6 Features
 
-    GetObjectRefType*: proc(env: JNIEnvPtr, obj: jobject): cint {.cdecl.} # TODO: Define jobjectRefType properly
+    GetObjectRefType*: proc(env: JNIEnvPtr, obj: jobject): jobjectRefType {.cdecl.}
 
   JNIEnv* = ptr JNINativeInterface
   JNIEnvPtr* = ptr JNIEnv
@@ -439,6 +439,12 @@ type
     name*: cstring
     signature*: cstring
     fnPtr*: pointer
+
+  jobjectRefType* {.size: sizeof(cint).} = enum
+    JNIInvalidRefType
+    JNILocalRefType
+    JNIGlobalRefType
+    JNIWeakGlobalRefType
 
 const JNI_VERSION_1_1* = 0x00010001.jint
 const JNI_VERSION_1_2* = 0x00010002.jint
