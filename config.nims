@@ -48,6 +48,8 @@ proc javac(file: string, outDir: string) =
 
 task int_test_bootstrap, "Prepare test environment":
   BUILD_DIR.mkDir
+  javac "support/io/github/vegansk/jnim/NativeInvocationHandler.java", BUILD_DIR
+
   javac "tests/java/TestClass.java", BUILD_DIR
   javac "tests/java/ConstructorTestClass.java", BUILD_DIR
   javac "tests/java/MethodTestClass.java", BUILD_DIR
@@ -57,6 +59,7 @@ task int_test_bootstrap, "Prepare test environment":
   javac "tests/java/GenericsTestClass.java", BUILD_DIR
   javac "tests/java/BaseClass.java", BUILD_DIR
   javac "tests/java/ChildClass.java", BUILD_DIR
+  javac "tests/java/ExportTestClass.java", BUILD_DIR
 
 task test, "Run all tests":
   dep int_test_bootstrap
@@ -77,6 +80,10 @@ task test_jni_api, "Run jni_api test":
 task test_jni_generator, "Run jni_api test":
   dep int_test_bootstrap
   test "jni_generator"
+
+task test_jni_export, "Run jni_export test":
+  dep int_test_bootstrap
+  test "jni_export"
 
 task test_java_lang, "Run java.lang test":
   dep int_test_bootstrap
