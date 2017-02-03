@@ -131,6 +131,19 @@ jclass java.lang.Double* of Number:
 converter toValueType*(v: Double): jdouble = v.doubleValue
 converter toWrapperType*(v: jdouble): Double = Double.new(v)
 
+jclass java.lang.Boolean* of Object:
+  # Static fields
+  proc FALSE*: Boolean {.prop, `static`, final.}
+  proc TRUE*: Boolean {.prop, `static`, final.}
+
+  proc booleanValue*: jboolean
+
+  proc new*(v: jboolean)
+  proc new*(s: string)
+
+converter toValueType*(v: Boolean): jboolean = v.booleanValue
+converter toWrapperType*(v: jboolean): Boolean = Boolean.new(v)
+
 #################################################################################################### 
 # Exceptions
 
