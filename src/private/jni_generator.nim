@@ -376,28 +376,16 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let classNamePar = cd.mkType
   let parentType = cd.mkParentType
   let jniSigIdent = identEx(cd.isExported, "jniSig")
-  let fromJObjectIdent = identEx(cd.isExported, "fromJObject")
-  let freeIdent = ident("free" & cd.name)
   let jName = cd.jName.newStrLitNode
   let getClassId = identEx(cd.isExported, "getJVMClassForType")
   let eqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
   let seqEqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
-  let fromJObjectProc = quote do:
-    proc `fromJObjectIdent`(t: typedesc[`classNamePar`], o: jobject): `classNamePar` =
-      var res: `classNamePar`
-      res.new(`freeIdent`)
-      res.JVMObject.setObj(o)
-      return res
-  fromJObjectProc[0][2] = mkGenericParams(cd.genericTypes)
   result = quote do:
     type `classNameEx` = ref object of `parentType`
     proc `jniSigIdent`(t: typedesc[`className`]): string = sigForClass(`jName`)
     proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string = "[" & sigForClass(`jName`)
     proc `getClassId`(t: typedesc[`className`]): JVMClass =
       JVMClass.getByFqcn(toConstCString(fqcn(`jName`)))
-    proc `freeIdent`(o: `className`) =
-      o.JVMObject.free
-    `fromJObjectProc`
     proc toJVMObject(v: `className`): JVMObject =
       v.JVMObject
     proc toJValue(v: `className`): jvalue =
@@ -453,7 +441,7 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   result.body = quote do:
     checkInit
     `args`
-    `ctypeWithParams`.fromJObject(newObjectRaw(JVMClass.getByName(`cname`), toConstCString(`sig`), `ai`))
+    `ctypeWithParams`.fromJObjectConsumingLocalRef(newObjectRaw(JVMClass.getByName(`cname`), toConstCString(`sig`), `ai`))
 
 proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert(not (pd.isConstructor or pd.isProp))
