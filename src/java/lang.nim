@@ -177,7 +177,7 @@ jclass java.lang.Exception* of Throwable:
   proc new*(cause: Throwable)
 
 proc asJVM*(ex: JavaException): Throwable =
-  Throwable.fromJObject(ex.getJVMException.newRef)
+  Throwable.fromJObject(ex.getJVMException.get)
 
 proc getCurrentJVMException*: Throwable =
   ((ref JavaException)getCurrentException())[].asJVM
