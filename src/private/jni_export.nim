@@ -14,7 +14,6 @@ proc rawHandleInvocation(env: pointer, clazz: jclass, nimRef, fnPtr: jlong, prox
     f(env, o, proxiedThis, meth, args)
 
 proc finalizeInvocationHandler(env: pointer, clazz: jclass, nimRef: jlong) {.cdecl.} =
-    echo "finalizer!"
     if nimRef != 0:
         let o = cast[RootRef](nimRef)
         GC_unref(o)
@@ -68,17 +67,14 @@ proc getMethodName(m: jobject): string {.inline.} =
     let m = Method.fromJObject(m)
     result = m.getName()
     m.free()
-#    m.setObj(nil)
 
 proc objToStr(o: jobject): string =
     result = $o
-    theEnv.DeleteLocalRef(theEnv, o)
 
 template objToVal(typ: typedesc, valIdent: untyped, o: jobject): untyped =
     let ob = typ.fromJObject(o)
     let res = valIdent(ob)
     ob.free()
-    #theEnv.DeleteLocalRef(theEnv, o)
     res
 
 proc getArg(t: typedesc, args: jobjectArray, i: int): t {.inline.} =
@@ -92,9 +88,7 @@ proc getArg(t: typedesc, args: jobjectArray, i: int): t {.inline.} =
     elif t is jshort: objToVal(Number, shortValue, a)
     elif t is jbyte: objToVal(Number, byteValue, a)
     elif t is jboolean: objToVal(Boolean, booleanValue, a)
-    elif t is JVMObject:
-        echo "FROM JOBJECT!!"
-        t.fromJObject(a)
+    elif t is JVMObject: t.fromJObject(a)
     else: {.error: "Dont know how to convert type".}
 
 proc toJObject(r: JVMObject): jobject =
