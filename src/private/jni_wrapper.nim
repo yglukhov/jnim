@@ -446,11 +446,21 @@ type
     JNIGlobalRefType
     JNIWeakGlobalRefType
 
-const JNI_VERSION_1_1* = 0x00010001.jint
-const JNI_VERSION_1_2* = 0x00010002.jint
-const JNI_VERSION_1_4* = 0x00010004.jint
-const JNI_VERSION_1_6* = 0x00010006.jint
-const JNI_VERSION_1_8* = 0x00010008.jint
+const
+  JNI_VERSION_1_1* = 0x00010001.jint
+  JNI_VERSION_1_2* = 0x00010002.jint
+  JNI_VERSION_1_4* = 0x00010004.jint
+  JNI_VERSION_1_6* = 0x00010006.jint
+  JNI_VERSION_1_8* = 0x00010008.jint
+
+const
+  JNI_OK* = 0.jint
+  JNI_ERR* = jint(-1)
+  JNI_EDETACHED* = jint(-2)
+  JNI_EVERSION* = jint(-3)
+  JNI_ENOMEM* = jint(-4)
+  JNI_EEXIST* = jint(-5)
+  JNI_EINVAL* = jint(-6)
 
 var JNI_CreateJavaVM*: proc (pvm: ptr JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl, gcsafe.}
 var JNI_GetDefaultJavaVMInitArgs*: proc(vm_args: ptr JavaVMInitArgs): jint {.cdecl, gcsafe.}
