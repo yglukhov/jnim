@@ -42,14 +42,7 @@ when false:
     theVM = nil
     theEnv = nil
 
-proc initJNIThread* =
-  ## Setup JNI API thread
-  if theEnv != nil:
-    return
-  if theOptionsPtr == nil:
-    raise newJNIException("You must initialize JNI API before using it")
-
-  let o = cast[type(theOptions)](theOptionsPtr).get
+proc initJVMThreadWithOptions(o: JVMOptions) =
   var args: JavaVMInitArgs
   args.version = o.version.jint
   args.nOptions = o.options.len.jint
@@ -65,6 +58,16 @@ proc initJNIThread* =
   else:
     # We need to attach current thread to JVM
     jniCall theVM.AttachCurrentThread(theVM, cast[ptr pointer](theEnv.addr), args.addr), "Error attaching thread to VM"
+
+proc initJNIThread* =
+  ## Setup JNI API thread
+  if theEnv != nil:
+    return
+  if theOptionsPtr == nil:
+    raise newJNIException("You must initialize JNI API before using it")
+
+  let o = cast[type(theOptions)](theOptionsPtr).get
+  initJVMThreadWithOptions(o)
 
 proc deinitJNIThread* =
   ## Deinitialize JNI API thread
@@ -83,12 +86,15 @@ proc findRunningVM() =
     var bufSize : jsize = 0
     discard JNI_GetCreatedJavaVMs(addr vmBuf[0], jsize(vmBuf.len), addr bufSize)
     if bufSize > 0:
+        theVM = vmBuf[0]
         let res = vmBuf[0].GetEnv(vmBuf[0], cast[ptr pointer](theEnv.addr), JNI_VERSION_1_6)
-        if res != 0:
+        if res == JNI_EDETACHED:
+            let opts: JVMOptions = (version: JNIVersion.v1_6, options: @[])
+            initJVMThreadWithOptions(opts)
+        elif res != 0:
             raise newJNIException("GetEnv result: " & $res)
         if theEnv.isNil:
             raise newJNIException("No JVM found")
-        theVM = vmBuf[0]
     else:
         raise newJNIException("No JVM is running. You must call initJNIThread before using JNI API.")
 
