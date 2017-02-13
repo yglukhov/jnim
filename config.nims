@@ -42,7 +42,7 @@ proc javac(file: string, outDir: string) =
 
 task int_test_bootstrap, "Prepare test environment":
   BUILD_DIR.mkDir
-  javac "support/io/github/vegansk/jnim/NativeInvocationHandler.java", BUILD_DIR
+  javac "src/support/io/github/vegansk/jnim/NativeInvocationHandler.java", BUILD_DIR
 
   javac "tests/java/TestClass.java", BUILD_DIR
   javac "tests/java/ConstructorTestClass.java", BUILD_DIR
