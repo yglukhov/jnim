@@ -20,10 +20,10 @@ proc finalizeInvocationHandler(env: pointer, clazz: jclass, nimRef: jlong) {.cde
 
 proc getHandlerClass(): jclass =
     checkInit
-    result = theEnv.FindClass(theEnv, "io/github/vegansk/jnim/NativeInvocationHandler")
+    result = findClass(theEnv, "io/github/vegansk/jnim/NativeInvocationHandler")
     if result.pointer.isNil:
         theEnv.ExceptionClear(theEnv)
-        result = theEnv.FindClass(theEnv, "NativeInvocationHandler")
+        result = findClass(theEnv, "NativeInvocationHandler")
         if result.pointer.isNil:
             theEnv.ExceptionClear(theEnv)
             raise newException(Exception, "invalid jnim integration, NativeInvocationHandler not found")
