@@ -19,6 +19,7 @@ var theOptions = JVMOptions.none
 var theOptionsPtr: pointer
 var theVM: JavaVMPtr
 var theEnv* {.threadVar}: JNIEnvPtr
+var findClassOverride* {.threadVar.}: proc(env: JNIEnvPtr, name: cstring): jclass
 
 proc initJNIThread* {.gcsafe.}
 proc initJNI*(version: JNIVersion = JNIVersion.v1_6, options: seq[string] = @[]) =
@@ -169,10 +170,16 @@ proc newJVMClass*(c: jclass): JVMClass =
   result.new(freeClass)
   result.cls = theEnv.newGlobalRef(c)
 
+proc findClass*(env: JNIEnvPtr, name: cstring): jclass =
+  if not findClassOverride.isNil:
+    result = findClassOverride(env, name)
+  else:
+    result = env.FindClass(env, name)
+
 proc getByFqcn*(T: typedesc[JVMClass], name: cstring): JVMClass =
   ## Finds class by it's full qualified class name
   checkInit
-  let c = callVM theEnv.FindClass(theEnv, name)
+  let c = callVM findClass(theEnv, name)
   result = c.newJVMClass
   theEnv.deleteLocalRef(c)
 
