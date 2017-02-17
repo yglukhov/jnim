@@ -57,22 +57,27 @@ type
   jfloat* = cfloat
   jdouble* = cdouble
   jboolean* = uint8
-  jclass* = distinct pointer
+
+  jobject_base {.inheritable, pure.} = object
+  jobject* = ptr jobject_base
+  jclass* = ptr object of jobject
   jmethodID* = pointer
-  jobject* = pointer
   jfieldID* = pointer
-  jstring* = jobject
-  jthrowable* = jobject
-  jarray* = jobject
-  jobjectArray* = jarray
-  jbooleanArray* = jarray
-  jbyteArray* = jarray
-  jcharArray* = jarray
-  jshortArray* = jarray
-  jintArray* = jarray
-  jlongArray* = jarray
-  jfloatArray* = jarray
-  jdoubleArray* = jarray
+  jstring* = ptr object of jobject
+  jthrowable* = ptr object of jobject
+
+  jarray* = ptr object of jobject
+  jtypedArray*[T] = ptr object of jarray
+
+  jobjectArray* = jtypedArray[jobject]
+  jbooleanArray* = jtypedArray[jboolean]
+  jbyteArray* = jtypedArray[jbyte]
+  jcharArray* = jtypedArray[jchar]
+  jshortArray* = jtypedArray[jshort]
+  jintArray* = jtypedArray[jint]
+  jlongArray* = jtypedArray[jlong]
+  jfloatArray* = jtypedArray[jfloat]
+  jdoubleArray* = jtypedArray[jdouble]
   jweak* = jobject
 
   jvalue* {.union.} = object
@@ -585,7 +590,8 @@ type
     jdouble |
     jboolean
 
-template valueType*(T: typedesc): typedesc =
+# The following templates are redundand because jarray types are generic.
+template valueType*(T: typedesc): typedesc {.deprecated.} =
   when T is jobjectArray:
     jobject
   elif T is jcharArray:
@@ -608,7 +614,7 @@ template valueType*(T: typedesc): typedesc =
     {.error: "Can't use type " & astToStr(T) & " with java's arrays".}
     discard
 
-template arrayType*(T: typedesc): typedesc =
+template arrayType*(T: typedesc): typedesc {.deprecated.} =
   when T is jobject:
     jobjectArray
   elif T is jchar:
