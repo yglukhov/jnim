@@ -68,9 +68,6 @@ proc getMethodName(m: jobject): string {.inline.} =
     result = m.getName()
     m.free()
 
-proc objToStr(o: jobject): string =
-    result = $o
-
 template objToVal(typ: typedesc, valIdent: untyped, o: jobject): untyped =
     let ob = typ.fromJObject(o)
     let res = valIdent(ob)
@@ -80,7 +77,7 @@ template objToVal(typ: typedesc, valIdent: untyped, o: jobject): untyped =
 proc getArg(t: typedesc, args: jobjectArray, i: int): t {.inline.} =
     let a = theEnv.GetObjectArrayElement(theEnv, args, i.jint)
     when t is jobject: a
-    elif t is string: objToStr(a)
+    elif t is string: $cast[jstring](a)
     elif t is jint: objToVal(Number, intValue, a)
     elif t is jfloat: objToVal(Number, floatValue, a)
     elif t is jdouble: objToVal(Number, doubleValue, a)

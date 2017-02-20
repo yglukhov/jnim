@@ -102,14 +102,14 @@ proc findRunningVM() =
 template checkInit* =
   if theEnv.isNil: findRunningVM()
 
-template deleteLocalRef*(env: JNIEnvPtr, r: jclass | jobject) =
-  env.DeleteLocalRef(env, cast[jobject](r))
+template deleteLocalRef*(env: JNIEnvPtr, r: jobject) =
+  env.DeleteLocalRef(env, r)
 
-template deleteGlobalRef*(env: JNIEnvPtr, r: jclass | jobject) =
-  env.DeleteGlobalRef(env, cast[jobject](r))
+template deleteGlobalRef*(env: JNIEnvPtr, r: jobject) =
+  env.DeleteGlobalRef(env, r)
 
-template newGlobalRef*[T :jclass | jobject](env: JNIEnvPtr, r: T): T =
-  cast[T](theEnv.NewGlobalRef(theEnv, cast[jobject](r)))
+template newGlobalRef*[T : jobject](env: JNIEnvPtr, r: T): T =
+  cast[T](theEnv.NewGlobalRef(theEnv, r))
 
 ####################################################################################################
 # Types
@@ -703,7 +703,8 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
   let length = theEnv.GetArrayLength(theEnv, arr)
   res = newSeq[T](length.int)
   when T is JPrimitiveType:
-    getArrayRegion(arr, 0, length, addr(res[0]))
+    type TT = T
+    getArrayRegion(jtypedArray[TT](arr), 0, length, addr(res[0]))
   elif T is JVMObject:
     for i in 0..<res.len:
       res[i] = T.fromJObjectConsumingLocalRef(theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
