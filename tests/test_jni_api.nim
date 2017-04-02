@@ -6,29 +6,17 @@ import private.jni_api,
        typetraits
 
 suite "jni_api":
-  test "API - Initialization":
-    proc thrNotInited {.gcsafe.} = 
-      test "API - Thread initialization (VM not initialized)":
-        check: not isJNIThreadInitialized()
-        expect JNIException:
-          initJNIThread()
-        deinitJNIThread()
-    spawn thrNotInited()
-    sync()
+  test "API - Thread initialization (VM not initialized)":
+    check: not isJNIThreadInitialized()
+    expect JNIException:
+      initJNIThread()
+    deinitJNIThread()
 
+  test "API - Thread initialization (VM initialized)":
     initJNIForTests()
     expect JNIException:
       initJNI(JNIVersion.v1_6, @[])
     check: isJNIThreadInitialized()
-
-    proc thrInited {.gcsafe.} = 
-      test "API - Thread initialization (VM initialized)":
-        check: not isJNIThreadInitialized()
-        initJNIThread()
-        check: isJNIThreadInitialized()
-        deinitJNIThread()
-    spawn thrInited()
-    sync()
 
   test "API - JVMClass":
     # Find existing class
