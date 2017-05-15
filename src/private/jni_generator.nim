@@ -229,8 +229,9 @@ proc fillProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
 
   for g in pd.genericTypes:
     let v = g.newStrLitNode
-    result.add quote do:
+    let q = quote do:
       `def`.genericTypes.add(`v`)
+    result.add(q)
 
 macro parseProcDefTest*(i: untyped, s: expr): stmt =
   result = fillProcDef(s[0], i)
@@ -309,13 +310,15 @@ proc fillClassDef(c: NimNode, def: NimNode): NimNode {.compileTime.} =
 
   for g in cd.genericTypes:
     let v = g.newStrLitNode
-    result.add quote do:
+    let q = quote do:
       `def`.genericTypes.add(`v`)
+    result.add(q)
   
   for g in cd.parentGenericTypes:
     let v = g.newStrLitNode
-    result.add quote do:
+    let q = quote do:
       `def`.parentGenericTypes.add(`v`)
+    result.add(q)
   
 macro parseClassDefTest*(i: untyped, s: expr): stmt =
   result = fillClassDef(if s.kind == nnkStmtList: s[0] else: s, i)
@@ -407,11 +410,12 @@ proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
     let args = newNimNode(nnkBracket)
     for p in pd.params:
       let pi = ident(p.name)
-      args.add quote do:
+      let q = quote do:
         when compiles(toJVMObject(`pi`)):
           `pi`.toJVMObject.toJValue
         else:
           `pi`.toJValue
+      args.add(q)
     result = quote do:
       let `argsIdent` = `args`
   else:
@@ -463,13 +467,13 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
     result.params.insert(1, newIdentDefs(ident"this", cd.mkType))
     objToCall = ident"this"
   let retType = parseExpr(pd.retType)
-  let mId =
-    if pd.isStatic:
-      quote do:
-        `objToCall`.getStaticMethodId(`pname`, toConstCString(`sig`))
-    else:
-      quote do:
-        `objToCall`.getMethodId(`pname`, toConstCString(`sig`))
+  var mId: NimNode
+  if pd.isStatic:
+    mId = quote do:
+      `objToCall`.getStaticMethodId(`pname`, toConstCString(`sig`))
+  else:
+    mId = quote do:
+      `objToCall`.getMethodId(`pname`, toConstCString(`sig`))
   let ai = ident"args"
   let args = generateArgs(pd, ai)
   result.body = quote do:
@@ -500,13 +504,13 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
     result.params.insert(2, newIdentDefs(ident"value", result.params[0]))
     result.params[0] = newEmptyNode()
   let valType = parseExpr(pd.retType)
-  let mId =
-    if pd.isStatic:
-      quote do:
-        `objToCall`.getStaticFieldId(`pname`, `sig`)
-    else:
-      quote do:
-        `objToCall`.getFieldId(`pname`, `sig`)
+  var mId: NimNode
+  if pd.isStatic:
+    mId = quote do:
+      `objToCall`.getStaticFieldId(`pname`, `sig`)
+  else:
+    mId = quote do:
+      `objToCall`.getFieldId(`pname`, `sig`)
 
   if isSetter:
     result.body = quote do:
