@@ -270,21 +270,24 @@ proc freeJVMObject*(o: JVMObject) =
   o.free
 
 proc fromJObject*(T: typedesc[JVMObject], o: jobject): T =
+  assert(not o.isNil)
   result.new(cast[proc(r: T) {.nimcall.}](freeJVMObject))
   if o != nil:
     checkInit
     result.obj = theEnv.newGlobalRef(o)
 
 proc fromJObjectConsumingLocalRef*(T: typedesc[JVMObject], o: jobject): T =
-  result = T.fromJObject(o)
-  theEnv.deleteLocalRef(o)
+  if not o.isNil:
+    result = T.fromJObject(o)
+    theEnv.deleteLocalRef(o)
 
 proc newJVMObject*(o: jobject): JVMObject =
   JVMObject.fromJObject(o)
 
 proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject =
-  result = newJVMObject(o)
-  theEnv.deleteLocalRef(o)
+  if not o.isNil:
+    result = newJVMObject(o)
+    theEnv.deleteLocalRef(o)
 
 proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 
@@ -327,7 +330,7 @@ proc jstringToStringAux(s: jstring): string =
 
 proc toStringRaw(o: JVMObject): string =
   # This is low level ``toString`` version
-  if o.obj.isNil:
+  if o.isNil:
     return nil
   let cls = theEnv.GetObjectClass(theEnv, o.obj)
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
@@ -718,7 +721,7 @@ proc jarrayToSeqConsumingLocalRef[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {
   jarrayToSeqImpl(arr, result)
   theEnv.deleteLocalRef(arr)
 
-template getPropValue*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.} =
+template getPropValue*(T: typedesc, o: untyped, id: JVMFieldID): untyped =
   when T is bool:
     (jboolean.getProp(o, id) == JVM_TRUE)
   elif T is JPrimitiveType:
@@ -732,7 +735,7 @@ template getPropValue*(T: typedesc, o: expr, id: JVMFieldID): expr {.immediate.}
   else:
     {.error: "Unknown property type".}
 
-template setPropValue*(T: typedesc, o: expr, id: JVMFieldID, v: T): expr {.immediate.} =
+template setPropValue*(T: typedesc, o: untyped, id: JVMFieldID, v: T) =
   when T is bool:
     jboolean.setProp(o, id, if v: JVM_TRUE else: JVM_FALSE)
   elif T is JPrimitiveType:
@@ -742,7 +745,7 @@ template setPropValue*(T: typedesc, o: expr, id: JVMFieldID, v: T): expr {.immed
   else:
     {.error: "Unknown property type".}
 
-template callMethod*(T: typedesc, o: expr, methodId: JVMMethodID, args: openarray[jvalue]): expr {.immediate.} =
+template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: openarray[jvalue]): untyped =
   when T is void:
     o.callVoidMethod(methodId, args)
   elif T is jchar:
