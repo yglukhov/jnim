@@ -27,8 +27,6 @@ The list of the main features:
 * API splitted in two parts: low and high level.
 * It supports Java inheritance and generics.
 
-Original library is still available as [src/jnim1.nim](src/jnim1.nim).
-
 The documentation is coming soon. Now you can look the examples in the [tests](tests) directory.
 For example, [tests/test_java_lang.nim](tests/test_java_lang.nim) and [tests/test_java_util.nim](tests/test_java_util.nim)
 shows how to use high level API.

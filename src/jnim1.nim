@@ -1,3 +1,4 @@
+{.deprecated.} # jnim1 is going to be deleted soon. Please use new API.
 
 import dynlib
 import strutils
