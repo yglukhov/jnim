@@ -137,13 +137,13 @@ proc newJavaException*(ex: JVMObject): ref JavaException =
 proc newJVMObject*(o: jobject): JVMObject
 proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject
 
-template checkException: stmt =
+template checkException() =
   if theEnv != nil and theEnv.ExceptionCheck(theEnv) == JVM_TRUE:
     let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
     theEnv.ExceptionClear(theEnv)
     raise newJavaException(ex)
   
-macro callVM*(s: expr): expr =
+macro callVM*(s: untyped): untyped =
   result = quote do:
     let res = `s`
     checkException()
@@ -186,6 +186,12 @@ proc getByFqcn*(T: typedesc[JVMClass], name: cstring): JVMClass =
 proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
   ## Finds class by it's name (not fqcn)
   T.getByFqcn(name.fqcn)
+
+proc getJVMClass(o: jobject): JVMClass {.inline.} =
+  checkInit
+  let c = callVM theEnv.GetObjectClass(theEnv, o)
+  result = c.newJVMClass
+  theEnv.deleteLocalRef(c)
 
 proc get*(c: JVMClass): jclass =
   c.cls
@@ -305,11 +311,8 @@ proc toJValue*(o: JVMObject): jvalue =
   o.get.toJValue
 
 proc getJVMClass*(o: JVMObject): JVMClass =
-  checkInit
   assert(o.get != nil)
-  let c = callVM theEnv.GetObjectClass(theEnv, o.get)
-  result = c.newJVMClass
-  theEnv.deleteLocalRef(c)
+  getJVMClass(o.get)
 
 proc equalsRaw*(v1, v2: JVMObject): jboolean =
   # This is low level ``equals`` version
@@ -324,25 +327,37 @@ proc equalsRaw*(v1, v2: JVMObject): jboolean =
   result = theEnv.CallBooleanMethodA(theEnv, v1.obj, mthId, addr v2w)
 
 proc jstringToStringAux(s: jstring): string =
+  assert(not s.isNil)
   let sz = theEnv.GetStringUTFLength(theEnv, s)
   result = newString(sz)
   theEnv.GetStringUTFRegion(theEnv, s, 0, sz, addr result[0])
 
-proc toStringRaw(o: JVMObject): string =
-  # This is low level ``toString`` version
-  if o.isNil:
-    return nil
-  let cls = theEnv.GetObjectClass(theEnv, o.obj)
+proc toStringRaw(o: jobject): string =
+  # This is low level ``toString`` version.
+  assert(not o.isNil)
+  let cls = theEnv.GetObjectClass(theEnv, o)
   jniAssertEx(cls.pointer != nil, "Can't find object's class")
   const sig = "()" & string.jniSig
   let mthId = theEnv.GetMethodID(theEnv, cls, "toString", sig)
   theEnv.deleteLocalRef(cls)
   jniAssertEx(mthId != nil, "Can't find ``toString`` method")
-  let s = theEnv.CallObjectMethodA(theEnv, o.obj, mthId, nil).jstring
+  let s = theEnv.CallObjectMethodA(theEnv, o, mthId, nil).jstring
   if s == nil:
     return nil
   result = jstringToStringAux(s)
   theEnv.deleteLocalRef(s)
+
+proc toStringRawConsumingLocalRef(o: jobject): string =
+  # This is low level ``toString`` version
+  if not o.isNil:
+    result = toStringRaw(o)
+    theEnv.deleteLocalRef(o)
+
+proc toStringRaw(o: JVMObject): string =
+  # This is low level ``toString`` version
+  if o.isNil:
+    return nil
+  toStringRaw(o.obj)
 
 proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []) =
   checkInit
@@ -359,7 +374,7 @@ proc callVoidMethod*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] =
 ####################################################################################################
 # Arrays support
 
-template genArrayType(typ, arrTyp: typedesc, typName: untyped): stmt {.immediate.} =
+template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
 
   # Creation
 
@@ -510,7 +525,7 @@ genArrayType(JVMObject, jobjectArray, Object)
 ####################################################################################################
 # Fields accessors generation
 
-template genField(typ: typedesc, typName: untyped): stmt =
+template genField(typ: typedesc, typName: untyped): untyped =
   proc `get typName`*(c: JVMClass, id: JVMFieldID): `typ` =
     checkInit
     when `typ` is JVMObject:
@@ -616,7 +631,7 @@ genField(jboolean, Boolean)
 ####################################################################################################
 # Methods generation
 
-template genMethod(typ: typedesc, typName: untyped): stmt =
+template genMethod(typ: typedesc, typName: untyped): untyped =
   proc `call typName Method`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `typ` =
     checkInit
     let a = if args.len == 0: nil else: unsafeAddr args[0]
@@ -713,7 +728,7 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
       res[i] = T.fromJObjectConsumingLocalRef(theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
   elif T is string:
     for i in 0..<res.len:
-      res[i] = theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize).newJVMObjectConsumingLocalRef.toStringRaw
+      res[i] = toStringRawConsumingLocalRef(theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
   else:
     {.fatal: "Sequences is not supported for the supplied type".}
 
@@ -727,7 +742,7 @@ template getPropValue*(T: typedesc, o: untyped, id: JVMFieldID): untyped =
   elif T is JPrimitiveType:
     T.getProp(o, id)
   elif T is string:
-    JVMObject.getPropRaw(o, id).newJVMObjectConsumingLocalRef.toStringRaw
+    toStringRawConsumingLocalRef(JVMObject.getPropRaw(o, id))
   elif T is JVMObject:
     T.fromJObjectConsumingLocalRef(JVMObject.getPropRaw(o, id))
   elif T is seq:
@@ -769,7 +784,7 @@ template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: opena
   elif T is seq:
     T(jarrayToSeqConsumingLocalRef(o.callObjectMethodRaw(methodId, args).jarray, T))
   elif T is string:
-    o.callObjectMethod(methodId, args).toStringRaw
+    toStringRawConsumingLocalRef(o.callObjectMethodRaw(methodId, args))
   elif T is JVMObject:
     T.fromJObjectConsumingLocalRef(o.callObjectMethodRaw(methodId, args))
   else:
