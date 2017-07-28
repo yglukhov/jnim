@@ -233,7 +233,7 @@ proc fillProcDef(n: NimNode, def: NimNode): NimNode {.compileTime.} =
       `def`.genericTypes.add(`v`)
     result.add(q)
 
-macro parseProcDefTest*(i: untyped, s: expr): stmt =
+macro parseProcDefTest*(i: untyped, s: untyped): untyped =
   result = fillProcDef(s[0], i)
 
 ####################################################################################################
@@ -320,13 +320,13 @@ proc fillClassDef(c: NimNode, def: NimNode): NimNode {.compileTime.} =
       `def`.parentGenericTypes.add(`v`)
     result.add(q)
   
-macro parseClassDefTest*(i: untyped, s: expr): stmt =
+macro parseClassDefTest*(i: untyped, s: untyped): untyped =
   result = fillClassDef(if s.kind == nnkStmtList: s[0] else: s, i)
 
 ####################################################################################################
 # Type generator
 
-template identEx(isExported: bool, name: string, isSetter = false, isQuoted = false): expr =
+template identEx(isExported: bool, name: string, isSetter = false, isQuoted = false): untyped =
   let id =
     if isSetter:
       newNimNode(nnkAccQuoted).add(ident(name), ident("="))
@@ -385,17 +385,17 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let seqEqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
   result = quote do:
     type `classNameEx` = ref object of `parentType`
-    proc `jniSigIdent`(t: typedesc[`className`]): string = sigForClass(`jName`)
-    proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string = "[" & sigForClass(`jName`)
-    proc `getClassId`(t: typedesc[`className`]): JVMClass =
+    proc `jniSigIdent`(t: typedesc[`className`]): string {.used, inline.} = sigForClass(`jName`)
+    proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string {.used, inline.} = "[" & sigForClass(`jName`)
+    proc `getClassId`(t: typedesc[`className`]): JVMClass {.used, inline.} =
       JVMClass.getByFqcn(toConstCString(fqcn(`jName`)))
-    proc toJVMObject(v: `className`): JVMObject =
+    proc toJVMObject(v: `className`): JVMObject {.used, inline.} =
       v.JVMObject
-    proc toJValue(v: `className`): jvalue =
+    proc toJValue(v: `className`): jvalue {.used, inline.} =
       v.JVMObject.get.toJValue
-    proc `eqOpIdent`(v1, v2: `className`): bool =
+    proc `eqOpIdent`(v1, v2: `className`): bool {.used, inline.} =
       return (v1.equalsRaw(v2) == JVM_TRUE)
-    proc `seqEqOpIdent`(v1, v2: seq[`className`]): bool =
+    proc `seqEqOpIdent`(v1, v2: seq[`className`]): bool {.used.} =
       if v1.len != v2.len:
         return false
       else:
@@ -451,34 +451,45 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert(not (pd.isConstructor or pd.isProp))
 
   let sig = getProcSignature(cd, pd)
-  let cname = cd.jName.newStrLitNode
   let pname = pd.jName.newStrLitNode
   let ctype = cd.name.ident
   result = def.copyNimTree
   fillGenericParameters(cd, pd, result)
   result.pragma = newEmptyNode()
+
   var objToCall: NimNode
+  var objToCallIdent: NimNode
+  var mIdIdent = ident"mId"
+
   # Add first parameter
   if pd.isStatic:
     result.params.insert(1, newIdentDefs(ident"theClassType", cd.mkTypedesc))
+    objToCallIdent = ident"clazz"
     objToCall = quote do:
-      `ctype`.getJVMClassForType
+      let `objToCallIdent` = `ctype`.getJVMClassForType
+      let `mIdIdent` = `objToCallIdent`.getStaticMethodId(`pname`, toConstCString(`sig`))
+
   else:
-    result.params.insert(1, newIdentDefs(ident"this", cd.mkType))
-    objToCall = ident"this"
+    objToCallIdent = ident"this"
+    result.params.insert(1, newIdentDefs(objToCallIdent, cd.mkType))
+    objToCall = quote do:
+      let `mIdIdent` = `objToCallIdent`.getMethodId(`pname`, toConstCString(`sig`))
+
   let retType = parseExpr(pd.retType)
-  var mId: NimNode
-  if pd.isStatic:
-    mId = quote do:
-      `objToCall`.getStaticMethodId(`pname`, toConstCString(`sig`))
-  else:
-    mId = quote do:
-      `objToCall`.getMethodId(`pname`, toConstCString(`sig`))
   let ai = ident"args"
   let args = generateArgs(pd, ai)
   result.body = quote do:
+    # Disabling GC is a must on Android (and maybe other platforms) in release
+    # mode. Otherwise Nim GC may kick in and finalize the JVMObject we're passing
+    # to JNI call before the actual JNI call is made. That is likely caused
+    # by release optimizations that prevent Nim GC from "seeing" the JVMObjects
+    # on the stack after their last usage, even though from the code POV they
+    # are still here.
+    GC_disable()
+    `objToCall`
     `args`
-    callMethod(`retType`, `objToCall`, `mId`, `ai`)
+    GC_enable()
+    callMethod(`retType`, `objToCallIdent`, `mIdIdent`, `ai`)
 
 proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): NimNode =
   assert pd.isProp
@@ -538,18 +549,18 @@ proc generateClassImpl(cd: ClassDef, body: NimNode): NimNode {.compileTime.} =
       result.add generateProc(cd, def)
   else: result.add generateProc(cd, body)
 
-macro jclass*(head: expr, body: expr): stmt {.immediate.} =
+macro jclass*(head: untyped, body: untyped): untyped =
   result = newStmtList()
   let cd = parseClassDef(head)
   result.add generateClassDef(cd)
   result.add generateClassImpl(cd, body)
 
-macro jclassDef*(head: expr): stmt {.immediate.} =
+macro jclassDef*(head: untyped): untyped =
   result = newStmtList()
   let cd = parseClassDef(head)
   result.add generateClassDef(cd)
 
-macro jclassImpl*(head: expr, body: expr): stmt {.immediate.} =
+macro jclassImpl*(head: untyped, body: untyped): untyped =
   result = newStmtList()
   let cd = parseClassDef(head)
   result.add generateClassImpl(cd, body)
