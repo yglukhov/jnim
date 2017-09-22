@@ -298,7 +298,8 @@ proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject =
 proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 
 proc newJVMObject*(s: string): JVMObject =
-  (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
+  if not s.isNil:
+    result = (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
 
 proc get*(o: JVMObject): jobject =
   o.obj
@@ -308,7 +309,8 @@ proc setObj*(o: JVMObject, obj: jobject) =
   o.obj = obj
 
 proc toJValue*(o: JVMObject): jvalue =
-  o.get.toJValue
+  if not o.isNil:
+    result = o.get.toJValue
 
 proc getJVMClass*(o: JVMObject): JVMClass =
   assert(o.get != nil)
@@ -689,7 +691,7 @@ genMethod(jboolean, Boolean)
 proc getJVMException*(ex: JavaException): JVMObject =
   ex.ex
 
-proc toJVMObject*(s: string): JVMObject =
+proc toJVMObject*(s: string): JVMObject {.inline.} =
   newJVMObject(s)
 
 type JPrimitiveType = jint | jfloat | jboolean | jdouble | jshort | jlong | jchar | jbyte
