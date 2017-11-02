@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.3.4"
+version       = "0.3.5"
 author        = "Anatoly Galiulin"
 description   = "Java bridge for Nim"
 license       = "MIT"

@@ -121,7 +121,7 @@ type
   JVMObject* = ref object {.inheritable.}
     obj: jobject
 
-#################################################################################################### 
+####################################################################################################
 # Exception handling
 
 type
@@ -142,7 +142,7 @@ template checkException() =
     let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
     theEnv.ExceptionClear(theEnv)
     raise newJavaException(ex)
-  
+
 macro callVM*(s: untyped): untyped =
   result = quote do:
     let res = `s`
@@ -330,9 +330,11 @@ proc equalsRaw*(v1, v2: JVMObject): jboolean =
 
 proc jstringToStringAux(s: jstring): string =
   assert(not s.isNil)
-  let sz = theEnv.GetStringUTFLength(theEnv, s)
-  result = newString(sz)
-  theEnv.GetStringUTFRegion(theEnv, s, 0, sz, addr result[0])
+  let numBytes = theEnv.GetStringUTFLength(theEnv, s)
+  result = newString(numBytes)
+  if numBytes != 0:
+    let numChars = theEnv.GetStringLength(theEnv, s)
+    theEnv.GetStringUTFRegion(theEnv, s, 0, numChars, addr result[0])
 
 proc toStringRaw(o: jobject): string =
   # This is low level ``toString`` version.
@@ -434,7 +436,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
     newJVMObject(a.arr.jobject)
 
   # getters/setters
-  
+
   proc `get typName Array`*(c: JVMClass, name: cstring): `JVM typName Array` =
     checkInit
     let j = callVM theEnv.GetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, seq[`typ`].jniSig).get)
@@ -549,7 +551,7 @@ template genField(typ: typedesc, typName: untyped): untyped =
     else:
       theEnv.`SetStatic typName Field`(theEnv, c.get, id.get, v)
     checkException
-    
+
   proc `set typName`*(c: JVMClass, name: string, v: `typ`) =
     checkInit
     when `typ` is JVMObject:
@@ -579,7 +581,7 @@ template genField(typ: typedesc, typName: untyped): untyped =
     else:
       theEnv.`Set typName Field`(theEnv, o.get, id.get, v)
     checkException
-    
+
   proc `set typName`*(o: JVMObject, name: string, v: `typ`) =
     checkInit
     when `typ` is JVMObject:
@@ -601,7 +603,7 @@ template genField(typ: typedesc, typName: untyped): untyped =
       checkInit
       theEnv.`SetStatic typName Field`(theEnv, c.get, id.get, v)
       checkException
-      
+
     proc setPropRaw*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID, v: jobject) =
       checkInit
       theEnv.`Set typName Field`(theEnv, o.get, id.get, v)
