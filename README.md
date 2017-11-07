@@ -21,7 +21,6 @@ System.`out`.println("This string is printed with System.out.println!")
 Overview
 --------
 
-This library is the result of rethinking of the original jnim library created by @yglukhov.
 The list of the main features:
 
 * API splitted in two parts: low and high level.
@@ -37,3 +36,9 @@ If you want to run the tests, use ``nim test`` command.
 ```sh
 nimble install jnim
 ```
+
+Thanks
+-------
+
+- The current version of the library is a complete rewrite done by @vegansk.
+- Also thanks a lot to all the [contributors](https://github.com/yglukhov/jnim/graphs/contributors)
