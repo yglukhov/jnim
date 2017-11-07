@@ -1,6 +1,6 @@
 jnim - JNI library for Nim language [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble.png)](https://github.com/yglukhov/nimble-tag) 
 ======================================
-[![Build Status](https://travis-ci.org/vegansk/jnim.svg?branch=master)](https://travis-ci.org/vegansk/jnim)
+[![Build Status](https://travis-ci.org/yglukhov/jnim.svg?branch=master)](https://travis-ci.org/yglukhov/jnim)
 
 Native language integration with Java VM has never been easier!
 ```nim
