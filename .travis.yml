@@ -1,25 +1,8 @@
-language: c
 sudo: required
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - gcc-4.9
+services:
+  - docker
 before_install:
-  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 90
-  # Install nim
-  - git clone -b devel git://github.com/nim-lang/Nim.git --depth 1
-  - cd Nim
-  - git clone --depth 1 git://github.com/nim-lang/csources
-  - cd csources && sh build.sh
-  - cd ..
-  - bin/nim c koch
-  - ./koch boot -d:release
-  - export PATH=$PWD/bin:$PATH
-  - ./koch nimble
-  - cd ..
-  - nimble install -y
+  - docker pull yglukhov/nim-base
 script:
-  - nim test
-
+  - docker run -v "$(pwd):/project" -w /project yglukhov/nim-base nim --version
+  - docker run -v "$(pwd):/project" -w /project yglukhov/nim-base nim test
