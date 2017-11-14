@@ -537,8 +537,7 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
         setPropValue(`valType`, `objToCall`, `mId`, value)
   else:
     result.body = quote do:
-      withGCDisabled:
-        getPropValue(`valType`, `objToCall`, `mId`)
+      getPropValue(`valType`, `objToCall`, `mId`)
 
 proc generateProc(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
   let pd = parseProcDef(def)
