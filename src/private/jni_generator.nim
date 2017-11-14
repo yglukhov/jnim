@@ -426,6 +426,19 @@ proc fillGenericParameters(cd: ClassDef, pd: ProcDef, n: NimNode) {.compileTime.
   # Combines generic parameters from `pd`, `cd` and puts t into proc definition `n`
   n[2] = mkGenericParams(collectGenericParameters(cd, pd))
 
+template withGCDisabled(body: untyped) =
+  # Disabling GC is a must on Android (and maybe other platforms) in release
+  # mode. Otherwise Nim GC may kick in and finalize the JVMObject we're passing
+  # to JNI call before the actual JNI call is made. That is likely caused
+  # by release optimizations that prevent Nim GC from "seeing" the JVMObjects
+  # on the stack after their last usage, even though from the code POV they
+  # are still here. This template should be used wherever jni references are
+  # taken from temporary Nim objects.
+
+  GC_disable()
+  body
+  GC_enable()
+
 proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert pd.isConstructor
 
@@ -444,8 +457,10 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   let args = generateArgs(pd, ai)
   result.body = quote do:
     checkInit
-    `args`
-    `ctypeWithParams`.fromJObjectConsumingLocalRef(newObjectRaw(JVMClass.getByName(`cname`), toConstCString(`sig`), `ai`))
+    withGCDisabled:
+      let clazz = JVMClass.getByName(`cname`)
+      `args`
+    `ctypeWithParams`.fromJObjectConsumingLocalRef(newObjectRaw(clazz, toConstCString(`sig`), `ai`))
 
 proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert(not (pd.isConstructor or pd.isProp))
@@ -479,16 +494,9 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   let ai = ident"args"
   let args = generateArgs(pd, ai)
   result.body = quote do:
-    # Disabling GC is a must on Android (and maybe other platforms) in release
-    # mode. Otherwise Nim GC may kick in and finalize the JVMObject we're passing
-    # to JNI call before the actual JNI call is made. That is likely caused
-    # by release optimizations that prevent Nim GC from "seeing" the JVMObjects
-    # on the stack after their last usage, even though from the code POV they
-    # are still here.
-    GC_disable()
-    `objToCall`
-    `args`
-    GC_enable()
+    withGCDisabled:
+      `objToCall`
+      `args`
     callMethod(`retType`, `objToCallIdent`, `mIdIdent`, `ai`)
 
 proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): NimNode =
@@ -525,10 +533,12 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
 
   if isSetter:
     result.body = quote do:
-      setPropValue(`valType`, `objToCall`, `mId`, value)
+      withGCDisabled:
+        setPropValue(`valType`, `objToCall`, `mId`, value)
   else:
     result.body = quote do:
-      getPropValue(`valType`, `objToCall`, `mId`)
+      withGCDisabled:
+        getPropValue(`valType`, `objToCall`, `mId`)
 
 proc generateProc(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
   let pd = parseProcDef(def)
