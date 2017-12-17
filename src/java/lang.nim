@@ -99,7 +99,7 @@ jclass java.lang.Float* of Number:
   proc MIN_EXPONENT*: jint {.prop, `static`, final.}
   proc MIN_NORMAL*: jfloat {.prop, `static`, final.}
   proc MIN_VALUE*: jfloat {.prop, `static`, final.}
-  proc NaN*: jfloat {.prop, `static`, final.}
+  # proc NaN*: jfloat {.prop, `static`, final.} # Collides with system.Nan
   proc NEGATIVE_INFINITY*: jfloat {.prop, `static`, final.}
   proc POSITIVE_INFINITY*: jfloat {.prop, `static`, final.}
   proc SIZE*: jint {.prop, `static`, final.}
@@ -119,7 +119,7 @@ jclass java.lang.Double* of Number:
   proc MIN_EXPONENT*: jint {.prop, `static`, final.}
   proc MIN_NORMAL*: jdouble {.prop, `static`, final.}
   proc MIN_VALUE*: jdouble {.prop, `static`, final.}
-  proc NaN*: jdouble {.prop, `static`, final.}
+  # proc NaN*: jdouble {.prop, `static`, final.} # Collides with system.Nan
   proc NEGATIVE_INFINITY*: jdouble {.prop, `static`, final.}
   proc POSITIVE_INFINITY*: jdouble {.prop, `static`, final.}
   proc SIZE*: jint {.prop, `static`, final.}
@@ -144,7 +144,7 @@ jclass java.lang.Boolean* of Object:
 converter toValueType*(v: Boolean): jboolean = v.booleanValue
 converter toWrapperType*(v: jboolean): Boolean = Boolean.new(v)
 
-#################################################################################################### 
+####################################################################################################
 # Exceptions
 
 jclass java.lang.StackTraceElement* of Object:

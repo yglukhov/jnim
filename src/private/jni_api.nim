@@ -19,7 +19,7 @@ var theOptions = JVMOptions.none
 var theOptionsPtr: pointer
 var theVM: JavaVMPtr
 var theEnv* {.threadVar}: JNIEnvPtr
-var findClassOverride* {.threadVar.}: proc(env: JNIEnvPtr, name: cstring): jclass
+var findClassOverride* {.threadVar.}: proc(env: JNIEnvPtr, name: cstring): JClass
 
 proc initJNIThread* {.gcsafe.}
 proc initJNI*(version: JNIVersion = JNIVersion.v1_6, options: seq[string] = @[]) =
@@ -117,7 +117,7 @@ type
   JVMMethodID* = distinct jmethodID
   JVMFieldID* = distinct jfieldID
   JVMClass* = ref object
-    cls: jclass
+    cls: JClass
   JVMObject* = ref object {.inheritable.}
     obj: jobject
 
@@ -165,12 +165,12 @@ proc freeClass(c: JVMClass) =
   if theEnv != nil:
     theEnv.deleteGlobalRef(c.cls)
 
-proc newJVMClass*(c: jclass): JVMClass =
+proc newJVMClass*(c: JClass): JVMClass =
   assert(cast[pointer](c) != nil)
   result.new(freeClass)
   result.cls = theEnv.newGlobalRef(c)
 
-proc findClass*(env: JNIEnvPtr, name: cstring): jclass =
+proc findClass*(env: JNIEnvPtr, name: cstring): JClass =
   if not findClassOverride.isNil:
     result = findClassOverride(env, name)
   else:
@@ -193,7 +193,7 @@ proc getJVMClass(o: jobject): JVMClass {.inline.} =
   result = c.newJVMClass
   theEnv.deleteLocalRef(c)
 
-proc get*(c: JVMClass): jclass =
+proc get*(c: JVMClass): JClass =
   c.cls
 
 # Static fields
