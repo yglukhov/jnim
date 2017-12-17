@@ -8,17 +8,17 @@ type ProxyFunc = proc(env: pointer, obj: RootRef, proxiedThis, meth: jobject, ar
 jclass java.lang.reflect.Method of JVMObject:
     proc getName(): string
 
-proc rawHandleInvocation(env: pointer, clazz: jclass, nimRef, fnPtr: jlong, proxiedThis, meth: jobject, args: jobjectArray): jobject {.cdecl.} =
+proc rawHandleInvocation(env: pointer, clazz: JClass, nimRef, fnPtr: jlong, proxiedThis, meth: jobject, args: jobjectArray): jobject {.cdecl.} =
     let o = cast[RootRef](nimRef)
     let f = cast[ProxyFunc](fnPtr)
     f(env, o, proxiedThis, meth, args)
 
-proc finalizeInvocationHandler(env: pointer, clazz: jclass, nimRef: jlong) {.cdecl.} =
+proc finalizeInvocationHandler(env: pointer, clazz: JClass, nimRef: jlong) {.cdecl.} =
     if nimRef != 0:
         let o = cast[RootRef](nimRef)
         GC_unref(o)
 
-proc getHandlerClass(): jclass =
+proc getHandlerClass(): JClass =
     checkInit
     result = findClass(theEnv, "io/github/vegansk/jnim/NativeInvocationHandler")
     if result.pointer.isNil:
@@ -39,7 +39,7 @@ proc getHandlerClass(): jclass =
     let r = callVM theEnv.RegisterNatives(theEnv, result, addr nativeMethods[0], nativeMethods.len.jint)
     assert(r == 0)
 
-proc makeProxy*(clazz: jclass, o: RootRef, fn: ProxyFunc): jobject =
+proc makeProxy*(clazz: JClass, o: RootRef, fn: ProxyFunc): jobject =
     let handlerClazz = getHandlerClass()
 
     GC_ref(o)
