@@ -25,17 +25,17 @@ proc buildExe(debug: bool, bin: string, src: string) =
     --verbosity: 1
 
   --threads: on
-    
-  --NimblePath: src
-  --NimblePath: srcDir
-    
+
+  --path: src
+  --path: srcDir
+
   setCommand "c", src
 
 proc test(name: string) =
   if not BIN_DIR.dirExists:
     BIN_DIR.mkDir
   --run
-  buildExe true, "bin" / "test_" & name, "tests" / "test_" & name 
+  buildExe true, "bin" / "test_" & name, "tests" / "test_" & name
 
 proc javac(file: string, outDir: string) =
   exec "javac".toExe & " -d " & outDir & " -cp " & outDir & " " & file
