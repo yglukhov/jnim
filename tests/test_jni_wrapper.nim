@@ -8,7 +8,7 @@ suite "jni_wrapper":
   var env: JNIEnvPtr
 
   const version = JNI_VERSION_1_6
-         
+
   test "JNI - link with JVM library":
     linkWithJVMLib()
     require isJVMLoaded() == true
@@ -22,7 +22,7 @@ suite "jni_wrapper":
   test "JNI - test version":
     check env.GetVersion(env) >= version
 
-  template chkEx: stmt = 
+  template chkEx: untyped =
     require env.ExceptionCheck(env) == JVM_FALSE
 
   test "JNI - call System.out.println":

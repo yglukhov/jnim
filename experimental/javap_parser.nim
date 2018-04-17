@@ -265,7 +265,7 @@ proc nodeToString(e: NimNode): string {.compileTime.} =
         echo treeRepr(e)
         assert(false, "Cannot stringize node")
 
-macro jnimport_all*(e: expr): stmt =
+macro jnimport_all*(e: untyped): untyped =
     let className = nodeToString(e)
     let javapOutput = staticExec("javap -public -s " & className)
     var cd: ClassDef

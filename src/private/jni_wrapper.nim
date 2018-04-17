@@ -20,29 +20,29 @@ type
 proc newJNIException*(msg: string): ref JNIException =
   newException(JNIException, msg)
 
-template jniAssert*(call: expr): stmt =
+template jniAssert*(call: untyped): untyped =
   if not `call`:
     raise newJNIException(call.astToStr & " is false")
 
-template jniAssert*(call: expr, msg: string): stmt =
+template jniAssert*(call: untyped, msg: string): untyped =
   if not `call`:
     raise newJNIException(msg)
 
-template jniAssertEx*(call: expr, msg: string): stmt =
+template jniAssertEx*(call: untyped, msg: string): untyped =
   if not `call`:
     raise newJNIException(msg & " (" & call.astToStr & " is false)")
 
-template jniCall*(call: expr): stmt =
+template jniCall*(call: untyped): untyped =
   let res = `call`
   if res != 0.jint:
     raise newJNIException(call.astToStr & " returned " & $res)
 
-template jniCall*(call: expr, msg: string): stmt =
+template jniCall*(call: untyped, msg: string): untyped =
   let res = `call`
   if res != 0.jint:
     raise newJNIException(msg & " (result = " & $res & ")")
 
-template jniCallEx*(call: expr, msg: string): stmt =
+template jniCallEx*(call: untyped, msg: string): untyped =
   let res = `call`
   if res != 0.jint:
     raise newJNIException(msg & " (" & call.astToStr & " returned " & $res & ")")
