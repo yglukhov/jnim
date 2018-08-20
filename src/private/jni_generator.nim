@@ -2,7 +2,7 @@ import jni_api,
        strutils,
        sequtils,
        macros,
-       fp.option
+       fp/option
 
 from typetraits import name
 

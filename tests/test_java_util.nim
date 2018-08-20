@@ -1,6 +1,6 @@
 import jnim,
-       java.util,
-       java.lang,
+       java/util,
+       java/lang,
        common,
        unittest
 import sequtils except toSeq

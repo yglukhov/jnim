@@ -1,4 +1,4 @@
-import private.jni_wrapper,
+import private/jni_wrapper,
        unittest,
        strutils
 

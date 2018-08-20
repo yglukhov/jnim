@@ -1,4 +1,4 @@
-import jni_wrapper, fp.option, macros, strutils
+import jni_wrapper, fp/option, macros, strutils
 
 export jni_wrapper
 
@@ -347,7 +347,7 @@ proc toStringRaw(o: jobject): string =
   jniAssertEx(mthId != nil, "Can't find ``toString`` method")
   let s = theEnv.CallObjectMethodA(theEnv, o, mthId, nil).jstring
   if s == nil:
-    return nil
+    return ""
   result = jstringToStringAux(s)
   theEnv.deleteLocalRef(s)
 
@@ -360,7 +360,7 @@ proc toStringRawConsumingLocalRef(o: jobject): string =
 proc toStringRaw(o: JVMObject): string =
   # This is low level ``toString`` version
   if o.isNil:
-    return nil
+    return ""
   toStringRaw(o.obj)
 
 proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []) =
@@ -719,7 +719,6 @@ proc toJVMObject*[T](a: openarray[T]): JVMObject =
 
 template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
   checkInit
-  res = nil
   if arr == nil:
     return
   let length = theEnv.GetArrayLength(theEnv, arr)

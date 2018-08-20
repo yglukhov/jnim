@@ -2,7 +2,7 @@ import os,
        dynlib,
        strutils,
        macros,
-       fp.option
+       fp/option
 
 from jvm_finder import CT_JVM, findJVM
 

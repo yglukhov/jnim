@@ -1,7 +1,7 @@
 import macros
 
 import jni_wrapper, jni_api, jni_generator
-import java.lang except Exception
+import java/lang except Exception
 
 type ProxyFunc = proc(env: pointer, obj: RootRef, proxiedThis, meth: jobject, args: jobjectArray): jobject {.cdecl.}
 

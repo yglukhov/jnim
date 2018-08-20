@@ -1,4 +1,4 @@
-import future, os, osproc, strutils, fp.option, fp.list
+import sugar, os, osproc, strutils, fp/option, fp/list
 
 type
   JVMPath* = tuple[
@@ -34,7 +34,7 @@ proc searchInPaths(paths = Nil[string]()): Option[JVMPath] =
 proc searchInJavaHome: Option[JVMPath] =
   when defined(android):
     ## Hack for Kindle fire.
-    (root:nil.string, lib: "/system/lib/libdvm.so").some
+    (root:"", lib: "/system/lib/libdvm.so").some
   else:
     "JAVA_HOME".getEnv.some.notEmpty.flatMap((p: string) => p.findJvmInPath.map(lib => (root:p, lib:lib)))
 
@@ -57,7 +57,7 @@ proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
     if p1.endsWith("/Contents/Home/jre"):
       # Assume MacOS. MacOS may not have libjvm, and jvm is loaded in a
       # different way, so just return java home here.
-      (root: p1.parentDir, lib: nil.string).some
+      (root: p1.parentDir, lib: "").some
     else:
       searchInPaths([p1, p1.splitPath[0]].asList)
 

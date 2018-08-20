@@ -1,5 +1,5 @@
 import jnim,
-       java.lang,
+       java/lang,
        common,
        unittest,
        encodings
