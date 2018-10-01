@@ -1,4 +1,4 @@
-import jni_wrapper, fp/option, macros, strutils
+import jni_wrapper, options, macros, strutils
 
 export jni_wrapper
 
@@ -9,24 +9,33 @@ type
     v1_4 = JNI_VERSION_1_4.int,
     v1_6 = JNI_VERSION_1_6.int,
     v1_8 = JNI_VERSION_1_8.int
-  JVMOptions = tuple[
-    version: JNIVersion,
-    options: seq[string]
-  ]
 
-var theOptions = JVMOptions.none
+var initArgs: JavaVMInitArgs
+
 # Options for another threads
-var theOptionsPtr: pointer
 var theVM: JavaVMPtr
 var theEnv* {.threadVar}: JNIEnvPtr
 var findClassOverride* {.threadVar.}: proc(env: JNIEnvPtr, name: cstring): JClass
 
 proc initJNIThread* {.gcsafe.}
-proc initJNI*(version: JNIVersion = JNIVersion.v1_6, options: seq[string] = @[]) =
+
+proc initJNIArgs(version: JNIVersion = JNIVersion.v1_6, options: openarray[string] = []) =
   ## Setup JNI API
-  jniAssert(not theOptions.isDefined, "JNI API already initialized, you must deinitialize it first")
-  theOptions = (version: version, options: options).some
-  theOptionsPtr = cast[pointer](theOptions)
+  jniAssert(initArgs.version == 0, "JNI API already initialized, you must deinitialize it first")
+  initArgs.version = version.jint
+  initArgs.nOptions = options.len.jint
+  if options.len != 0:
+    var opts = cast[ptr UncheckedArray[JavaVMOption]](createShared(JavaVMOption, options.len))
+    initArgs.options = addr opts[0]
+    for i in 0 ..< options.len:
+      opts[i].optionString = cast[cstring](allocShared(options[i].len + 1))
+      opts[i].optionString[0] = '\0'
+      if options[i].len != 0:
+        copyMem(addr opts[i].optionString[0], unsafeAddr options[i][0], options[i].len + 1)
+
+proc initJNI*(version: JNIVersion = JNIVersion.v1_6, options: openarray[string] = []) =
+  ## Setup JNI API
+  initJNIArgs(version, options)
   initJNIThread()
 
 # This is not supported, as it said here: http://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/invocation.html#destroy_java_vm:
@@ -38,37 +47,24 @@ when false:
     if theVM == nil:
       return
     jniCall theVM.DestroyJavaVM(theVM), "Error deinitializing JNI"
-    theOptions = JVMOptions.none
-    theOptionsPtr = nil
+    # TODO: dealloc initArgs
     theVM = nil
     theEnv = nil
-
-proc initJVMThreadWithOptions(o: JVMOptions) =
-  var args: JavaVMInitArgs
-  args.version = o.version.jint
-  args.nOptions = o.options.len.jint
-  if o.options.len > 0:
-    var opts = newSeq[JavaVMOption](o.options.len)
-    for idx in 0..<o.options.len:
-      opts[idx].optionString = o.options[idx].cstring
-    args.options = opts[0].addr
-  if theVM == nil:
-    # We need to link with JNI and so on
-    linkWithJVMLib()
-    jniCall JNI_CreateJavaVM(theVM.addr, cast[ptr pointer](theEnv.addr), args.addr), "Error creating VM"
-  else:
-    # We need to attach current thread to JVM
-    jniCall theVM.AttachCurrentThread(theVM, cast[ptr pointer](theEnv.addr), args.addr), "Error attaching thread to VM"
 
 proc initJNIThread* =
   ## Setup JNI API thread
   if theEnv != nil:
     return
-  if theOptionsPtr == nil:
+  if initArgs.version == 0:
     raise newJNIException("You must initialize JNI API before using it")
 
-  let o = cast[type(theOptions)](theOptionsPtr).get
-  initJVMThreadWithOptions(o)
+  if theVM == nil:
+    # We need to link with JNI and so on
+    linkWithJVMLib()
+    jniCall JNI_CreateJavaVM(theVM.addr, cast[ptr pointer](theEnv.addr), initArgs.addr), "Error creating VM"
+  else:
+    # We need to attach current thread to JVM
+    jniCall theVM.AttachCurrentThread(theVM, cast[ptr pointer](theEnv.addr), initArgs.addr), "Error attaching thread to VM"
 
 proc deinitJNIThread* =
   ## Deinitialize JNI API thread
@@ -90,8 +86,8 @@ proc findRunningVM() =
         theVM = vmBuf[0]
         let res = vmBuf[0].GetEnv(vmBuf[0], cast[ptr pointer](theEnv.addr), JNI_VERSION_1_6)
         if res == JNI_EDETACHED:
-            let opts: JVMOptions = (version: JNIVersion.v1_6, options: @[])
-            initJVMThreadWithOptions(opts)
+            initJNIArgs()
+            initJNIThread()
         elif res != 0:
             raise newJNIException("GetEnv result: " & $res)
         if theEnv.isNil:
@@ -298,8 +294,7 @@ proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject =
 proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 
 proc newJVMObject*(s: string): JVMObject =
-  if not s.isNil:
-    result = (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
+  result = (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
 
 proc get*(o: JVMObject): jobject =
   o.obj

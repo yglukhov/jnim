@@ -1,4 +1,4 @@
-import sugar, os, osproc, strutils, fp/option, fp/list
+import sugar, os, osproc, strutils, options
 
 type
   JVMPath* = tuple[
@@ -10,7 +10,7 @@ type
     JavaHome,
     CurrentEnv
 
-proc findJvmInPath(p: string): Option[string] =
+proc findJvmInPath(p: string): string =
   const libs = [
       # Windows
       "bin\\server\\jvm.dll",
@@ -21,22 +21,30 @@ proc findJvmInPath(p: string): Option[string] =
       "jre/lib/libjvm.so",
       "jre/lib/libjvm.dylib",
       "jre/lib/amd64/jamvm/libjvm.so",
-      "jre/lib/amd64/server/libjvm.so"
+      "jre/lib/amd64/server/libjvm.so",
+      "lib/server/libjvm.so"
     ]
   for lib in libs:
-    if fileExists(p / lib):
-      return (p / lib).some
-  return string.none
+    let lp = p / lib
+    if fileExists(lp):
+      return lp
 
-proc searchInPaths(paths = Nil[string]()): Option[JVMPath] =
-  paths.foldLeft(JVMPath.none, (res, p) => (if res.isDefined: res else: p.findJvmInPath.map(lib => (root:p, lib:lib))))
+proc searchInPaths(paths: openarray[string]): Option[JVMPath] =
+  for p in paths:
+    let lp = findJvmInPath(p)
+    if lp.len != 0:
+      return (root: p, lib: lp).some
 
 proc searchInJavaHome: Option[JVMPath] =
   when defined(android):
     ## Hack for Kindle fire.
-    (root:"", lib: "/system/lib/libdvm.so").some
+    return (root:"", lib: "/system/lib/libdvm.so").some
   else:
-    "JAVA_HOME".getEnv.some.notEmpty.flatMap((p: string) => p.findJvmInPath.map(lib => (root:p, lib:lib)))
+    let p = getEnv("JAVA_HOME").string
+    if p.len != 0:
+      let lib = findJvmInPath(p)
+      if lib.len != 0:
+        return (root: p, lib: lib).some
 
 proc runJavaProcess: string =
   when nimvm:
@@ -45,12 +53,16 @@ proc runJavaProcess: string =
     result = execProcess("java -verbose:class -version")
 
 proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
-  proc getRtJar(s: string): Option[string] =
-    if not s.startsWith("[Opened ") or not s.contains("]"):
-      string.none
-    else:
+  proc getRtJar(s: string): string =
+    if s.startsWith("[Opened ") and s.contains("]"):
       let path = s[s.find(" ") + 1 .. s.rfind("]") - 1]
-      path.some.notEmpty.filter(p => p.fileExists)
+      if fileExists(path): return path
+    else:
+      const prefix = "[info][class,load] opened: "
+      let i = s.find(prefix)
+      if i != -1:
+        let path = s[i + prefix.len .. ^1]
+        if fileExists(path): return path
 
   proc findUsingRtJar(jar: string): Option[JVMPath] =
     let p1 = jar.splitPath[0].splitPath[0]
@@ -59,31 +71,33 @@ proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
       # different way, so just return java home here.
       (root: p1.parentDir, lib: "").some
     else:
-      searchInPaths([p1, p1.splitPath[0]].asList)
+      searchInPaths([p1, p1.splitPath[0]])
 
-  data.splitLines.asList
-  .map(s => s.getRtJar.flatMap(findUsingRtJar))
-  .foldLeft(
-      JVMPath.none,
-      (a: Option[JVMPath], b: Option[JVMPath]) => a.orElse(b)
-  )
+  for s in data.splitLines:
+    let jar = getRtJar(s)
+    if jar.len != 0:
+      result = findUsingRtJar(jar)
+      if result.isSome: return
 
 proc searchInCurrentEnv: Option[JVMPath] =
   searchInJavaProcessOutput(runJavaProcess())
 
 proc findJVM*(opts: set[JVMSearchOpts] = {JVMSearchOpts.JavaHome, JVMSearchOpts.CurrentEnv},
-              additionalPaths = Nil[string]()): Option[JVMPath] =
+              additionalPaths: openarray[string] = []): Option[JVMPath] =
   ## Find the path to JVM. First it tries to find it in ``additionalPaths``,
   ## then it tries the ``JAVA_HOME`` environment variable if ``JVMSearchOpts.JavaHome`` is set in ``opts``,
   ## and at least, it tries to get it calling java executable in the
   ## current environment if ``JVMSearchOpts.CurrentEnv`` is set in ``opts``.
-  searchInPaths(additionalPaths)
-  .orElse(() => (if JVMSearchOpts.JavaHome in opts: searchInJavaHome() else: JVMPath.none))
-  .orElse(() => (if JVMSearchOpts.CurrentEnv in opts: searchInCurrentEnv() else: JVMPath.none))
+  result = searchInPaths(additionalPaths)
+  if not result.isSome:
+    if JVMSearchOpts.JavaHome in opts:
+      result = searchInJavaHome()
+    if not result.isSome and JVMSearchOpts.CurrentEnv in opts:
+      result = searchInCurrentEnv()
 
 proc findCtJVM: JVMPath {.compileTime.} =
   let jvmO = findJVM()
-  assert jvmO.isDefined, "JVM not found. Please set JAVA_HOME environment variable"
+  assert jvmO.isSome, "JVM not found. Please set JAVA_HOME environment variable"
   jvmO.get
 
 const CT_JVM* = findCtJVM() ## Compile time JVM

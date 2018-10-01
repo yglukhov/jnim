@@ -180,6 +180,3 @@ suite "jni_api":
   test "API - jstring $":
     check: $(theEnv.NewStringUTF(theEnv, "test")) == "test"
 
-  test "API - nil strings are nil JVMObjects":
-    var nilString: string
-    check: newJVMObject(nilString) == nil

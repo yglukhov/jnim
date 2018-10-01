@@ -1,8 +1,4 @@
-import os,
-       dynlib,
-       strutils,
-       macros,
-       fp/option
+import os, dynlib, strutils, macros, options
 
 from jvm_finder import CT_JVM, findJVM
 
@@ -508,7 +504,7 @@ proc linkWithJVMLib* =
       if not handle.isNil:
         unloadLib(handle)
       let foundJVM = findJVM()
-      if foundJVM.isDefined:
+      if foundJVM.isSome:
         handle = loadLib(foundJVM.get.lib)
         linkWithJVMModule(handle)
 
