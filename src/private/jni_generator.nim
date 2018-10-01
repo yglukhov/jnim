@@ -1,8 +1,4 @@
-import jni_api,
-       strutils,
-       sequtils,
-       macros,
-       fp/option
+import jni_api, strutils, sequtils, macros
 
 from typetraits import name
 
@@ -74,18 +70,20 @@ proc initClassDef(name, jName, parent: string, isExported: bool, genericTypes: s
 const ProcNamePos = 0
 const ProcParamsPos = 3
 
-proc findNameAndGenerics(n: NimNode): (NimNode, Option[NimNode]) =
+proc findNameAndGenerics(n: NimNode): (NimNode, NimNode) =
   if n.kind == nnkBracketExpr:
     result[0] = n[0]
-    result[1] = n.some
+    result[1] = n
   elif n.kind == nnkInfix and n[2].kind == nnkBracket:
     result[0] = n[1]
-    result[1] = n[2].some
+    result[1] = n[2]
   else:
     result[0] = n
-    result[1] = NimNode.none
+    result[1] = nil
 
 proc parseGenericsNode(n: NimNode): seq[GenericType] =
+  if n.isNil: return
+
   expectKind n, {nnkBracketExpr, nnkBracket}
   result = newSeq[GenericType]()
   for i in (ord(n.kind)-ord(nnkBracket))..<n.len:
@@ -161,11 +159,10 @@ proc findPragma(n: NimNode, name: string): bool {.compileTime.} =
       return true
   return false
 
-proc findPragmaValue(n: NimNode, name: string): Option[string] {.compileTime.} =
+proc findPragmaValue(n: NimNode, name: string): string {.compileTime.} =
   for p in n.pragma:
     if p.kind == nnkExprColonExpr and p[0].nodeToString == name:
-      return p[1].nodeToString.some
-  return string.none
+      return p[1].nodeToString
 
 proc parseProcDef(n: NimNode): ProcDef {.compileTime.} =
   expectKind n, nnkProcDef
@@ -188,7 +185,7 @@ proc parseProcDef(n: NimNode): ProcDef {.compileTime.} =
   else:
     result.isConstructor = false
     let jn = findPragmaValue(n, "importc")
-    result.jName = if jn.isDefined: jn.get else: result.name
+    result.jName = if jn.len == 0: result.name else: jn
 
   result.isStatic = findPragma(n, "static")
   result.isProp = findPragma(n, "prop")
@@ -245,9 +242,9 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
 
   var jNameNode,
       nameNode,
-      parentNode: NimNode
-  var generics,
-      parentGenerics: Option[NimNode]
+      parentNode,
+      generics,
+      parentGenerics: NimNode
   var exported = false
 
   proc hasExportMarker(n: NimNode): bool = n.findChild(it.kind == nnkIdent and $it == "*") != nil
@@ -295,7 +292,7 @@ proc parseClassDef(c: NimNode): ClassDef {.compileTime.} =
   let jName = jNameNode.nodeToString
   let parent = parentNode.nodeToString
 
-  initClassDef(name, jName, parent, exported, generics.map(parseGenericsNode).getOrElse(@[]), parentGenerics.map(parseGenericsNode).getOrElse(@[]))
+  initClassDef(name, jName, parent, exported, parseGenericsNode(generics), parseGenericsNode(parentGenerics))
 
 proc fillClassDef(c: NimNode, def: NimNode): NimNode {.compileTime.} =
   let cd = parseClassDef(c)

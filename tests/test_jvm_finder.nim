@@ -1,4 +1,4 @@
-import jnim, unittest, fp/option
+import jnim, unittest, options
 
 suite "jvm_finder":
   test "jvm_finder - Find JVM":
