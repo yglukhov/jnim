@@ -341,14 +341,6 @@ proc mkGenericParams(p: seq[GenericType]): NimNode {.compileTime.} =
     # Add type and default value for the idenifiers list
     result[0].add(newEmptyNode()).add(newEmptyNode())
 
-proc mkFuncName(cd: ClassDef, fName: string): NimNode {.compileTime.} =
-  if cd.genericTypes.len == 0:
-    result = identEx(cd.isExported, fName)
-  else:
-    result = newNimNode(nnkBracketExpr).add(identEx(cd.isExported, fName))
-    for name in cd.genericTypes:
-      result.add(ident(name))
-
 proc mkTypeHelper(name: string, params: seq[GenericType]): NimNode {.compileTime.} =
   if params.len == 0:
     result = ident(name)
@@ -506,7 +498,7 @@ proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): 
   result = def.copyNimTree
   fillGenericParameters(cd, pd, result)
   result.pragma = newEmptyNode()
-  result.name = identEx(pd.isExported, pd.name, isSetter)
+  result[ProcNamePos] = identEx(pd.isExported, pd.name, isSetter)
   var objToCall: NimNode
   # Add first parameter
   if pd.isStatic:
