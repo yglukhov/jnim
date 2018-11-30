@@ -1,4 +1,4 @@
-import jnim
+import ../jnim
 
 # Import a couple of classes
 jclass java.io.PrintStream of JVMObject:

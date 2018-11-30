@@ -81,9 +81,9 @@ task test_jni_generator, "Run jni_api test":
   dep int_test_bootstrap
   test "jni_generator"
 
-task test_jni_export, "Run jni_export test":
+task test_jni_export_old, "Run jni_export_old test":
   dep int_test_bootstrap
-  test "jni_export"
+  test "jni_export_old"
 
 task test_java_lang, "Run java.lang test":
   dep int_test_bootstrap

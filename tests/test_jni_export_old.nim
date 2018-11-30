@@ -1,8 +1,8 @@
-import ../jnim/private / [ jni_api, jni_generator, jni_export ],
+import ../jnim/private / [ jni_api, jni_generator, jni_export_old ],
        ./common,
        unittest
 
-suite "jni_export":
+suite "jni_export_old":
   setup:
     if not isJNIThreadInitialized():
       initJNIForTests()
