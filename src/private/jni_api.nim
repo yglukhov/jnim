@@ -134,7 +134,7 @@ proc newJVMObject*(o: jobject): JVMObject
 proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject
 
 template checkException() =
-  if theEnv != nil and theEnv.ExceptionCheck(theEnv) == JVM_TRUE:
+  if theEnv != nil and theEnv.ExceptionCheck(theEnv) != JVM_FALSE:
     let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
     theEnv.ExceptionClear(theEnv)
     raise newJavaException(ex)
@@ -736,7 +736,7 @@ proc jarrayToSeqConsumingLocalRef[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {
 
 template getPropValue*(T: typedesc, o: untyped, id: JVMFieldID): untyped =
   when T is bool:
-    (jboolean.getProp(o, id) == JVM_TRUE)
+    (jboolean.getProp(o, id) != JVM_FALSE)
   elif T is JPrimitiveType:
     T.getProp(o, id)
   elif T is string:
@@ -778,7 +778,7 @@ template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: opena
   elif T is jboolean:
     o.callBooleanMethod(methodId, args)
   elif T is bool:
-    (o.callBooleanMethod(methodId, args) == JVM_TRUE)
+    (o.callBooleanMethod(methodId, args) != JVM_FALSE)
   elif T is seq:
     T(jarrayToSeqConsumingLocalRef(o.callObjectMethodRaw(methodId, args).jarray, T))
   elif T is string:
@@ -790,7 +790,7 @@ template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: opena
 
 proc instanceOfRaw*(obj: JVMObject, cls: JVMClass): bool =
   checkInit
-  callVM theEnv.IsInstanceOf(theEnv, obj.obj, cls.cls) == JVM_TRUE
+  callVM theEnv.IsInstanceOf(theEnv, obj.obj, cls.cls) != JVM_FALSE
 
 proc `$`*(s: jstring): string =
   checkInit

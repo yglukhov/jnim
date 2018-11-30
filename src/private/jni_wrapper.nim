@@ -539,7 +539,7 @@ proc toJValue*(v: jobject): jvalue = result.l = v
 
 template fromJValue*(T: typedesc, v: jvalue): auto =
   when T is jboolean: v.z
-  elif T is bool: (if v.z == JVM_TRUE: true else: false)
+  elif T is bool: v.z != JVM_FALSE
   elif T is jbyte: v.b
   elif T is jchar: v.c
   elif T is jshort: v.s
