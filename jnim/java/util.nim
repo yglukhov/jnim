@@ -1,5 +1,4 @@
-import jnim
-import lang
+import ../../jnim, lang
 
 jclass java.util.Iterator*[V] of Object:
   proc hasNext*: bool

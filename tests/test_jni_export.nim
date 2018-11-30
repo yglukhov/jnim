@@ -1,7 +1,4 @@
-
-import private/jni_api,
-       private/jni_generator,
-       private/jni_export,
+import ../jnim/private / [ jni_api, jni_generator, jni_export ],
        ./common,
        unittest
 

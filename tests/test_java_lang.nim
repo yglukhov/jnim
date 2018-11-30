@@ -1,5 +1,5 @@
-import jnim,
-       java/lang,
+import ../jnim,
+       ../jnim/java/lang,
        common,
        unittest,
        encodings

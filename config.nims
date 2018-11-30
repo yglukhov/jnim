@@ -1,5 +1,3 @@
-srcDir        = "src"
-
 import ospaths
 
 const BIN_DIR = "bin"
@@ -26,9 +24,6 @@ proc buildExe(debug: bool, bin: string, src: string) =
 
   --threads: on
 
-  --path: src
-  --path: srcDir
-
   setCommand "c", src
 
 proc test(name: string) =
@@ -42,7 +37,7 @@ proc javac(file: string, outDir: string) =
 
 task int_test_bootstrap, "Prepare test environment":
   BUILD_DIR.mkDir
-  javac "src/support/io/github/vegansk/jnim/NativeInvocationHandler.java", BUILD_DIR
+  javac "jnim/support/io/github/vegansk/jnim/NativeInvocationHandler.java", BUILD_DIR
 
   javac "tests/java/TestClass.java", BUILD_DIR
   javac "tests/java/ConstructorTestClass.java", BUILD_DIR
