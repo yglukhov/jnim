@@ -17,34 +17,18 @@ const BUILD_DIR = "build"
 template dep(name: untyped): untyped =
   exec "nimble " & astToStr(name)
 
-proc buildExe(debug: bool, bin: string, src: string) =
-  switch("out", (thisDir() & "/" & bin).toExe)
-  switch("nimcache", BUILD_DIR)
-  if not debug:
-    --forceBuild
-    --define: release
-    --opt: size
-  else:
-    --define: debug
-    --debuginfo
-    --debugger: native
-    --linedir: on
-    --stacktrace: on
-    --linetrace: on
-    --verbosity: 1
-
-  --threads: on
-
-  setCommand "c", src
+proc javac(file: string, outDir: string) =
+  exec "javac".toExe & " -d " & outDir & " -cp " & outDir & " " & file
 
 proc test(name: string) =
   if not BIN_DIR.dirExists:
     BIN_DIR.mkDir
-  --run
-  buildExe true, "bin" / "test_" & name, "tests" / "test_" & name
-
-proc javac(file: string, outDir: string) =
-  exec "javac".toExe & " -d " & outDir & " -cp " & outDir & " " & file
+  let outFile = BIN_DIR / "test_" & name
+  rmFile("Jnim.java")
+  exec "nim c --threads:on -d:jnimGlue=Jnim.java --out:" & outFile & " tests/test_" & name
+  if fileExists("Jnim.java"):
+    javac "Jnim.java", BUILD_DIR
+  exec outFile
 
 task int_test_bootstrap, "Prepare test environment":
   BUILD_DIR.mkDir
@@ -80,6 +64,10 @@ task test_jni_api, "Run jni_api test":
 task test_jni_generator, "Run jni_api test":
   dep int_test_bootstrap
   test "jni_generator"
+
+task test_jni_export, "Run jni_export test":
+  dep int_test_bootstrap
+  test "jni_export"
 
 task test_jni_export_old, "Run jni_export_old test":
   dep int_test_bootstrap

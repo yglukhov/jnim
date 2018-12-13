@@ -368,12 +368,14 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let classNamePar = cd.mkType
   let parentType = cd.mkParentType
   let jniSigIdent = identEx(cd.isExported, "jniSig")
+  let jniFqcnIdent = identEx(cd.isExported, "jniFqcn")
   let jName = cd.jName.newStrLitNode
   let getClassId = identEx(cd.isExported, "getJVMClassForType")
   let eqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
   let seqEqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
   result = quote do:
     type `classNameEx` = ref object of `parentType`
+    proc `jniFqcnIdent`(t: typedesc[`className`]): string {.used, inline.} = `jName`
     proc `jniSigIdent`(t: typedesc[`className`]): string {.used, inline.} = sigForClass(`jName`)
     proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string {.used, inline.} = "[" & sigForClass(`jName`)
     proc `getClassId`(t: typedesc[`className`]): JVMClass {.used, inline.} =
@@ -383,7 +385,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
     proc toJValue(v: `className`): jvalue {.used, inline.} =
       v.JVMObject.get.toJValue
     proc `eqOpIdent`(v1, v2: `className`): bool {.used, inline.} =
-      return (v1.equalsRaw(v2) == JVM_TRUE)
+      return (v1.equalsRaw(v2) != JVM_FALSE)
     proc `seqEqOpIdent`(v1, v2: seq[`className`]): bool {.used.} =
       if v1.len != v2.len:
         return false

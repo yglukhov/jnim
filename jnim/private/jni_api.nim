@@ -133,17 +133,20 @@ proc newJavaException*(ex: JVMObject): ref JavaException =
 proc newJVMObject*(o: jobject): JVMObject
 proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject
 
-template checkException() =
-  if theEnv != nil and theEnv.ExceptionCheck(theEnv) != JVM_FALSE:
-    let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
-    theEnv.ExceptionClear(theEnv)
-    raise newJavaException(ex)
+proc raiseJavaException() =
+  let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
+  theEnv.ExceptionClear(theEnv)
+  raise newJavaException(ex)
 
-macro callVM*(s: untyped): untyped =
-  result = quote do:
-    let res = `s`
-    checkException()
-    res
+template checkException() =
+  assert(not theEnv.isNil)
+  if unlikely(theEnv.ExceptionCheck(theEnv) != JVM_FALSE):
+    raiseJavaException()
+
+template callVM*(s: untyped): untyped =
+  let res = s
+  checkException()
+  res
 
 ####################################################################################################
 # JVMMethodID type
@@ -296,7 +299,12 @@ proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 proc newJVMObject*(s: string): JVMObject =
   result = (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
 
+method createJObject*(o: JVMObject) {.base.} = echo "Not creating jobject"
+
 proc get*(o: JVMObject): jobject =
+  if o.obj.isNil:
+    o.createJObject()
+    assert(not o.obj.isNil)
   o.obj
 
 proc setObj*(o: JVMObject, obj: jobject) =
