@@ -1,9 +1,13 @@
-import macros, tables, sets, jni_wrapper, jni_api
+import macros, tables, sets, jni_wrapper, jni_api, strutils
 
 type MethodDescr = object
   name: string
   retType: string
   argTypes: seq[string]
+
+const
+  FinalizerName = "_0"
+  PointerFieldName = "_1"
 
 proc initMethodDescr(name, retType: string, argTypes: seq[string]): MethodDescr =
   result.name = name
@@ -63,45 +67,6 @@ proc extractArguments(a: NimNode): tuple[className, parentClass: string, interfa
   if a[^1].kind != nnkIdent:
     result.body = a[^1]
 
-import typetraits
-
-template implementCreateJObject*(T: typedesc) =
-  proc stringMethodWithArgs(self, s: jobject): jobject {.cdecl.} =
-    echo "stringMethodWithArgs called!"
-    return s
-  proc stringMethod(self: jobject): jobject {.cdecl.} =
-    echo "stringMethod called!"
-    return nil
-  proc intMethod(self: jobject): jint {.cdecl.} =
-    echo "intMethod called!"
-    return 5
-  proc voidMethod(self: jobject) {.cdecl.} =
-    echo "voidMethod called!"
-
-  method createJObject(self: T) =
-    const fq = "Jnim$" & T.name
-    let clazz = JVMClass.getByFqcn(fq)
-    var nativeMethods: array[4, JNINativeMethod]
-    nativeMethods[0].name = "stringMethodWithArgs"
-    nativeMethods[0].signature = "(Ljava/lang/String;I)Ljava/lang/String;"
-    nativeMethods[0].fnPtr = cast[pointer](stringMethodWithArgs)
-    nativeMethods[1].name = "stringMethod"
-    nativeMethods[1].signature = "()Ljava/lang/String;"
-    nativeMethods[1].fnPtr = cast[pointer](stringMethod)
-    nativeMethods[2].name = "intMethod"
-    nativeMethods[2].signature = "()I"
-    nativeMethods[2].fnPtr = cast[pointer](intMethod)
-    nativeMethods[3].name = "voidMethod"
-    nativeMethods[3].signature = "()V"
-    nativeMethods[3].fnPtr = cast[pointer](voidMethod)
-    let r = callVM theEnv.RegisterNatives(theEnv, clazz.get(), addr nativeMethods[0], nativeMethods.len.jint)
-    assert(r == 0)
-
-    GC_ref(self)
-    let inst = clazz.newObjectRaw("(J)V", [toJValue(cast[jlong](self))])
-    self.setObj(inst)
-    echo "Creating111 " & T.name
-
 const jnimGlue {.strdefine.} = "Jnim.java"
 
 var
@@ -152,10 +117,10 @@ public interface __NimObject {}
     classDef &= ", "
     classDef &= f
   classDef &= """ {
-protected """ & className & """(long p) { this.p = p; }
-protected void finalize() throws Throwable { super.finalize(); _0(p); }
-private long p;
-private native void _0(long p);
+protected """ & className & """(long p) { this.""" & PointerFieldName & """ = p; }
+protected void finalize() throws Throwable { super.finalize(); """ & FinalizerName & "(" & PointerFieldName & """); }
+private long """ & PointerFieldName & """;
+private native void """ & FinalizerName & """(long p);
 """
 
   for m in methodDefs:
@@ -194,10 +159,65 @@ proc varargsToSeqMethodDef(args: varargs[MethodDescr]): seq[MethodDescr] {.compi
 
 proc jniFqcn*(T: type[void]): string = "void"
 proc jniFqcn*(T: type[jint]): string = "int"
+proc jniFqcn*(T: type[jlong]): string = "long"
+proc jniFqcn*(T: type[jfloat]): string = "float"
+proc jniFqcn*(T: type[jdouble]): string = "double"
+proc jniFqcn*(T: type[jboolean]): string = "boolean"
 proc jniFqcn*(T: type[string]): string = "String"
+
+template nimTypeToJNIType(T: type[int32]): type = jint
+template nimTypeToJNIType(T: type[int64]): type = jlong
+template nimTypeToJNIType(T: type[JVMObject]): type = jobject
+template nimTypeToJNIType(T: type[string]): type = jstring
+
+
+template jniValueToNim(e: JNIEnvPtr, v: jint, T: type[int32]): int32 = int32(v)
+template jniValueToNim(e: JNIEnvPtr, v: jstring, T: type[string]): string = $v
+template jniValueToNim(e: JNIEnvPtr, v: jobject, T: type[JVMObject]): auto =
+  jniObjectToNimObj(e, v, T)
+
+
+template nimValueToJni(e: JNIEnvPtr, v: int32, T: type[jint]): jint = jint(v)
+template nimValueToJni(e: JNIEnvPtr, v: int64, T: type[jlong]): jlong = jlong(v)
+template nimValueToJni(e: JNIEnvPtr, v: string, T: type[jstring]): jstring = e.NewStringUTF(e, v)
+template nimValueToJni[T](e: JNIEnvPtr, v: T, V: type[void]) = v
+
+
+template jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: type[JVMObject]): auto =
+  T.fromJObject(v)
+
+template constSig(args: varargs[string]): cstring =
+  const s: cstring = args.join()
+  s
+
+proc raiseJVMException(e: JNIEnvPtr) {.noreturn.} =
+  checkJVMException(e) # This should raise
+  doAssert(false, "unreachable")
+
+proc getNimObjectFromJObject(e: JNIEnvPtr, j: jobject): JVMObject =
+  let clazz = e.GetObjectClass(e, j)
+  if unlikely clazz.isNil: raiseJVMException(e)
+  let fid = e.GetFieldID(e, clazz, PointerFieldName, "J")
+  if unlikely fid.isNil: raiseJVMException(e)
+
+  e.deleteLocalRef(clazz)
+  result = cast[JVMObject](e.GetLongField(e, j, fid))
+  assert(not result.isNil)
+
+proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) =
+  let p = cast[JVMObject](p)
+  if not p.isNil:
+    GC_unref(p)
+    p.setObj(nil)
 
 macro jexport*(a: varargs[untyped]): untyped =
   var (className, parentClass, interfaces, body, isPublic) = extractArguments(a)
+  let classNameIdent = newIdentNode(className)
+
+  result = newNimNode(nnkStmtList)
+  result.add quote do:
+    template jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: type[`classNameIdent`]): auto =
+      cast[`classNameIdent`](getNimObjectFromJObject(e, v))
 
   var parentFq: NimNode
   if parentClass.len != 0:
@@ -209,36 +229,100 @@ macro jexport*(a: varargs[untyped]): untyped =
   for i in interfaces:
     inter.add(newCall("jniFqcn", newIdentNode(i)))
 
+  var nativeMethodDefs = newNimNode(nnkBracket)
+
   var methodDefs = newCall(bindSym"varargsToSeqMethodDef")
   for m in body:
     expectKind(m, nnkProcDef)
     let params = m.params
 
+    var thunkParams = newSeq[NimNode]()
+    let thunkName = genSym(nskProc, $m.name & "_thunk")
+    var thunkCall = newCall(m.name)
+    let envName = newIdentNode("jniEnv")
+
+    # Prepare for jexportAux call
     var retType: NimNode
     if params[0].kind == nnkEmpty:
       retType = newLit("void")
+      thunkParams.add(newIdentNode("void"))
     else:
       retType = newCall("jniFqcn", params[0])
+      thunkParams.add(newCall(bindSym"nimTypeToJNIType", copyNimTree(params[0])))
+
+    thunkParams.add(newIdentDefs(envName, newIdentNode("JNIEnvPtr")))
+
+    var sig = newCall(bindSym"constSig")
+    sig.add(newLit("("))
+
     let argTypes = newCall(bindSym"varargsToSeqStr")
-    for i in 2 ..< params.len:
+    for i in 1 ..< params.len:
       for j in 0 .. params[i].len - 3:
-        argTypes.add(newCall("jniFqcn", params[i][^2]))
+        let paramName = params[i][j]
+        let pt = params[i][^2]
+        let thunkParamType = newCall(bindSym"nimTypeToJniType", copyNimTree(pt))
+        if i > 1:
+          argTypes.add(newCall("jniFqcn", pt))
+          sig.add(newCall("jniSig", copyNimTree(pt)))
+        thunkParams.add(newIdentDefs(copyNimTree(paramName), thunkParamType))
+        thunkCall.add(newCall(bindSym"jniValueToNim", envName, copyNimTree(paramName), copyNimTree(pt)))
     let md = newCall(bindSym"initMethodDescr", newLit($m.name), retType, argTypes)
     methodDefs.add(md)
 
-  result = newCall(bindSym"jexportAux", newLit(className), parentFq, inter, newLit(isPublic), methodDefs)
+    sig.add(newLit(")"))
+    if params[0].kind == nnkEmpty:
+      sig.add(newLit("V"))
+    else:
+      sig.add(newCall("jniSig", params[0]))
 
-  echo repr result
+    nativeMethodDefs.add(newTree(nnkObjConstr, newIdentNode("JNINativeMethod"),
+      newTree(nnkExprColonExpr, newIdentNode("name"), newLit($m.name)),
+      newTree(nnkExprColonExpr, newIdentNode("signature"), sig),
+      newTree(nnkExprColonExpr, newIdentNode("fnPtr"), thunkName)))
 
-macro debugPrintJavaGlue*(): untyped =
+
+    # Emit the definition as is
+    result.add(m)
+
+    thunkCall = newCall(bindSym"nimValueToJni", envName, thunkCall, copyNimTree(thunkParams[0]))
+
+    let thunk = newProc(thunkName, thunkParams, thunkCall)
+    thunk.addPragma(newIdentNode("cdecl"))
+    result.add(thunk)
+
+  result.add newCall(bindSym"jexportAux", newLit(className), parentFq, inter, newLit(isPublic), methodDefs)
+
+  # Add finalizer impl
+  nativeMethodDefs.add(newTree(nnkObjConstr, newIdentNode("JNINativeMethod"),
+    newTree(nnkExprColonExpr, newIdentNode("name"), newLit(FinalizerName)),
+    newTree(nnkExprColonExpr, newIdentNode("signature"), newLit("(J)V")),
+    newTree(nnkExprColonExpr, newIdentNode("fnPtr"), bindSym"finalizeJobject")))
+
+  result.add quote do:
+    method createJObject(self: `classNameIdent`) =
+      const fq = "Jnim$" & `className`
+      var clazz {.global.}: JVMClass
+      if unlikely clazz.isNil:
+        clazz = JVMClass.getByFqcn(fq)
+        var nativeMethods = `nativeMethodDefs`
+        if nativeMethods.len != 0:
+          let r = callVM theEnv.RegisterNatives(theEnv, clazz.get(), addr nativeMethods[0], nativeMethods.len.jint)
+          assert(r == 0)
+
+      GC_ref(self)
+      let inst = clazz.newObjectRaw("(J)V", [toJValue(cast[jlong](self))])
+      self.setObj(inst)
+
+  # Generate interface converters
+  for interf in interfaces:
+    let converterName = newIdentNode("to" & interf)
+    let interfaceName = newIdentNode(interf)
+    result.add quote do:
+      converter `converterName`*(v: `classNameIdent`): `interfaceName` {.inline.} =
+        cast[`interfaceName`](v)
+
+  # echo repr result
+
+macro debugPrintJavaGlue*(): untyped {.deprecated.} =
   echo javaGlue
 
-# foo asdf1* extends super implements super1, super2:
-#   proc hello()
-# foo(asdf2 extends asdf implements qwert)
-# foo(asdf3 extends asdf)
-# foo(asdf4 implements qwert)
-# foo(zxcv5)
-#
-# printJavaGlue()
-#

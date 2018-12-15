@@ -138,10 +138,13 @@ proc raiseJavaException() =
   theEnv.ExceptionClear(theEnv)
   raise newJavaException(ex)
 
-template checkException() =
-  assert(not theEnv.isNil)
+proc checkJVMException*(e: JNIEnvPtr) {.inline.} =
   if unlikely(theEnv.ExceptionCheck(theEnv) != JVM_FALSE):
     raiseJavaException()
+
+template checkException() =
+  assert(not theEnv.isNil)
+  checkJVMException(theEnv)
 
 template callVM*(s: untyped): untyped =
   let res = s
