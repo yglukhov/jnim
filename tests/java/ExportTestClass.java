@@ -1,3 +1,5 @@
+package io.github.yglukhov.jnim;
+
 class ExportTestClass {
     public interface OverridableInterface {
         public void voidMethod();

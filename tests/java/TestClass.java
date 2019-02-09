@@ -1,3 +1,5 @@
+package io.github.yglukhov.jnim;
+
 public class TestClass {
     // Static fields
     public static Object objectSField = "obj";

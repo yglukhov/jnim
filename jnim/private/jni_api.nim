@@ -269,18 +269,17 @@ proc newObjectRaw*(c: JVMClass, sig: cstring, args: openarray[jvalue] = []): job
 
 proc jniSig*(T: typedesc[JVMObject]): string = sigForClass"java.lang.Object"
 
-proc free*(o: JVMObject) =
+proc freeJVMObject*(o: JVMObject) =
   if o.obj != nil and theEnv != nil:
     theEnv.deleteGlobalRef(o.obj)
     o.obj = nil
 
-proc freeJVMObject*(o: JVMObject) =
-  o.free
+proc free*(o: JVMObject) {.deprecated.} =
+  o.freeJVMObject()
 
 proc fromJObject*(T: typedesc[JVMObject], o: jobject): T =
-  assert(not o.isNil)
-  result.new(cast[proc(r: T) {.nimcall.}](freeJVMObject))
   if o != nil:
+    result.new(cast[proc(r: T) {.nimcall.}](freeJVMObject))
     checkInit
     result.obj = theEnv.newGlobalRef(o)
 
@@ -302,7 +301,7 @@ proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 proc newJVMObject*(s: string): JVMObject =
   result = (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
 
-method createJObject*(o: JVMObject) {.base.} = echo "Not creating jobject"
+method createJObject*(o: JVMObject) {.base.} = assert(false, "unreachable")
 
 proc get*(o: JVMObject): jobject =
   if o.obj.isNil:

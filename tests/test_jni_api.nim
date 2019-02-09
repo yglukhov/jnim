@@ -37,7 +37,7 @@ suite "jni_api":
     `out`.callVoidMethod(printlnId, ["Hello, world".newJVMObject.toJValue])
 
   test "API - TestClass - static fields":
-    let cls = JVMClass.getByName("TestClass")
+    let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
 
     check: cls.getObject("objectSField").toStringRaw == "obj"
     check: cls.getChar("charSField") == 'A'.jchar
@@ -70,7 +70,7 @@ suite "jni_api":
     check: cls.getBoolean("booleanSField") == JVM_FALSE
 
   test "API - TestClass - fields":
-    let cls = JVMClass.getByName("TestClass")
+    let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
     let obj = cls.newObject("()V")
 
     check: getPropValue(string, obj, obj.getJVMClass.getFieldId("checkStringProperty", jniSig(string))) == "OK"
@@ -106,7 +106,7 @@ suite "jni_api":
     check: obj.getBoolean("booleanField") == JVM_FALSE
 
   test "JVM - TestClass - static methods":
-    let cls = JVMClass.getByName("TestClass")
+    let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
 
     check: cls.callObjectMethod("objectSMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
     check: string.callMethod(cls, cls.getStaticMethodId("objectSMethod", "($1)$1" % JVMObject.jniSig), ["test".newJVMObject.toJValue]) == "test"
@@ -121,7 +121,7 @@ suite "jni_api":
 
 
   test "JVM - TestClass - methods":
-    let cls = JVMClass.getByName("TestClass")
+    let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
     let obj = cls.newObject("()V")
 
     check: obj.callObjectMethod("objectMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
@@ -145,7 +145,7 @@ suite "jni_api":
     discard @["a", "b", "c"].toJVMObject()
 
   test "JVM - TestClass - arrays":
-    let cls = JVMClass.getByName("TestClass")
+    let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
     let sArr = cls.getCharArray("staticCharArray")
 
     check: sArr.len == 5

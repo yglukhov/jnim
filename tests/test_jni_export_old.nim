@@ -8,8 +8,8 @@ suite "jni_export_old":
       initJNIForTests()
 
   test "Make proxy":
-    jclassDef ExportTestClass$OverridableInterface of JVMObject
-    jclass ExportTestClass of JVMObject:
+    jclassDef io.github.yglukhov.jnim.ExportTestClass$OverridableInterface of JVMObject
+    jclass io.github.yglukhov.jnim.ExportTestClass of JVMObject:
       proc new
       proc callVoidMethod(r: OverridableInterface)
 
@@ -32,8 +32,8 @@ suite "jni_export_old":
     check: mr.a == 5
 
   test "Implement dispatcher":
-    jclassDef ExportTestClass$OverridableInterface of JVMObject
-    jclass ExportTestClass of JVMObject:
+    jclassDef io.github.yglukhov.jnim.ExportTestClass$OverridableInterface of JVMObject
+    jclass io.github.yglukhov.jnim.ExportTestClass of JVMObject:
         proc new
         proc callVoidMethod(r: OverridableInterface)
         proc callIntMethod(r: OverridableInterface): jint

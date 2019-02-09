@@ -2,31 +2,36 @@ import ../jnim/private / [ jni_api, jni_generator, jni_export ],
        ./common,
        unittest
 
-jclassDef ExportTestClass$OverridableInterface of JVMObject
-jclass ExportTestClass of JVMObject:
+jclassDef io.github.yglukhov.jnim.ExportTestClass$OverridableInterface of JVMObject
+jclass io.github.yglukhov.jnim.ExportTestClass of JVMObject:
   proc new
   proc callVoidMethod(r: OverridableInterface)
   proc callIntMethod(r: OverridableInterface): jint
   proc callStringMethod(r: OverridableInterface): string
   proc callStringMethodWithArgs(r: OverridableInterface, s: string, i: jint): string
 
-type MyObj = ref object of JVMObject
-  a: int
+type
+  MyObj = ref object of JVMObject
+    a: int
+  MyObjSub = ref object of MyObj
 
 jexport MyObj implements OverridableInterface:
-  proc voidMethod(self: MyObj) # Test fwd declaration
+  proc voidMethod() # Test fwd declaration
 
-  proc intMethod*(self: MyObj): jint = # Test public
+  proc intMethod*(): jint = # Test public
     return 123
 
-  proc stringMethod(self: MyObj): string =
+  proc stringMethod(): string =
     return "123"
 
-  proc stringMethodWithArgs(self: MyObj, s: string, i: jint): string =
+  proc stringMethodWithArgs(s: string, i: jint): string =
     return "123" & $i & s
 
-proc voidMethod(self: MyObj) =
-  inc self.a
+jexport MyObjSub extends MyObj:
+  proc stringMethod(): string = "456"
+
+proc voidMethod(this: MyObj) =
+  inc this.a
 
 debugPrintJavaGlue()
 
@@ -41,8 +46,10 @@ suite "jni_export":
     let tr = ExportTestClass.new()
     check: mr.a == 0
     tr.callVoidMethod(mr)
-    check: mr.a == 1
-    check: tr.callIntMethod(mr) == 123
-    check: tr.callStringMethod(mr) == "123"
-    check: tr.callStringMethodWithArgs(mr, "789", 456) == "123456789"
+    check:
+      mr.a == 1
+      tr.callIntMethod(mr) == 123
+      tr.callStringMethod(mr) == "123"
+      tr.callStringMethodWithArgs(mr, "789", 456) == "123456789"
+      tr.callStringMethod(MyObjSub()) == "456"
 
