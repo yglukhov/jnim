@@ -97,7 +97,7 @@ public interface __NimObject {}
 public static native void """ & FinalizerName & """(long p);
 """
     classCursor = javaGlue.len
-    javaGlue &= "}"
+    javaGlue &= "}\n"
     imports = initSet[string]()
 
   echo "className: ", className, " public: ", isPublic
@@ -107,6 +107,8 @@ public static native void """ & FinalizerName & """(long p);
   # echo "cur javaglue.len: ", javaGlue.len
 
   var newImports = newStringOfCap(10000)
+
+  proc noDollarFqcn(s: string): string = s.replace('$', '.')
 
   proc addImport(s: string) =
     if s.len != 0 and s notin imports:
@@ -123,13 +125,13 @@ public static native void """ & FinalizerName & """(long p);
   classDef &= className
   if parentClass.len != 0:
     classDef &= " extends "
-    classDef &= parentClass
+    classDef &= parentClass.noDollarFqcn()
     addImport(importNameFromFqcn(parentClass))
 
   classDef &= " implements __NimObject"
   for f in interfaces:
     classDef &= ", "
-    classDef &= f.replace("$", ".")
+    classDef &= f.noDollarFqcn()
     addImport(importNameFromFqcn(f))
   classDef &= " {\n"
   if staticSection.len != 0:
@@ -152,7 +154,7 @@ private long """ & PointerFieldName & """;
     classDef &= "("
     for i, a in m.argTypes:
       if i != 0: classDef &= ", "
-      classDef &= a
+      classDef &= a.noDollarFqcn
       classDef &= " _" & $i
     classDef &= ");\n"
 
@@ -245,8 +247,11 @@ macro jexport*(a: varargs[untyped]): untyped =
   var (className, parentClass, interfaces, body, isPublic) = extractArguments(a)
   let classNameIdent = newIdentNode(className)
 
+  let nonVirtualClassNameIdent = ident("JnimNonVirtual_" & className)
+
   result = newNimNode(nnkStmtList)
   result.add quote do:
+
     proc jniFqcn*(t: type[`classNameIdent`]): string = "Jnim." & `className`
 
     template jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: typedesc[`classNameIdent`]): `classNameIdent` =
@@ -259,8 +264,17 @@ macro jexport*(a: varargs[untyped]): untyped =
   var parentFq: NimNode
   if parentClass.len != 0:
     parentFq = newCall("jniFqcn", newIdentNode(parentClass))
+    let nonVirtualParentClassNameIdent = ident("JnimNonVirtual_" & parentClass)
+    result.add quote do:
+      type `nonVirtualClassNameIdent` {.used.} = object of `nonVirtualParentClassNameIdent`
   else:
     parentFq = newLit("")
+    result.add quote do:
+      type `nonVirtualClassNameIdent` {.used.} = object of JnimNonVirtual_JVMObject
+
+  result.add quote do:
+    proc super*(v: `classNameIdent`): `nonVirtualClassNameIdent` =
+      `nonVirtualClassNameIdent`(obj: v.get)
 
   var inter = newCall(bindSym"varargsToSeqStr")
   for i in interfaces:

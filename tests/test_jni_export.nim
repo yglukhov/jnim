@@ -2,33 +2,47 @@ import ../jnim/private / [ jni_api, jni_generator, jni_export ],
        ./common,
        unittest
 
-jclassDef io.github.yglukhov.jnim.ExportTestClass$OverridableInterface of JVMObject
-jclass io.github.yglukhov.jnim.ExportTestClass of JVMObject:
+jclass io.github.yglukhov.jnim.ExportTestClass$Interface of JVMObject:
+  proc voidMethod()
+  proc intMethod*(): jint # Test public
+  proc stringMethod(): string
+  proc stringMethodWithArgs(s: string, i: jint): string
+
+jclass io.github.yglukhov.jnim.ExportTestClass$Tester of JVMObject:
   proc new
-  proc callVoidMethod(r: OverridableInterface)
-  proc callIntMethod(r: OverridableInterface): jint
-  proc callStringMethod(r: OverridableInterface): string
-  proc callStringMethodWithArgs(r: OverridableInterface, s: string, i: jint): string
+  proc callVoidMethod(r: Interface)
+  proc callIntMethod(r: Interface): jint
+  proc callStringMethod(r: Interface): string
+  proc callStringMethodWithArgs(r: Interface, s: string, i: jint): string
+
+jclass io.github.yglukhov.jnim.ExportTestClass$Implementation of Interface:
+  proc new
 
 type
   MyObj = ref object of JVMObject
     a: int
   MyObjSub = ref object of MyObj
+  ImplementationSub = ref object of Implementation
 
-jexport MyObj implements OverridableInterface:
+jexport MyObj implements Interface:
   proc voidMethod() # Test fwd declaration
 
   proc intMethod*(): jint = # Test public
     return 123
 
   proc stringMethod(): string =
-    return "123"
+    return "Hello world"
 
   proc stringMethodWithArgs(s: string, i: jint): string =
     return "123" & $i & s
 
 jexport MyObjSub extends MyObj:
-  proc stringMethod(): string = "456"
+  proc stringMethod(): string =
+    "Nim"
+
+jexport ImplementationSub extends Implementation:
+  proc stringMethod(): string =
+    this.super.stringMethod() & " is awesome"
 
 proc voidMethod(this: MyObj) =
   inc this.a
@@ -40,16 +54,20 @@ suite "jni_export":
     if not isJNIThreadInitialized():
       initJNIForTests()
 
-  test "Make proxy":
+  test "Smoke test":
     let mr = MyObj()
 
-    let tr = ExportTestClass.new()
+    let tr = Tester.new()
     check: mr.a == 0
     tr.callVoidMethod(mr)
     check:
       mr.a == 1
       tr.callIntMethod(mr) == 123
-      tr.callStringMethod(mr) == "123"
+      tr.callStringMethod(mr) == "Hello world"
       tr.callStringMethodWithArgs(mr, "789", 456) == "123456789"
-      tr.callStringMethod(MyObjSub()) == "456"
+      tr.callStringMethod(MyObjSub()) == "Nim"
+
+      tr.callStringMethod(Implementation.new()) == "Jnim"
+      tr.callStringMethod(ImplementationSub()) == "Jnim is awesome"
+
 

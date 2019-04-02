@@ -8,10 +8,10 @@ suite "jni_export_old":
       initJNIForTests()
 
   test "Make proxy":
-    jclassDef io.github.yglukhov.jnim.ExportTestClass$OverridableInterface of JVMObject
-    jclass io.github.yglukhov.jnim.ExportTestClass of JVMObject:
+    jclassDef io.github.yglukhov.jnim.ExportTestClass$Interface of JVMObject
+    jclass io.github.yglukhov.jnim.ExportTestClass$Tester of JVMObject:
       proc new
-      proc callVoidMethod(r: OverridableInterface)
+      proc callVoidMethod(r: Interface)
 
     type MyObj = ref object of RootObj
       a: int
@@ -22,23 +22,23 @@ suite "jni_export_old":
       let mr = cast[MyObj](o)
       inc mr.a
 
-    let runnableClazz = OverridableInterface.getJVMClassForType()
+    let runnableClazz = Interface.getJVMClassForType()
     for i in 0 .. 3:
       let pr = makeProxy(runnableClazz.get, mr, handler)
 
-      let tr = ExportTestClass.new()
-      tr.callVoidMethod(OverridableInterface.fromJObject(pr))
+      let tr = Tester.new()
+      tr.callVoidMethod(Interface.fromJObject(pr))
 
     check: mr.a == 5
 
   test "Implement dispatcher":
-    jclassDef io.github.yglukhov.jnim.ExportTestClass$OverridableInterface of JVMObject
-    jclass io.github.yglukhov.jnim.ExportTestClass of JVMObject:
+    jclassDef io.github.yglukhov.jnim.ExportTestClass$Interface of JVMObject
+    jclass io.github.yglukhov.jnim.ExportTestClass$Tester of JVMObject:
         proc new
-        proc callVoidMethod(r: OverridableInterface)
-        proc callIntMethod(r: OverridableInterface): jint
-        proc callStringMethod(r: OverridableInterface): string
-        proc callStringMethodWithArgs(r: OverridableInterface, s: string, i: jint): string
+        proc callVoidMethod(r: Interface)
+        proc callIntMethod(r: Interface): jint
+        proc callStringMethod(r: Interface): string
+        proc callStringMethodWithArgs(r: Interface, s: string, i: jint): string
 
     type MyObj = ref object of RootObj
         a: int
@@ -58,8 +58,8 @@ suite "jni_export_old":
 
     let mr = MyObj.new()
     mr.a = 5
-    let pr = makeProxy(OverridableInterface, mr, MyObj_dispatcher)
-    let tr = ExportTestClass.new()
+    let pr = makeProxy(Interface, mr, MyObj_dispatcher)
+    let tr = Tester.new()
     tr.callVoidMethod(pr)
     check: mr.a == 6
 
