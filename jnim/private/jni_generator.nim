@@ -352,8 +352,14 @@ proc mkTypeHelper(name: string, params: seq[GenericType]): NimNode {.compileTime
 proc mkType(cd: ClassDef): NimNode {.compileTime.} =
   result = mkTypeHelper(cd.name, cd.genericTypes)
 
+proc mkNonVirtualType(cd: ClassDef): NimNode {.compileTime.} =
+  result = mkTypeHelper("JnimNonVirtual_" & cd.name, cd.genericTypes)
+
 proc mkParentType(cd: ClassDef): NimNode {.compileTime.} =
   result = mkTypeHelper(cd.parent, cd.parentGenericTypes)
+
+proc mkNonVirtualParentType(cd: ClassDef): NimNode {.compileTime.} =
+  result = mkTypeHelper("JnimNonVirtual_" & cd.parent, cd.parentGenericTypes)
 
 proc mkTypedesc(cd: ClassDef): NimNode {.compileTime.} =
   result = newNimNode(nnkBracketExpr).add(ident"typedesc").add(cd.mkType)
@@ -365,25 +371,28 @@ template toConstCString(e: string): cstring =
 proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
   let classNameEx = identEx(cd.isExported, cd.name)
-  let classNamePar = cd.mkType
+  let nonVirtualClassNameEx = identEx(cd.isExported, "JnimNonVirtual_" & cd.name)
   let parentType = cd.mkParentType
+  let nonVirtualParentType = cd.mkNonVirtualParentType
   let jniSigIdent = identEx(cd.isExported, "jniSig")
+  let jniFqcnIdent = identEx(cd.isExported, "jniFqcn")
   let jName = cd.jName.newStrLitNode
   let getClassId = identEx(cd.isExported, "getJVMClassForType")
   let eqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
   let seqEqOpIdent = identEx(cd.isExported, "==", isQuoted = true)
   result = quote do:
-    type `classNameEx` = ref object of `parentType`
+    type
+      `classNameEx` = ref object of `parentType`
+      `nonVirtualClassNameEx` {.used.} = object of `nonVirtualParentType`
+    proc `jniFqcnIdent`(t: typedesc[`className`]): string {.used, inline.} = `jName`
     proc `jniSigIdent`(t: typedesc[`className`]): string {.used, inline.} = sigForClass(`jName`)
     proc `jniSigIdent`(t: typedesc[openarray[`className`]]): string {.used, inline.} = "[" & sigForClass(`jName`)
     proc `getClassId`(t: typedesc[`className`]): JVMClass {.used, inline.} =
       JVMClass.getByFqcn(toConstCString(fqcn(`jName`)))
     proc toJVMObject(v: `className`): JVMObject {.used, inline.} =
       v.JVMObject
-    proc toJValue(v: `className`): jvalue {.used, inline.} =
-      v.JVMObject.get.toJValue
     proc `eqOpIdent`(v1, v2: `className`): bool {.used, inline.} =
-      return (v1.equalsRaw(v2) == JVM_TRUE)
+      return (v1.equalsRaw(v2) != JVM_FALSE)
     proc `seqEqOpIdent`(v1, v2: seq[`className`]): bool {.used.} =
       if v1.len != v2.len:
         return false
@@ -393,6 +402,7 @@ proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
             return false
         return true
   result[0][0][1] = mkGenericParams(cd.genericTypes)
+  result[0][1][1] = mkGenericParams(cd.genericTypes)
 
 proc generateArgs(pd: ProcDef, argsIdent: NimNode): NimNode =
   if pd.params.len > 0:
@@ -488,6 +498,43 @@ proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
       `args`
     callMethod(`retType`, `objToCallIdent`, `mIdIdent`, `ai`)
 
+proc getSuperclass(o: jobject): JVMClass =
+  let clazz = theEnv.GetObjectClass(theEnv, o)
+  let sclazz = theEnv.GetSuperclass(theEnv, clazz)
+  result = newJVMClass(sclazz)
+  theEnv.deleteLocalRef(clazz)
+  theEnv.deleteLocalRef(sclazz)
+
+proc generateNonVirtualMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
+  assert(not (pd.isConstructor or pd.isProp))
+
+  let sig = getProcSignature(cd, pd)
+  let pname = pd.jName.newStrLitNode
+  let ctype = cd.name.ident
+  result = def.copyNimTree
+  fillGenericParameters(cd, pd, result)
+  result.pragma = newEmptyNode()
+  result.addPragma(ident"used")
+
+  let mIdIdent = ident"mId"
+  let mClassIdent = ident"clazz"
+
+  # Add first parameter
+  let thisIdent = ident"this"
+  result.params.insert(1, newIdentDefs(thisIdent, cd.mkNonVirtualType))
+  let objToCall = quote do:
+    let `mClassIdent` = getSuperclass(`thisIdent`.obj)
+    let `mIdIdent` = `mClassIdent`.getMethodId(`pname`, toConstCString(`sig`))
+
+  let retType = parseExpr(pd.retType)
+  let ai = ident"args"
+  let args = generateArgs(pd, ai)
+  result.body = quote do:
+    withGCDisabled:
+      `objToCall`
+      `args`
+    callNonVirtualMethod(`retType`, `thisIdent`, `mClassIdent`, `mIdIdent`, `ai`)
+
 proc generateProperty(cd: ClassDef, pd: ProcDef, def: NimNode, isSetter: bool): NimNode =
   assert pd.isProp
 
@@ -538,7 +585,10 @@ proc generateProc(cd: ClassDef, def: NimNode): NimNode {.compileTime.} =
     if not pd.isFinal:
       result.add(generateProperty(cd, pd, def, true))
   else:
-    result = generateMethod(cd, pd, def)
+    result = newStmtList()
+    result.add(generateMethod(cd, pd, def))
+    if not pd.isStatic:
+      result.add(generateNonVirtualMethod(cd, pd, def))
 
 proc generateClassImpl(cd: ClassDef, body: NimNode): NimNode {.compileTime.} =
   result = newStmtList()

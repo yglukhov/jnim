@@ -1,4 +1,4 @@
-import private/jni_wrapper,
+import ../jnim/private/jni_wrapper,
        unittest,
        strutils
 
@@ -23,19 +23,21 @@ suite "jni_wrapper":
     check env.GetVersion(env) >= version
 
   template chkEx: untyped =
-    require env.ExceptionCheck(env) == JVM_FALSE
+    if env.ExceptionCheck(env) != JVM_FALSE:
+      env.ExceptionDescribe(env)
+      require false
 
   test "JNI - call System.out.println":
     let cls = env.FindClass(env, fqcn"java.lang.System")
     chkEx
-    let outId = env.GetStaticFieldID(env, cls, "out", fqcn"java.io.PrintStream")
+    let outId = env.GetStaticFieldID(env, cls, "out", sigForClass"java.io.PrintStream")
     chkEx
     let `out` = env.GetStaticObjectField(env, cls, outId)
     chkEx
     defer: env.DeleteLocalRef(env, `out`)
     let outCls = env.GetObjectClass(env, `out`)
     chkEx
-    let printlnId = env.GetMethodID(env, outCls, "println", "($#)V" % fqcn"java.lang.String")
+    let printlnId = env.GetMethodID(env, outCls, "println", "($#)V" % sigForClass"java.lang.String")
     chkEx
     var str = env.NewStringUTF(env, "Hello, world!")
     chkEx

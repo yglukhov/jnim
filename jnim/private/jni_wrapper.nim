@@ -90,6 +90,8 @@ type
 const JVM_TRUE* = 1.jboolean
 const JVM_FALSE* = 0.jboolean
 
+{.pragma: jni, cdecl, gcsafe.}
+
 type
   JNIInvokeInterface* = object
     # WARNING: The fields should be defined in exact same order as they are
@@ -100,11 +102,11 @@ type
     when defined(not_TARGET_RT_MAC_CFM_and_ppc): # No idea what this means.
       cfm_vectors: array[4, pointer]
 
-    DestroyJavaVM*: proc(vm: JavaVMPtr): jint {.cdecl.}
-    AttachCurrentThread*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
-    DetachCurrentThread*: proc(vm: JavaVMPtr): jint {.cdecl.}
-    GetEnv*: proc(vm: JavaVMPtr, penv: ptr pointer, version: jint): jint {.cdecl.}
-    AttachCurrentThreadAsDaemon*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.cdecl.}
+    DestroyJavaVM*: proc(vm: JavaVMPtr): jint {.jni.}
+    AttachCurrentThread*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.jni.}
+    DetachCurrentThread*: proc(vm: JavaVMPtr): jint {.jni.}
+    GetEnv*: proc(vm: JavaVMPtr, penv: ptr pointer, version: jint): jint {.jni.}
+    AttachCurrentThreadAsDaemon*: proc(vm: JavaVMPtr, penv: ptr pointer, args: pointer): jint {.jni.}
 
   JavaVM* = ptr JNIInvokeInterface
   JavaVMPtr* = ptr JavaVM
@@ -539,7 +541,7 @@ proc toJValue*(v: jobject): jvalue = result.l = v
 
 template fromJValue*(T: typedesc, v: jvalue): auto =
   when T is jboolean: v.z
-  elif T is bool: (if v.z == JVM_TRUE: true else: false)
+  elif T is bool: v.z != JVM_FALSE
   elif T is jbyte: v.b
   elif T is jchar: v.c
   elif T is jshort: v.s

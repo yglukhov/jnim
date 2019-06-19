@@ -1,5 +1,5 @@
-import private/jni_generator,
-       private/jni_api,
+import ../jnim/private/jni_generator,
+       ../jnim/private/jni_api,
        ./common,
        macros,
        unittest

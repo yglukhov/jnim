@@ -1,6 +1,6 @@
-import jnim,
-       java/util,
-       java/lang,
+import ../jnim,
+       ../jnim/java/util,
+       ../jnim/java/lang,
        common,
        unittest
 import sequtils except toSeq

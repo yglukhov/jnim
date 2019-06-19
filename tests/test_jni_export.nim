@@ -1,71 +1,73 @@
-
-import private/jni_api,
-       private/jni_generator,
-       private/jni_export,
+import ../jnim/private / [ jni_api, jni_generator, jni_export ],
        ./common,
        unittest
+
+jclass io.github.yglukhov.jnim.ExportTestClass$Interface of JVMObject:
+  proc voidMethod()
+  proc intMethod*(): jint # Test public
+  proc stringMethod(): string
+  proc stringMethodWithArgs(s: string, i: jint): string
+
+jclass io.github.yglukhov.jnim.ExportTestClass$Tester of JVMObject:
+  proc new
+  proc callVoidMethod(r: Interface)
+  proc callIntMethod(r: Interface): jint
+  proc callStringMethod(r: Interface): string
+  proc callStringMethodWithArgs(r: Interface, s: string, i: jint): string
+
+jclass io.github.yglukhov.jnim.ExportTestClass$Implementation of Interface:
+  proc new
+
+type
+  MyObj = ref object of JVMObject
+    a: int
+  MyObjSub = ref object of MyObj
+  ImplementationSub = ref object of Implementation
+
+jexport MyObj implements Interface:
+  proc voidMethod() # Test fwd declaration
+
+  proc intMethod*(): jint = # Test public
+    return 123
+
+  proc stringMethod(): string =
+    return "Hello world"
+
+  proc stringMethodWithArgs(s: string, i: jint): string =
+    return "123" & $i & s
+
+jexport MyObjSub extends MyObj:
+  proc stringMethod(): string =
+    "Nim"
+
+jexport ImplementationSub extends Implementation:
+  proc stringMethod(): string =
+    this.super.stringMethod() & " is awesome"
+
+proc voidMethod(this: MyObj) =
+  inc this.a
+
+debugPrintJavaGlue()
 
 suite "jni_export":
   setup:
     if not isJNIThreadInitialized():
       initJNIForTests()
 
-  test "Make proxy":
-    jclassDef ExportTestClass$OverridableInterface of JVMObject
-    jclass ExportTestClass of JVMObject:
-      proc new
-      proc callVoidMethod(r: OverridableInterface)
+  test "Smoke test":
+    let mr = MyObj()
 
-    type MyObj = ref object of RootObj
-      a: int
+    let tr = Tester.new()
+    check: mr.a == 0
+    tr.callVoidMethod(mr)
+    check:
+      mr.a == 1
+      tr.callIntMethod(mr) == 123
+      tr.callStringMethod(mr) == "Hello world"
+      tr.callStringMethodWithArgs(mr, "789", 456) == "123456789"
+      tr.callStringMethod(MyObjSub()) == "Nim"
 
-    var mr = MyObj.new()
-    mr.a = 1
-    proc handler(env: pointer, o: RootRef, proxiedThis, meth: jobject, args: jobjectArray): jobject {.cdecl.} =
-      let mr = cast[MyObj](o)
-      inc mr.a
+      tr.callStringMethod(Implementation.new()) == "Jnim"
+      tr.callStringMethod(ImplementationSub()) == "Jnim is awesome"
 
-    let runnableClazz = OverridableInterface.getJVMClassForType()
-    for i in 0 .. 3:
-      let pr = makeProxy(runnableClazz.get, mr, handler)
 
-      let tr = ExportTestClass.new()
-      tr.callVoidMethod(OverridableInterface.fromJObject(pr))
-
-    check: mr.a == 5
-
-  test "Implement dispatcher":
-    jclassDef ExportTestClass$OverridableInterface of JVMObject
-    jclass ExportTestClass of JVMObject:
-        proc new
-        proc callVoidMethod(r: OverridableInterface)
-        proc callIntMethod(r: OverridableInterface): jint
-        proc callStringMethod(r: OverridableInterface): string
-        proc callStringMethodWithArgs(r: OverridableInterface, s: string, i: jint): string
-
-    type MyObj = ref object of RootObj
-        a: int
-
-    implementDispatcher(MyObj, MyObj_dispatcher):
-      proc voidMethod(self: MyObj) =
-        inc self.a
-
-      proc intMethod(self: MyObj): jint =
-        return 123
-
-      proc stringMethod(self: MyObj): string =
-        return "123"
-
-      proc stringMethodWithArgs(self: MyObj, s: string, i: jint): string =
-        return "123" & $i & s
-
-    let mr = MyObj.new()
-    mr.a = 5
-    let pr = makeProxy(OverridableInterface, mr, MyObj_dispatcher)
-    let tr = ExportTestClass.new()
-    tr.callVoidMethod(pr)
-    check: mr.a == 6
-
-    check: tr.callIntMethod(pr) == 123
-    check: tr.callStringMethod(pr) == "123"
-    check: tr.callStringMethodWithArgs(pr, "789", 456) == "123456789"

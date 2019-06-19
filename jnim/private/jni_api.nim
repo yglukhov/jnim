@@ -116,6 +116,9 @@ type
     cls: JClass
   JVMObject* = ref object {.inheritable.}
     obj: jobject
+  JnimNonVirtual_JVMObject* = object {.inheritable.} # Not for public use!
+    obj*: jobject
+    clazz*: JVMClass
 
 ####################################################################################################
 # Exception handling
@@ -133,17 +136,23 @@ proc newJavaException*(ex: JVMObject): ref JavaException =
 proc newJVMObject*(o: jobject): JVMObject
 proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject
 
-template checkException() =
-  if theEnv != nil and theEnv.ExceptionCheck(theEnv) == JVM_TRUE:
-    let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
-    theEnv.ExceptionClear(theEnv)
-    raise newJavaException(ex)
+proc raiseJavaException() =
+  let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
+  theEnv.ExceptionClear(theEnv)
+  raise newJavaException(ex)
 
-macro callVM*(s: untyped): untyped =
-  result = quote do:
-    let res = `s`
-    checkException()
-    res
+proc checkJVMException*(e: JNIEnvPtr) {.inline.} =
+  if unlikely(theEnv.ExceptionCheck(theEnv) != JVM_FALSE):
+    raiseJavaException()
+
+template checkException() =
+  assert(not theEnv.isNil)
+  checkJVMException(theEnv)
+
+template callVM*(s: untyped): untyped =
+  let res = s
+  checkException()
+  res
 
 ####################################################################################################
 # JVMMethodID type
@@ -183,7 +192,7 @@ proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
   ## Finds class by it's name (not fqcn)
   T.getByFqcn(name.fqcn)
 
-proc getJVMClass(o: jobject): JVMClass {.inline.} =
+proc getJVMClass*(o: jobject): JVMClass {.inline.} =
   checkInit
   let c = callVM theEnv.GetObjectClass(theEnv, o)
   result = c.newJVMClass
@@ -263,18 +272,17 @@ proc newObjectRaw*(c: JVMClass, sig: cstring, args: openarray[jvalue] = []): job
 
 proc jniSig*(T: typedesc[JVMObject]): string = sigForClass"java.lang.Object"
 
-proc free*(o: JVMObject) =
+proc freeJVMObject*(o: JVMObject) =
   if o.obj != nil and theEnv != nil:
     theEnv.deleteGlobalRef(o.obj)
     o.obj = nil
 
-proc freeJVMObject*(o: JVMObject) =
-  o.free
+proc free*(o: JVMObject) {.deprecated.} =
+  o.freeJVMObject()
 
 proc fromJObject*(T: typedesc[JVMObject], o: jobject): T =
-  assert(not o.isNil)
-  result.new(cast[proc(r: T) {.nimcall.}](freeJVMObject))
   if o != nil:
+    result.new(cast[proc(r: T) {.nimcall.}](freeJVMObject))
     checkInit
     result.obj = theEnv.newGlobalRef(o)
 
@@ -296,7 +304,12 @@ proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 proc newJVMObject*(s: string): JVMObject =
   result = (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
 
+method createJObject*(o: JVMObject) {.base.} = assert(false, "unreachable")
+
 proc get*(o: JVMObject): jobject =
+  if o.obj.isNil:
+    o.createJObject()
+    assert(not o.obj.isNil)
   o.obj
 
 proc setObj*(o: JVMObject, obj: jobject) =
@@ -370,6 +383,12 @@ proc callVoidMethod*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] =
   theEnv.CallVoidMethodA(theEnv, o.get, o.getMethodId(name, sig).get, a)
   checkException
 
+proc callVoidMethod*(o: JnimNonVirtual_JVMObject, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []) =
+  checkInit
+  let a = if args.len == 0: nil else: unsafeAddr args[0]
+  theEnv.CallNonVirtualVoidMethodA(theEnv, o.obj, c.get, id.get, a)
+  checkException
+
 ####################################################################################################
 # Arrays support
 
@@ -388,7 +407,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
     if a.arr != nil and theEnv != nil:
       theEnv.deleteGlobalRef(a.arr)
 
-  when not (`typ` is JVMObject):
+  when `typ` isnot JVMObject:
     proc `newJVM typName Array`*(len: jsize): `JVM typName Array` =
       checkInit
       new(result, `freeJVM typName Array`)
@@ -663,6 +682,14 @@ template genMethod(typ: typedesc, typName: untyped): untyped =
     else:
       callVM theEnv.`Call typName MethodA`(theEnv, o.get, o.getMethodId(name, sig).get, a)
 
+  proc `call typName Method`*(o: JnimNonVirtual_JVMObject, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `typ` =
+    checkInit
+    let a = if args.len == 0: nil else: unsafeAddr args[0]
+    when `typ` is JVMObject:
+      (callVM theEnv.`CallNonVirtual typName MethodA`(theEnv, o.obj, c.get, id.get, a)).newJVMObjectConsumingLocalRef
+    else:
+      callVM theEnv.`CallNonVirtual typName MethodA`(theEnv, o.obj, c.get, id.get, a)
+
   when `typ` is JVMObject:
     proc `call typName MethodRaw`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): jobject =
       let a = if args.len == 0: nil else: unsafeAddr args[0]
@@ -671,6 +698,10 @@ template genMethod(typ: typedesc, typName: untyped): untyped =
     proc `call typName MethodRaw`*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []): jobject =
       let a = if args.len == 0: nil else: unsafeAddr args[0]
       callVM theEnv.`Call typName MethodA`(theEnv, o.get, id.get, a)
+
+    proc `call typName MethodRaw`*(o: JnimNonVirtual_JVMObject, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): jobject =
+      let a = if args.len == 0: nil else: unsafeAddr args[0]
+      callVM theEnv.`CallNonVirtual typName MethodA`(theEnv, o.obj, c.get, id.get, a)
 
 genMethod(JVMObject, Object)
 genMethod(jchar, Char)
@@ -736,7 +767,7 @@ proc jarrayToSeqConsumingLocalRef[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {
 
 template getPropValue*(T: typedesc, o: untyped, id: JVMFieldID): untyped =
   when T is bool:
-    (jboolean.getProp(o, id) == JVM_TRUE)
+    (jboolean.getProp(o, id) != JVM_FALSE)
   elif T is JPrimitiveType:
     T.getProp(o, id)
   elif T is string:
@@ -778,7 +809,7 @@ template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: opena
   elif T is jboolean:
     o.callBooleanMethod(methodId, args)
   elif T is bool:
-    (o.callBooleanMethod(methodId, args) == JVM_TRUE)
+    (o.callBooleanMethod(methodId, args) != JVM_FALSE)
   elif T is seq:
     T(jarrayToSeqConsumingLocalRef(o.callObjectMethodRaw(methodId, args).jarray, T))
   elif T is string:
@@ -788,9 +819,39 @@ template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: opena
   else:
     {.error: "Unknown return type".}
 
+template callNonVirtualMethod*(T: typedesc, o: untyped, c: JVMClass, methodId: JVMMethodID, args: openarray[jvalue]): untyped =
+  when T is void:
+    o.callVoidMethod(c, methodId, args)
+  elif T is jchar:
+    o.callCharMethod(c, methodId, args)
+  elif T is jbyte:
+    o.callByteMethod(c, methodId, args)
+  elif T is jshort:
+    o.callShortMethod(c, methodId, args)
+  elif T is jint:
+    o.callIntMethod(c, methodId, args)
+  elif T is jlong:
+    o.callLongMethod(c, methodId, args)
+  elif T is jfloat:
+    o.callFloatMethod(c, methodId, args)
+  elif T is jdouble:
+    o.callDoubleMethod(c, methodId, args)
+  elif T is jboolean:
+    o.callBooleanMethod(c, methodId, args)
+  elif T is bool:
+    (o.callBooleanMethod(c, methodId, args) != JVM_FALSE)
+  elif T is seq:
+    T(jarrayToSeqConsumingLocalRef(o.callObjectMethodRaw(c, methodId, args).jarray, T))
+  elif T is string:
+    toStringRawConsumingLocalRef(o.callObjectMethodRaw(c, methodId, args))
+  elif T is JVMObject:
+    T.fromJObjectConsumingLocalRef(o.callObjectMethodRaw(c, methodId, args))
+  else:
+    {.error: "Unknown return type".}
+
 proc instanceOfRaw*(obj: JVMObject, cls: JVMClass): bool =
   checkInit
-  callVM theEnv.IsInstanceOf(theEnv, obj.obj, cls.cls) == JVM_TRUE
+  callVM theEnv.IsInstanceOf(theEnv, obj.obj, cls.cls) != JVM_FALSE
 
 proc `$`*(s: jstring): string =
   checkInit
