@@ -181,3 +181,6 @@ proc asJVM*(ex: JavaException): Throwable =
 
 proc getCurrentJVMException*: Throwable =
   ((ref JavaException)getCurrentException())[].asJVM
+
+jclass java.lang.Runnable* of JVMObject:
+  proc run*()

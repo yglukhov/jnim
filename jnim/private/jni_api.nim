@@ -312,10 +312,10 @@ proc get*(o: JVMObject): jobject =
     assert(not o.obj.isNil)
   o.obj
 
-proc getNoCreate*(o: JVMObject): jobject = o.obj
+proc getNoCreate*(o: JVMObject): jobject {.inline.} = o.obj
 
 proc setObj*(o: JVMObject, obj: jobject) =
-  assert(obj == nil or theEnv.GetObjectRefType(theEnv, obj) == JNILocalRefType)
+  assert(obj == nil or theEnv.GetObjectRefType(theEnv, obj) in {JNILocalRefType, JNIWeakGlobalRefType})
   o.obj = obj
 
 proc toJValue*(o: JVMObject): jvalue =

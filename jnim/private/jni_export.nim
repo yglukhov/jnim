@@ -236,13 +236,24 @@ proc setNimObjectToJObject(e: JNIEnvPtr, j: jobject, o: JVMObject) =
   e.deleteLocalRef(clazz)
   GC_ref(o)
   e.SetLongField(e, j, fid, cast[jlong](o))
-  o.setObj(j)
+  let wr = e.NewWeakGlobalRef(e, j)
+  o.setObj(wr)
 
 proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) =
   let p = cast[JVMObject](p)
   if not p.isNil:
     GC_unref(p)
+    let j = p.getNoCreate()
     p.setObj(nil)
+    if not j.isNil:
+      e.DeleteWeakGlobalRef(e, j)
+
+proc createJObjectAux(self: JVMObject, clazz: JVMClass) =
+  GC_ref(self)
+  let inst = clazz.newObjectRaw("(J)V", [toJValue(cast[jlong](self))])
+  let wr = theEnv.NewWeakGlobalRef(theEnv, inst)
+  theEnv.deleteLocalRef(inst)
+  self.setObj(wr)
 
 macro jexport*(a: varargs[untyped]): untyped =
   var (className, parentClass, interfaces, body, isPublic) = extractArguments(a)
@@ -368,6 +379,13 @@ macro jexport*(a: varargs[untyped]): untyped =
       echo "Unexpected AST: ", repr(m)
       assert(false)
 
+  block: # Finalizer thunk
+    let thunkName = genSym(nskProc, JniExportedFunctionPrefix & className & "__0")
+    result.add quote do:
+      proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject, p: jlong) {.exportc, cdecl.} =
+        finalizeJobject(jniEnv, this, p)
+
+
   result.add newCall(bindSym"jexportAux", newLit(className), parentFq, inter, newLit(isPublic), methodDefs, staticSection, emitSection)
 
   # Add finalizer impl
@@ -393,9 +411,7 @@ macro jexport*(a: varargs[untyped]): untyped =
         `clazzIdent` = JVMClass.getByFqcn(fq)
         `nativeMethodsRegistration`
 
-      GC_ref(self)
-      let inst = `clazzIdent`.newObjectRaw("(J)V", [toJValue(cast[jlong](self))])
-      self.setObj(inst)
+      createJObjectAux(self, `clazzIdent`)
 
   # Generate interface converters
   for interf in interfaces:
