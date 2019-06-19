@@ -254,7 +254,8 @@ macro jexport*(a: varargs[untyped]): untyped =
 
     proc jniFqcn*(t: type[`classNameIdent`]): string = "Jnim." & `className`
 
-    template jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: typedesc[`classNameIdent`]): `classNameIdent` =
+    proc jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: typedesc[`classNameIdent`]): `classNameIdent` =
+      # TODO: This proc should actually be a template, but it doesn't work because of some nim regression
       var res = cast[`classNameIdent`](getNimObjectFromJObject(e, v))
       if res.isNil:
         res.new()
