@@ -236,6 +236,7 @@ proc setNimObjectToJObject(e: JNIEnvPtr, j: jobject, o: JVMObject) =
   e.deleteLocalRef(clazz)
   GC_ref(o)
   e.SetLongField(e, j, fid, cast[jlong](o))
+  o.setObj(j)
 
 proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) =
   let p = cast[JVMObject](p)
@@ -275,7 +276,8 @@ macro jexport*(a: varargs[untyped]): untyped =
 
   result.add quote do:
     proc super*(v: `classNameIdent`): `nonVirtualClassNameIdent` =
-      `nonVirtualClassNameIdent`(obj: v.get)
+      assert(not v.getNoCreate.isNil)
+      `nonVirtualClassNameIdent`(obj: v.getNoCreate)
 
   var inter = newCall(bindSym"varargsToSeqStr")
   for i in interfaces:
@@ -345,9 +347,12 @@ macro jexport*(a: varargs[untyped]): untyped =
 
       thunkCall = newCall(bindSym"nimValueToJni", envName, thunkCall, copyNimTree(thunkParams[0]))
 
-      let thunk = newProc(thunkName, thunkParams, thunkCall)
+      let thunk = newProc(thunkName, thunkParams)
       thunk.addPragma(newIdentNode("cdecl"))
       thunk.addPragma(newIdentNode("exportc")) # Allow jni runtime to discover the functions
+      thunk.body = quote do:
+        if theEnv.isNil: theEnv = `envName`
+        `thunkCall`
       result.add(thunk)
     of nnkCommand:
       case $m[0]

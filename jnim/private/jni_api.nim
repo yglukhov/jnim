@@ -118,7 +118,7 @@ type
     obj: jobject
   JnimNonVirtual_JVMObject* = object {.inheritable.} # Not for public use!
     obj*: jobject
-    clazz*: JVMClass
+    # clazz*: JVMClass
 
 ####################################################################################################
 # Exception handling
@@ -137,9 +137,9 @@ proc newJVMObject*(o: jobject): JVMObject
 proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject
 
 proc raiseJavaException() =
-  let ex = theEnv.ExceptionOccurred(theEnv).newJVMObjectConsumingLocalRef
+  let ex = theEnv.ExceptionOccurred(theEnv)
   theEnv.ExceptionClear(theEnv)
-  raise newJavaException(ex)
+  raise newJavaException(newJVMObjectConsumingLocalRef(ex))
 
 proc checkJVMException*(e: JNIEnvPtr) {.inline.} =
   if unlikely(theEnv.ExceptionCheck(theEnv) != JVM_FALSE):
@@ -311,6 +311,8 @@ proc get*(o: JVMObject): jobject =
     o.createJObject()
     assert(not o.obj.isNil)
   o.obj
+
+proc getNoCreate*(o: JVMObject): jobject = o.obj
 
 proc setObj*(o: JVMObject, obj: jobject) =
   assert(obj == nil or theEnv.GetObjectRefType(theEnv, obj) == JNILocalRefType)
