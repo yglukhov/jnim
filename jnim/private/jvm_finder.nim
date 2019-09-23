@@ -100,4 +100,4 @@ proc findCtJVM: JVMPath {.compileTime.} =
   assert jvmO.isSome, "JVM not found. Please set JAVA_HOME environment variable"
   jvmO.get
 
-const CT_JVM* = findCtJVM() ## Compile time JVM
+template CT_JVM*: JVMPath {.deprecated.} = static(findCtJVM())
