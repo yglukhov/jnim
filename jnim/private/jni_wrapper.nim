@@ -1,6 +1,6 @@
 import os, dynlib, strutils, macros, options
 
-from jvm_finder import CT_JVM, findJVM
+from jvm_finder import findJVM
 
 when defined macosx:
   {.emit: """
@@ -474,19 +474,20 @@ proc isJVMLoaded*: bool {.gcsafe.} =
 
 proc linkWithJVMLib* =
   when defined(macosx):
-    let libPath {.hint[XDeclaredButNotUsed]: off.} = CT_JVM.root.parentDir.parentDir.cstring
+    let jvm = findJVM()
+    if not jvm.isSome:
+      raise newException(Exception, "Could not find JVM")
+    let libPath = jvm.get.root.parentDir.parentDir.cstring
     {.emit: """
     CFURLRef url = CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault, (const UInt8 *)`libPath`, strlen(`libPath`), true);
-    if (url)
-    {
+    if (url) {
       CFBundleRef bundle = CFBundleCreate(kCFAllocatorDefault, url);
       CFRelease(url);
 
-      if (bundle)
-      {
-        `JNI_CreateJavaVM` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_CreateJavaVM"));
-        `JNI_GetDefaultJavaVMInitArgs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetDefaultJavaVMInitArgs"));
-        `JNI_GetCreatedJavaVMs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetCreatedJavaVMs"));
+      if (bundle) {
+        *(void**)&`JNI_CreateJavaVM` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_CreateJavaVM"));
+        *(void**)&`JNI_GetDefaultJavaVMInitArgs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetDefaultJavaVMInitArgs"));
+        *(void**)&`JNI_GetCreatedJavaVMs` = CFBundleGetFunctionPointerForName(bundle, CFSTR("JNI_GetCreatedJavaVMs"));
       }
     }
     """.}
@@ -510,12 +511,9 @@ proc linkWithJVMLib* =
         handle = loadLib(foundJVM.get.lib)
         linkWithJVMModule(handle)
 
-    # If everything fails - try JVM we compiled with
     if not isJVMLoaded():
       if not handle.isNil:
         unloadLib(handle)
-      handle = loadLib(CT_JVM.lib)
-      linkWithJVMModule(handle)
 
   if not isJVMLoaded():
     raise newException(Exception, "JVM could not be loaded")

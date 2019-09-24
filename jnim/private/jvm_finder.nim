@@ -66,12 +66,16 @@ proc searchInJavaProcessOutput(data: string): Option[JVMPath] =
 
   proc findUsingRtJar(jar: string): Option[JVMPath] =
     let p1 = jar.splitPath[0].splitPath[0]
-    if p1.endsWith("/Contents/Home/jre"):
-      # Assume MacOS. MacOS may not have libjvm, and jvm is loaded in a
-      # different way, so just return java home here.
-      (root: p1.parentDir, lib: "").some
-    else:
-      searchInPaths([p1, p1.splitPath[0]])
+    when defined(macosx):
+      if p1.endsWith("/Contents/Home/jre"):
+        # Assume MacOS. MacOS may not have libjvm, and jvm is loaded in a
+        # different way, so just return java home here.
+        return (root: p1.parentDir, lib: "").some
+      elif p1.endsWith("/Contents/Home"):
+        # ditto
+        return (root: p1, lib: "").some
+
+    searchInPaths([p1, p1.splitPath[0]])
 
   for s in data.splitLines:
     let jar = getRtJar(s)
