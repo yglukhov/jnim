@@ -304,12 +304,8 @@ proc create*(t: typedesc[JVMObject], o: jobject): JVMObject = newJVMObject(o)
 proc newJVMObject*(s: string): JVMObject =
   result = (callVM theEnv.NewStringUTF(theEnv, s)).newJVMObjectConsumingLocalRef
 
-method createJObject*(o: JVMObject) {.base.} = assert(false, "unreachable")
-
 proc get*(o: JVMObject): jobject =
-  if o.obj.isNil:
-    o.createJObject()
-    assert(not o.obj.isNil)
+  assert(not o.obj.isNil)
   o.obj
 
 proc getNoCreate*(o: JVMObject): jobject {.inline.} = o.obj

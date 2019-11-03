@@ -19,12 +19,18 @@ jclass io.github.yglukhov.jnim.ExportTestClass$Implementation of Interface:
   proc new
 
 type
-  MyObj = ref object of JVMObject
+  MyObjData = ref object
     a: int
+
+  MyObj = ref object of JVMObject
+    data: MyObjData
+
   MyObjSub = ref object of MyObj
   ImplementationSub = ref object of Implementation
 
 jexport MyObj implements Interface:
+  proc new() = super()
+
   proc voidMethod() # Test fwd declaration
 
   proc intMethod*(): jint = # Test public
@@ -37,15 +43,19 @@ jexport MyObj implements Interface:
     return "123" & $i & s
 
 jexport MyObjSub extends MyObj:
+  proc new = super()
+
   proc stringMethod(): string =
     "Nim"
 
 jexport ImplementationSub extends Implementation:
+  proc new() = super()
+
   proc stringMethod(): string =
     this.super.stringMethod() & " is awesome"
 
 proc voidMethod(this: MyObj) =
-  inc this.a
+  inc this.data.a
 
 debugPrintJavaGlue()
 
@@ -55,19 +65,18 @@ suite "jni_export":
       initJNIForTests()
 
   test "Smoke test":
-    let mr = MyObj()
-
+    let mr = MyObj.new()
     let tr = Tester.new()
-    check: mr.a == 0
+    check:
+      not mr.data.isNil
+      mr.data.a == 0
     tr.callVoidMethod(mr)
     check:
-      mr.a == 1
+      mr.data.a == 1
       tr.callIntMethod(mr) == 123
       tr.callStringMethod(mr) == "Hello world"
       tr.callStringMethodWithArgs(mr, "789", 456) == "123456789"
-      tr.callStringMethod(MyObjSub()) == "Nim"
+      tr.callStringMethod(MyObjSub.new()) == "Nim"
 
       tr.callStringMethod(Implementation.new()) == "Jnim"
-      tr.callStringMethod(ImplementationSub()) == "Jnim is awesome"
-
-
+      tr.callStringMethod(ImplementationSub.new()) == "Jnim is awesome"

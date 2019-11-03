@@ -1,6 +1,5 @@
 import ../jnim/private/jni_api,
        ./common,
-       threadpool,
        unittest,
        strutils,
        typetraits

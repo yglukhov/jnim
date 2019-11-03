@@ -85,8 +85,9 @@ proc importNameFromFqcn(fq: string): string =
     else:
       return fq[0 .. dollarIdx - 1]
 
-macro jexportAux(className, parentClass: static[string], interfaces: static[seq[string]], isPublic: static[bool], methodDefs: static[seq[MethodDescr]], staticSection, emitSection: static[string]): untyped =
-  # echo treeRepr(a)
+proc isConstr(m: MethodDescr): bool = m.name == "new"
+
+proc genJavaGlue(className, parentClass: string, interfaces: seq[string], isPublic: bool, methodDefs: seq[MethodDescr], staticSection, emitSection: string) =
   if classCursor == 0:
 
     javaGlue = "package " & JnimPackageName & ";\n"
@@ -140,24 +141,34 @@ public static native void """ & FinalizerName & """(long p);
   classDef &= '\n'
 
   classDef &= """
-protected """ & className & """(long p) { this.""" & PointerFieldName & """ = p; }
-public """ & className & """() {}
 protected void finalize() throws Throwable { super.finalize(); """ & FinalizerName & "(" & PointerFieldName & "); " & PointerFieldName & """ = 0; }
 private long """ & PointerFieldName & """;
 """
 
   for m in methodDefs:
-    classDef &= "public native "
-    classDef &= m.retType
-    classDef &= " "
-    classDef &= m.name
+    if m.isConstr:
+      classDef &= "public " & className
+    else:
+      classDef &= "public native "
+      classDef &= m.retType
+      classDef &= " "
+      classDef &= m.name
+
     classDef &= "("
     for i, a in m.argTypes:
       if i != 0: classDef &= ", "
       classDef &= a.noDollarFqcn
       classDef &= " _" & $i
-    classDef &= ");\n"
+    classDef &= ")"
 
+    if m.isConstr:
+      classDef &= "{ super("
+      for i, a in m.argTypes:
+        if i != 0: classDef &= ", "
+        classDef &= "_" & $i
+      classDef &= "); }\n"
+    else:
+      classDef &= ";\n"
 
   classDef &= "}\n\n"
 
@@ -176,6 +187,16 @@ private long """ & PointerFieldName & """;
   # var s {.global.}: string
   # s.insert($a & "\n")
   writeFile(jnimGlue, javaGlue)
+
+proc genDexGlue(className, parentClass: string, interfaces: seq[string], isPublic: bool, methodDefs: seq[MethodDescr], staticSection, emitSection: string): NimNode =
+  doAssert(false, "Not implemented")
+
+macro genJexportGlue(className, parentClass: static[string], interfaces: static[seq[string]], isPublic: static[bool], methodDefs: static[seq[MethodDescr]], staticSection, emitSection: static[string]): untyped =
+  # echo treeRepr(a)
+  when defined(jnimGenDex):
+    genDexGlue(className, parentClass, interfaces, isPublic, methodDefs, staticSection, emitSection)
+  else:
+    genJavaGlue(className, parentClass, interfaces, isPublic, methodDefs, staticSection, emitSection)
 
 proc varargsToSeqStr(args: varargs[string]): seq[string] {.compileTime.} = @args
 proc varargsToSeqMethodDef(args: varargs[MethodDescr]): seq[MethodDescr] {.compileTime.} = @args
@@ -209,9 +230,7 @@ template nimValueToJni[T](e: JNIEnvPtr, v: T, V: type[void]) = v
 template jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: type[JVMObject]): auto =
   T.fromJObject(v)
 
-template constSig(args: varargs[string]): cstring =
-  const s: cstring = args.join()
-  s
+template constSig(args: varargs[string]): cstring = static(cstring(args.join()))
 
 proc raiseJVMException(e: JNIEnvPtr) {.noreturn.} =
   checkJVMException(e) # This should raise
@@ -225,35 +244,48 @@ proc getNimObjectFromJObject(e: JNIEnvPtr, j: jobject): JVMObject =
 
   e.deleteLocalRef(clazz)
   result = cast[JVMObject](e.GetLongField(e, j, fid))
-  # assert(not result.isNil)
 
-proc setNimObjectToJObject(e: JNIEnvPtr, j: jobject, o: JVMObject) =
+proc getNimDataFromJObject(e: JNIEnvPtr, j: jobject): RootRef =
   let clazz = e.GetObjectClass(e, j)
   if unlikely clazz.isNil: raiseJVMException(e)
   let fid = e.GetFieldID(e, clazz, PointerFieldName, "J")
   if unlikely fid.isNil: raiseJVMException(e)
 
   e.deleteLocalRef(clazz)
+  result = cast[RootRef](e.GetLongField(e, j, fid))
+
+proc setNimDataToJObject(e: JNIEnvPtr, j: jobject, clazz: JClass, o: RootRef) =
+  let fid = e.GetFieldID(e, clazz, PointerFieldName, "J")
+  if unlikely fid.isNil: raiseJVMException(e)
   GC_ref(o)
   e.SetLongField(e, j, fid, cast[jlong](o))
-  let wr = e.NewWeakGlobalRef(e, j)
-  o.setObj(wr)
 
 proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) =
-  let p = cast[JVMObject](p)
+  let p = cast[RootRef](p)
   if not p.isNil:
     GC_unref(p)
-    let j = p.getNoCreate()
-    p.setObj(nil)
-    if not j.isNil:
-      e.DeleteWeakGlobalRef(e, j)
 
-proc createJObjectAux(self: JVMObject, clazz: JVMClass) =
-  GC_ref(self)
-  let inst = clazz.newObjectRaw("(J)V", [toJValue(cast[jlong](self))])
-  let wr = theEnv.NewWeakGlobalRef(theEnv, inst)
-  theEnv.deleteLocalRef(inst)
-  self.setObj(wr)
+proc implementConstructor(p: NimNode, className: string): NimNode =
+  let iClazz = ident"clazz"
+  let classIdent = ident(className)
+  result = p
+  p.params[0] = classIdent # Set result type to className
+  p.params.insert(1, newIdentDefs(ident"this", newTree(nnkBracketExpr, ident"typedesc", classIdent))) # First arg needs to be typedesc[className]
+
+  p.body = quote do:
+    const fq = JnimPackageName.replace(".", "/") & "/Jnim$" & `className`
+    var `iClazz` {.global.}: JVMClass
+    if unlikely `iClazz`.isNil:
+      `iClazz` = JVMClass.getByFqcn(fq)
+      jniRegisterNativeMethods(`classIdent`, `iClazz`)
+
+    let inst = `iClazz`.newObjectRaw("()V", [])
+    when compiles(result.data):
+      let data = new(type(result.data))
+      setNimDataToJObject(theEnv, inst, `iClazz`.get, cast[RootRef](data))
+    result = `classIdent`.fromJObjectConsumingLocalRef(inst)
+    when compiles(result.data):
+      result.data = data
 
 macro jexport*(a: varargs[untyped]): untyped =
   var (className, parentClass, interfaces, body, isPublic) = extractArguments(a)
@@ -261,18 +293,17 @@ macro jexport*(a: varargs[untyped]): untyped =
 
   let nonVirtualClassNameIdent = ident("JnimNonVirtual_" & className)
 
+  let constructors = newNimNode(nnkStmtList)
+
   result = newNimNode(nnkStmtList)
   result.add quote do:
 
     proc jniFqcn*(t: type[`classNameIdent`]): string = "Jnim." & `className`
 
     proc jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: typedesc[`classNameIdent`]): `classNameIdent` =
-      # TODO: This proc should actually be a template, but it doesn't work because of some nim regression
-      var res = cast[`classNameIdent`](getNimObjectFromJObject(e, v))
-      if res.isNil:
-        res.new()
-        setNimObjectToJObject(e, v, res)
-      res
+      result = T.fromJObject(v)
+      when compiles(result.data):
+        result.data = cast[type(result.data)](getNimDataFromJObject(e, v))
 
   var parentFq: NimNode
   if parentClass.len != 0:
@@ -304,6 +335,9 @@ macro jexport*(a: varargs[untyped]): untyped =
     case m.kind
     of nnkDiscardStmt: discard
     of nnkProcDef:
+      let name = $m.name
+      let isConstr = name == "new"
+
       let params = m.params
 
       var thunkParams = newSeq[NimNode]()
@@ -347,24 +381,32 @@ macro jexport*(a: varargs[untyped]): untyped =
       else:
         sig.add(newCall("jniSig", params[0]))
 
-      nativeMethodDefs.add(newTree(nnkObjConstr, newIdentNode("JNINativeMethod"),
-        newTree(nnkExprColonExpr, newIdentNode("name"), newLit($m.name)),
-        newTree(nnkExprColonExpr, newIdentNode("signature"), sig),
-        newTree(nnkExprColonExpr, newIdentNode("fnPtr"), thunkName)))
+      if not isConstr:
+        nativeMethodDefs.add(newTree(nnkObjConstr, newIdentNode("JNINativeMethod"),
+          newTree(nnkExprColonExpr, newIdentNode("name"), newLit($m.name)),
+          newTree(nnkExprColonExpr, newIdentNode("signature"), sig),
+          newTree(nnkExprColonExpr, newIdentNode("fnPtr"), thunkName)))
 
-      # Emit the definition as is
-      m.params.insert(1, newIdentDefs(ident"this", classNameIdent))
-      result.add(m)
+        # Emit the definition as is
+        m.params.insert(1, newIdentDefs(ident"this", classNameIdent))
 
-      thunkCall = newCall(bindSym"nimValueToJni", envName, thunkCall, copyNimTree(thunkParams[0]))
+        result.add(m)
 
-      let thunk = newProc(thunkName, thunkParams)
-      thunk.addPragma(newIdentNode("cdecl"))
-      thunk.addPragma(newIdentNode("exportc")) # Allow jni runtime to discover the functions
-      thunk.body = quote do:
-        if theEnv.isNil: theEnv = `envName`
-        `thunkCall`
-      result.add(thunk)
+        thunkCall = newCall(bindSym"nimValueToJni", envName, thunkCall, copyNimTree(thunkParams[0]))
+
+        let thunk = newProc(thunkName, thunkParams)
+        thunk.addPragma(newIdentNode("cdecl"))
+        thunk.addPragma(newIdentNode("exportc")) # Allow jni runtime to discover the functions
+        thunk.body = quote do:
+          if theEnv.isNil: theEnv = `envName`
+          `thunkCall`
+        result.add(thunk)
+  
+      else:
+        # implement constructor
+        constructors.add(implementConstructor(m, className))
+
+
     of nnkCommand:
       case $m[0]
       of "staticSection":
@@ -386,7 +428,7 @@ macro jexport*(a: varargs[untyped]): untyped =
         finalizeJobject(jniEnv, this, p)
 
 
-  result.add newCall(bindSym"jexportAux", newLit(className), parentFq, inter, newLit(isPublic), methodDefs, staticSection, emitSection)
+  result.add newCall(bindSym"genJexportGlue", newLit(className), parentFq, inter, newLit(isPublic), methodDefs, staticSection, emitSection)
 
   # Add finalizer impl
   # nativeMethodDefs.add(newTree(nnkObjConstr, newIdentNode("JNINativeMethod"),
@@ -404,14 +446,10 @@ macro jexport*(a: varargs[untyped]): untyped =
         assert(r == 0)
 
   result.add quote do:
-    method createJObject(self: `classNameIdent`) =
-      const fq = JnimPackageName.replace(".", "/") & "/Jnim$" & `className`
-      var `clazzIdent` {.global.}: JVMClass
-      if unlikely `clazzIdent`.isNil:
-        `clazzIdent` = JVMClass.getByFqcn(fq)
-        `nativeMethodsRegistration`
+    proc jniRegisterNativeMethods(t: type[`classNameIdent`], `clazzIdent`: JVMClass) =
+      `nativeMethodsRegistration`
 
-      createJObjectAux(self, `clazzIdent`)
+  result.add(constructors)
 
   # Generate interface converters
   for interf in interfaces:
@@ -420,7 +458,6 @@ macro jexport*(a: varargs[untyped]): untyped =
     result.add quote do:
       converter `converterName`*(v: `classNameIdent`): `interfaceName` {.inline.} =
         cast[`interfaceName`](v)
-
 
   # echo repr result
 

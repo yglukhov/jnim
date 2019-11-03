@@ -364,9 +364,7 @@ proc mkNonVirtualParentType(cd: ClassDef): NimNode {.compileTime.} =
 proc mkTypedesc(cd: ClassDef): NimNode {.compileTime.} =
   result = newNimNode(nnkBracketExpr).add(ident"typedesc").add(cd.mkType)
 
-template toConstCString(e: string): cstring =
-  const t: cstring = e
-  t
+template toConstCString(e: string): cstring = static(cstring(e))
 
 proc generateClassDef(cd: ClassDef): NimNode {.compileTime.} =
   let className = ident(cd.name)
