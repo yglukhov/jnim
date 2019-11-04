@@ -76,6 +76,7 @@ proc deinitJNIThread* =
 proc isJNIThreadInitialized*: bool = theEnv != nil
 
 proc findRunningVM() =
+  if theVM.isNil:
     if JNI_GetCreatedJavaVMs.isNil:
         linkWithJVMLib()
 
@@ -84,16 +85,17 @@ proc findRunningVM() =
     discard JNI_GetCreatedJavaVMs(addr vmBuf[0], jsize(vmBuf.len), addr bufSize)
     if bufSize > 0:
         theVM = vmBuf[0]
-        let res = vmBuf[0].GetEnv(vmBuf[0], cast[ptr pointer](theEnv.addr), JNI_VERSION_1_6)
-        if res == JNI_EDETACHED:
-            initJNIArgs()
-            initJNIThread()
-        elif res != 0:
-            raise newJNIException("GetEnv result: " & $res)
-        if theEnv.isNil:
-            raise newJNIException("No JVM found")
     else:
         raise newJNIException("No JVM is running. You must call initJNIThread before using JNI API.")
+
+  let res = theVM.GetEnv(theVM, cast[ptr pointer](theEnv.addr), JNI_VERSION_1_6)
+  if res == JNI_EDETACHED:
+      initJNIArgs()
+      initJNIThread()
+  elif res != 0:
+      raise newJNIException("GetEnv result: " & $res)
+  if theEnv.isNil:
+      raise newJNIException("No JVM found")
 
 template checkInit* =
   if theEnv.isNil: findRunningVM()
