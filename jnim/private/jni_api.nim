@@ -753,8 +753,9 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
     type TT = T
     getArrayRegion(jtypedArray[TT](arr), 0, length, addr(res[0]))
   elif T is JVMObject:
+    type TT = T
     for i in 0..<res.len:
-      res[i] = T.fromJObjectConsumingLocalRef(theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
+      res[i] = fromJObjectConsumingLocalRef(TT, theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
   elif T is string:
     for i in 0..<res.len:
       res[i] = toStringRawConsumingLocalRef(theEnv.GetObjectArrayElement(theEnv, arr.jobjectArray, i.jsize))
@@ -773,7 +774,7 @@ template getPropValue*(T: typedesc, o: untyped, id: JVMFieldID): untyped =
   elif T is string:
     toStringRawConsumingLocalRef(JVMObject.getPropRaw(o, id))
   elif T is JVMObject:
-    T.fromJObjectConsumingLocalRef(JVMObject.getPropRaw(o, id))
+    fromJObjectConsumingLocalRef(T, JVMObject.getPropRaw(o, id))
   elif T is seq:
     T(jarrayToSeqConsumingLocalRef(JVMObject.getPropRaw(o, id).jarray, T))
   else:
@@ -815,7 +816,7 @@ template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: opena
   elif T is string:
     toStringRawConsumingLocalRef(o.callObjectMethodRaw(methodId, args))
   elif T is JVMObject:
-    T.fromJObjectConsumingLocalRef(o.callObjectMethodRaw(methodId, args))
+    fromJObjectConsumingLocalRef(T, o.callObjectMethodRaw(methodId, args))
   else:
     {.error: "Unknown return type".}
 
@@ -845,7 +846,7 @@ template callNonVirtualMethod*(T: typedesc, o: untyped, c: JVMClass, methodId: J
   elif T is string:
     toStringRawConsumingLocalRef(o.callObjectMethodRaw(c, methodId, args))
   elif T is JVMObject:
-    T.fromJObjectConsumingLocalRef(o.callObjectMethodRaw(c, methodId, args))
+    fromJObjectConsumingLocalRef(T, o.callObjectMethodRaw(c, methodId, args))
   else:
     {.error: "Unknown return type".}
 
