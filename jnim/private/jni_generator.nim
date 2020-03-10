@@ -457,7 +457,7 @@ proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
     withGCDisabled:
       let clazz = JVMClass.getByName(`cname`)
       `args`
-    `ctypeWithParams`.fromJObjectConsumingLocalRef(newObjectRaw(clazz, toConstCString(`sig`), `ai`))
+    fromJObjectConsumingLocalRef(`ctypeWithParams`, newObjectRaw(clazz, toConstCString(`sig`), `ai`))
 
 proc generateMethod(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert(not (pd.isConstructor or pd.isProp))

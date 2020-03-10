@@ -283,7 +283,7 @@ proc implementConstructor(p: NimNode, className: string): NimNode =
     when compiles(result.data):
       let data = new(type(result.data))
       setNimDataToJObject(theEnv, inst, `iClazz`.get, cast[RootRef](data))
-    result = `classIdent`.fromJObjectConsumingLocalRef(inst)
+    result = fromJObjectConsumingLocalRef(`classIdent`, inst)
     when compiles(result.data):
       result.data = data
 
