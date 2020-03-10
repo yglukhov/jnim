@@ -8,8 +8,6 @@ when defined macosx:
   """.}
   {.passL: "-framework CoreFoundation".}
 
-{.warning[SmallLshouldNotBeUsed]: off.}
-
 type
   JNIException* = object of Exception
 
@@ -586,49 +584,155 @@ type
     jdouble |
     jboolean
 
-# The following templates are redundand because jarray types are generic.
-template valueType*(T: typedesc): typedesc {.deprecated.} =
-  when T is jobjectArray:
-    jobject
-  elif T is jcharArray:
-    jchar
-  elif T is jbyteArray:
-    jbyte
-  elif T is jshortArray:
-    jshort
-  elif T is jintArray:
-    jint
-  elif T is jlongArray:
-    jlong
-  elif T is jfloatArray:
-    jfloat
-  elif T is jdoubleArray:
-    jdouble
-  elif T is jbooleanArray:
-    jboolean
-  else:
-    {.error: "Can't use type " & astToStr(T) & " with java's arrays".}
-    discard
+proc unexpectedType() = discard # Used only for compilation errors
 
-template arrayType*(T: typedesc): typedesc {.deprecated.} =
-  when T is jobject:
-    jobjectArray
-  elif T is jchar:
-    jcharArray
-  elif T is jbyte:
-    jbyteArray
-  elif T is jshort:
-    jshortArray
-  elif T is jint:
-    jintArray
-  elif T is jlong:
-    jlongArray
-  elif T is jfloat:
-    jfloatArray
-  elif T is jdouble:
-    jdoubleArray
-  elif T is jboolean:
-    jbooleanArray
-  else:
-    {.error: "Can't use type " & astToStr(T) & " with java's arrays".}
-    discard
+proc callMethod*(e: JNIEnvPtr, T: typedesc, o: jobject, m: jmethodID, a: ptr jvalue): T {.inline.} =
+  when T is jobject: e.CallObjectMethodA(e, o, m, a)
+  elif T is jchar: e.CallCharMethodA(e, o, m, a)
+  elif T is jbyte: e.CallByteMethodA(e, o, m, a)
+  elif T is jshort: e.CallShortMethodA(e, o, m, a)
+  elif T is jint: e.CallIntMethodA(e, o, m, a)
+  elif T is jlong: e.CallLongMethodA(e, o, m, a)
+  elif T is jfloat: e.CallFloatMethodA(e, o, m, a)
+  elif T is jdouble: e.CallDoubleMethodA(e, o, m, a)
+  elif T is jboolean: e.CallBooleanMethodA(e, o, m, a)
+  elif T is void: e.CallVoidMethodA(e, o, m, a)
+  else: unexpectedType(result)
+
+proc callMethod*(e: JNIEnvPtr, T: typedesc, o: jobject, m: jmethodID, a: openarray[jvalue]): T {.inline.} =
+  e.callMethod(T, o, m, cast[ptr jvalue](a))
+
+proc callNonvirtualMethod*(e: JNIEnvPtr, T: typedesc, o: jobject, c: JClass, m: jmethodID, a: ptr jvalue): T {.inline.} =
+  when T is jobject: e.CallNonvirtualObjectMethodA(e, o, c, m, a)
+  elif T is jchar: e.CallNonvirtualCharMethodA(e, o, c, m, a)
+  elif T is jbyte: e.CallNonvirtualByteMethodA(e, o, c, m, a)
+  elif T is jshort: e.CallNonvirtualShortMethodA(e, o, c, m, a)
+  elif T is jint: e.CallNonvirtualIntMethodA(e, o, c, m, a)
+  elif T is jlong: e.CallNonvirtualLongMethodA(e, o, c, m, a)
+  elif T is jfloat: e.CallNonvirtualFloatMethodA(e, o, c, m, a)
+  elif T is jdouble: e.CallNonvirtualDoubleMethodA(e, o, c, m, a)
+  elif T is jboolean: e.CallNonvirtualBooleanMethodA(e, o, c, m, a)
+  elif T is void: e.CallNonvirtualVoidMethodA(e, o, c, m, a)
+  else: unexpectedType(result)
+
+proc callNonvirtualMethod*(e: JNIEnvPtr, T: typedesc, o: jobject, c: JClass, m: jmethodID, a: openarray[jvalue]): T {.inline.} =
+  e.callNonvirtualMethod(T, o, c, m, cast[ptr jvalue](a))
+
+proc getField*(e: JNIEnvPtr, T: typedesc, o: jobject, f: jfieldID): T {.inline.} =
+  when T is jobject: e.GetObjectField(e, o, f)
+  elif T is jchar: e.GetCharField(e, o, f)
+  elif T is jbyte: e.GetByteField(e, o, f)
+  elif T is jshort: e.GetShortField(e, o, f)
+  elif T is jint: e.GetIntField(e, o, f)
+  elif T is jlong: e.GetLongField(e, o, f)
+  elif T is jfloat: e.GetFloatField(e, o, f)
+  elif T is jdouble: e.GetDoubleField(e, o, f)
+  elif T is jboolean: e.GetBooleanField(e, o, f)
+  else: unexpectedType(result)
+
+proc setField*[T](e: JNIEnvPtr, o: jobject, f: jfieldID, v: T) {.inline.} =
+  when T is jobject: e.SetObjectField(e, o, f, v)
+  elif T is jchar: e.SetCharField(e, o, f, v)
+  elif T is jbyte: e.SetByteField(e, o, f, v)
+  elif T is jshort: e.SetShortField(e, o, f, v)
+  elif T is jint: e.SetIntField(e, o, f, v)
+  elif T is jlong: e.SetLongField(e, o, f, v)
+  elif T is jfloat: e.SetFloatField(e, o, f, v)
+  elif T is jdouble: e.SetDoubleField(e, o, f, v)
+  elif T is jboolean: e.SetBooleanField(e, o, f, v)
+  else: unexpectedType(result)
+
+proc callStaticMethod*(e: JNIEnvPtr, T: typedesc, c: JClass, m: jmethodID, a: ptr jvalue): T {.inline.} =
+  when T is jobject: e.CallStaticObjectMethodA(e, c, m, a)
+  elif T is jchar: e.CallStaticCharMethodA(e, c, m, a)
+  elif T is jbyte: e.CallStaticByteMethodA(e, c, m, a)
+  elif T is jshort: e.CallStaticShortMethodA(e, c, m, a)
+  elif T is jint: e.CallStaticIntMethodA(e, c, m, a)
+  elif T is jlong: e.CallStaticLongMethodA(e, c, m, a)
+  elif T is jfloat: e.CallStaticFloatMethodA(e, c, m, a)
+  elif T is jdouble: e.CallStaticDoubleMethodA(e, c, m, a)
+  elif T is jboolean: e.CallStaticBooleanMethodA(e, c, m, a)
+  elif T is void: e.CallStaticVoidMethodA(e, c, m, a)
+  else: unexpectedType(result)
+
+proc callStaticMethod*(e: JNIEnvPtr, T: typedesc, c: JClass, m: jmethodID, a: openarray[jvalue]): T {.inline.} =
+  e.callStaticMethod(T, c, m, cast[ptr jvalue](a))
+
+proc getStaticField*(e: JNIEnvPtr, T: typedesc, o: JClass, f: jfieldID): T {.inline.} =
+  when T is jobject: e.GetStaticObjectField(e, o, f)
+  elif T is jchar: e.GetStaticCharField(e, o, f)
+  elif T is jbyte: e.GetStaticByteField(e, o, f)
+  elif T is jshort: e.GetStaticShortField(e, o, f)
+  elif T is jint: e.GetStaticIntField(e, o, f)
+  elif T is jlong: e.GetStaticLongField(e, o, f)
+  elif T is jfloat: e.GetStaticFloatField(e, o, f)
+  elif T is jdouble: e.GetStaticDoubleField(e, o, f)
+  elif T is jboolean: e.GetStaticBooleanField(e, o, f)
+  else: unexpectedType(result)
+
+proc setStaticField*[T](e: JNIEnvPtr, o: JClass, f: jfieldID, v: T) {.inline.} =
+  when T is jobject: e.SetStaticObjectField(e, o, f, v)
+  elif T is jchar: e.SetStaticCharField(e, o, f, v)
+  elif T is jbyte: e.SetStaticByteField(e, o, f, v)
+  elif T is jshort: e.SetStaticShortField(e, o, f, v)
+  elif T is jint: e.SetStaticIntField(e, o, f, v)
+  elif T is jlong: e.SetStaticLongField(e, o, f, v)
+  elif T is jfloat: e.SetStaticFloatField(e, o, f, v)
+  elif T is jdouble: e.SetStaticDoubleField(e, o, f, v)
+  elif T is jboolean: e.SetStaticBooleanField(e, o, f, v)
+  else: unexpectedType(result)
+
+proc newArray*(e: JNIEnvPtr, T: typedesc, l: jsize): jtypedArray[T] {.inline.} =
+  when T is jchar: e.NewCharArray(e, l)
+  elif T is jbyte: e.NewByteArray(e, l)
+  elif T is jshort: e.NewShortArray(e, l)
+  elif T is jint: e.NewIntArray(e, l)
+  elif T is jlong: e.NewLongArray(e, l)
+  elif T is jfloat: e.NewFloatArray(e, l)
+  elif T is jdouble: e.NewDoubleArray(e, l)
+  elif T is jboolean: e.NewBooleanArray(e, l)
+  else: unexpectedType(T)
+
+proc getArrayElements*[T](e: JNIEnvPtr, a: jtypedArray[T], c: ptr jboolean): ptr T {.inline.} =
+  when T is jchar: e.GetCharArrayElements(e, a, c)
+  elif T is jbyte: e.GetByteArrayElements(e, a, c)
+  elif T is jshort: e.GetShortArrayElements(e, a, c)
+  elif T is jint: e.GetIntArrayElements(e, a, c)
+  elif T is jlong: e.GetLongArrayElements(e, a, c)
+  elif T is jfloat: e.GetFloatArrayElements(e, a, c)
+  elif T is jdouble: e.GetDoubleArrayElements(e, a, c)
+  elif T is jboolean: e.GetBooleanArrayElements(e, a, c)
+  else: unexpectedType(T)
+
+proc releaseArrayElements*[T](e: JNIEnvPtr, a: jtypedArray[T], v: ptr T, m: jint) {.inline.} =
+  when T is jchar: e.ReleaseCharArrayElements(e, a, v, m)
+  elif T is jbyte: e.ReleaseByteArrayElements(e, a, v, m)
+  elif T is jshort: e.ReleaseShortArrayElements(e, a, v, m)
+  elif T is jint: e.ReleaseIntArrayElements(e, a, v, m)
+  elif T is jlong: e.ReleaseLongArrayElements(e, a, v, m)
+  elif T is jfloat: e.ReleaseFloatArrayElements(e, a, v, m)
+  elif T is jdouble: e.ReleaseDoubleArrayElements(e, a, v, m)
+  elif T is jboolean: e.ReleaseBooleanArrayElements(e, a, v, m)
+  else: unexpectedType(T)
+
+proc getArrayRegion*[T](e: JNIEnvPtr, a: jtypedArray[T], s, l: jsize, b: ptr T) {.inline.} =
+  when T is jchar: e.GetCharArrayRegion(e, a, s, l, b)
+  elif T is jbyte: e.GetByteArrayRegion(e, a, s, l, b)
+  elif T is jshort: e.GetShortArrayRegion(e, a, s, l, b)
+  elif T is jint: e.GetIntArrayRegion(e, a, s, l, b)
+  elif T is jlong: e.GetLongArrayRegion(e, a, s, l, b)
+  elif T is jfloat: e.GetFloatArrayRegion(e, a, s, l, b)
+  elif T is jdouble: e.GetDoubleArrayRegion(e, a, s, l, b)
+  elif T is jboolean: e.GetBooleanArrayRegion(e, a, s, l, b)
+  else: unexpectedType(T)
+
+proc setArrayRegion*[T](e: JNIEnvPtr, a: jtypedArray[T], s, l: jsize, b: ptr T) {.inline.} =
+  when T is jchar: e.SetCharArrayRegion(e, a, s, l, b)
+  elif T is jbyte: e.SetByteArrayRegion(e, a, s, l, b)
+  elif T is jshort: e.SetShortArrayRegion(e, a, s, l, b)
+  elif T is jint: e.SetIntArrayRegion(e, a, s, l, b)
+  elif T is jlong: e.SetLongArrayRegion(e, a, s, l, b)
+  elif T is jfloat: e.SetFloatArrayRegion(e, a, s, l, b)
+  elif T is jdouble: e.SetDoubleArrayRegion(e, a, s, l, b)
+  elif T is jboolean: e.SetBooleanArrayRegion(e, a, s, l, b)
+  else: unexpectedType(T)
