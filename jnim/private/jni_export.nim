@@ -265,12 +265,17 @@ proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) =
   if not p.isNil:
     GC_unref(p)
 
-proc implementConstructor(p: NimNode, className: string): NimNode =
+proc implementConstructor(p: NimNode, className: string, sig: NimNode): NimNode =
   let iClazz = ident"clazz"
   let classIdent = ident(className)
   result = p
   p.params[0] = classIdent # Set result type to className
   p.params.insert(1, newIdentDefs(ident"this", newTree(nnkBracketExpr, ident"typedesc", classIdent))) # First arg needs to be typedesc[className]
+
+  var args = newTree(nnkBracket)
+  for identDef in p.params[2..^1]:
+    for name in identDef[0..^3]:  # [name1, ..., type, defaultValue]
+      args.add(newCall("toJValue", name))
 
   p.body = quote do:
     const fq = JnimPackageName.replace(".", "/") & "/Jnim$" & `className`
@@ -279,7 +284,7 @@ proc implementConstructor(p: NimNode, className: string): NimNode =
       `iClazz` = JVMClass.getByFqcn(fq)
       jniRegisterNativeMethods(`classIdent`, `iClazz`)
 
-    let inst = `iClazz`.newObjectRaw("()V", [])
+    let inst = `iClazz`.newObjectRaw(`sig`, `args`)
     when compiles(result.data):
       let data = new(type(result.data))
       setNimDataToJObject(theEnv, inst, `iClazz`.get, cast[RootRef](data))
@@ -404,7 +409,7 @@ macro jexport*(a: varargs[untyped]): untyped =
   
       else:
         # implement constructor
-        constructors.add(implementConstructor(m, className))
+        constructors.add(implementConstructor(m, className, sig))
 
 
     of nnkCommand:
