@@ -348,7 +348,7 @@ macro jexport*(a: varargs[untyped]): untyped =
       let params = m.params
 
       var thunkParams = newSeq[NimNode]()
-      let thunkName = genSym(nskProc, JniExportedFunctionPrefix & className & "_" & $m.name)
+      let thunkName = ident(JniExportedFunctionPrefix & className & "_" & $m.name)
       var thunkCall = newCall(m.name)
       let envName = newIdentNode("jniEnv")
 
@@ -429,7 +429,7 @@ macro jexport*(a: varargs[untyped]): untyped =
       assert(false)
 
   block: # Finalizer thunk
-    let thunkName = genSym(nskProc, JniExportedFunctionPrefix & className & "__0")
+    let thunkName = ident(JniExportedFunctionPrefix & className & "__0")
     result.add quote do:
       proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject, p: jlong) {.exportc, cdecl.} =
         finalizeJobject(jniEnv, this, p)
