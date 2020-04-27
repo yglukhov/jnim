@@ -9,6 +9,7 @@ const
   JnimPackageName = "io.github.yglukhov.jnim"
   FinalizerName = "_0"
   PointerFieldName = "_1"
+  InitializerName = "_2"
   JniExportedFunctionPrefix = "Java_" & JnimPackageName.replace('.', '_') & "_Jnim_00024"
 
 proc initMethodDescr(name, retType: string, argTypes: seq[string]): MethodDescr =
@@ -143,6 +144,7 @@ public static native void """ & FinalizerName & """(long p);
   classDef &= """
 protected void finalize() throws Throwable { super.finalize(); """ & FinalizerName & "(" & PointerFieldName & "); " & PointerFieldName & """ = 0; }
 private long """ & PointerFieldName & """;
+private native void """ & InitializerName & """();
 """
 
   for m in methodDefs:
@@ -166,7 +168,7 @@ private long """ & PointerFieldName & """;
       for i, a in m.argTypes:
         if i != 0: classDef &= ", "
         classDef &= "_" & $i
-      classDef &= "); }\n"
+      classDef &= "); " & InitializerName & "(); }\n"
     else:
       classDef &= ";\n"
 
@@ -288,8 +290,7 @@ proc implementConstructor(p: NimNode, className: string, sig: NimNode): NimNode 
 
     let inst = `iClazz`.newObjectRaw(`sig`, `args`)
     when compiles(result.data):
-      let data = new(type(result.data))
-      setNimDataToJObject(theEnv, inst, `iClazz`.get, cast[RootRef](data))
+      let data = cast[type(result.data)](getNimDataFromJObject(theEnv, inst))
     result = fromJObjectConsumingLocalRef(`classIdent`, inst)
     when compiles(result.data):
       result.data = data
@@ -456,6 +457,22 @@ macro jexport*(a: varargs[untyped]): untyped =
   result.add quote do:
     proc jniRegisterNativeMethods(t: type[`classNameIdent`], `clazzIdent`: JVMClass) =
       `nativeMethodsRegistration`
+
+  block: # Initializer thunk
+    let iClazz = ident"clazz"
+    let classIdent = ident(className)
+    let thunkName = ident(JniExportedFunctionPrefix & className & "_" & InitializerName.replace("_", "_1"))
+    result.add quote do:
+      proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject) {.exportc, dynlib, cdecl.} =
+        const fq = JnimPackageName.replace(".", "/") & "/Jnim$" & `className`
+        var `iClazz` {.global.}: JVMClass
+        if unlikely `iClazz`.isNil:
+          `iClazz` = JVMClass.getByFqcn(fq)
+          # FIXME: don't repeat this here and in implementConstructor
+          jniRegisterNativeMethods(`classIdent`, `iClazz`)
+        when compiles(`classIdent`.data):
+          let data = new(type(`classIdent`.data))
+          setNimDataToJObject(jniEnv, this, `iClazz`.get, cast[RootRef](data))
 
   result.add(constructors)
 
