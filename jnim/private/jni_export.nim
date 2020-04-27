@@ -365,7 +365,8 @@ macro jexport*(a: varargs[untyped]): untyped =
       thunkParams.add(newIdentDefs(envName, newIdentNode("JNIEnvPtr")))
       thunkParams.add(newIdentDefs(ident"this", ident"jobject"))
 
-      thunkCall.add(newCall(ident"jniObjectToNimObj", envName, ident"this", newCall("type", classNameIdent)))
+      var thisRef = nskLet.genSym"thisRef"
+      thunkCall.add(thisRef)
 
       var sig = newCall(bindSym"constSig")
       sig.add(newLit("("))
@@ -410,6 +411,9 @@ macro jexport*(a: varargs[untyped]): untyped =
           # TODO: somehow pair this with a matching tearDownForeignThreadGC when necessary
           setupForeignThreadGC()
           if theEnv.isNil: theEnv = `envName`
+          let `thisRef` = theEnv.jniObjectToNimObj(this, type(`classNameIdent`))
+          GC_ref(`thisRef`)
+          defer: GC_unref(`thisRef`)
           `thunkCall`
         result.add(thunk)
   
