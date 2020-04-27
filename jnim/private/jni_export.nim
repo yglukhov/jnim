@@ -407,6 +407,8 @@ macro jexport*(a: varargs[untyped]): untyped =
         thunk.addPragma(newIdentNode("dynlib"))
         thunk.addPragma(newIdentNode("exportc")) # Allow jni runtime to discover the functions
         thunk.body = quote do:
+          # TODO: somehow pair this with a matching tearDownForeignThreadGC when necessary
+          setupForeignThreadGC()
           if theEnv.isNil: theEnv = `envName`
           `thunkCall`
         result.add(thunk)
