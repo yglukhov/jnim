@@ -431,7 +431,7 @@ macro jexport*(a: varargs[untyped]): untyped =
       assert(false)
 
   block: # Finalizer thunk
-    let thunkName = ident(JniExportedFunctionPrefix & className & "__0")
+    let thunkName = ident(JniExportedFunctionPrefix & className & "_" & FinalizerName.replace("_", "_1"))
     result.add quote do:
       proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject, p: jlong) {.exportc, dynlib, cdecl.} =
         finalizeJobject(jniEnv, this, p)
