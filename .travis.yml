@@ -15,9 +15,11 @@ before_install:
   - cd csources && sh build.sh
   - cd ..
   - bin/nim c koch
-  - ./koch boot -d:release
+  # -d:nimEmulateOverflowChecks is workaround for "undefined reference to __builtin_saddll_overflow",
+  # see: Nim 1.2.0 release notes
+  - ./koch boot -d:release -d:nimEmulateOverflowChecks
   - export PATH=$PWD/bin:$PATH
-  - ./koch nimble
+  - ./koch nimble -d:nimEmulateOverflowChecks
   - cd ..
   - nimble install -y
 script:
