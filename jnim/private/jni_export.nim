@@ -403,6 +403,7 @@ macro jexport*(a: varargs[untyped]): untyped =
 
         let thunk = newProc(thunkName, thunkParams)
         thunk.addPragma(newIdentNode("cdecl"))
+        thunk.addPragma(newIdentNode("dynlib"))
         thunk.addPragma(newIdentNode("exportc")) # Allow jni runtime to discover the functions
         thunk.body = quote do:
           if theEnv.isNil: theEnv = `envName`
@@ -431,7 +432,7 @@ macro jexport*(a: varargs[untyped]): untyped =
   block: # Finalizer thunk
     let thunkName = ident(JniExportedFunctionPrefix & className & "__0")
     result.add quote do:
-      proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject, p: jlong) {.exportc, cdecl.} =
+      proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject, p: jlong) {.exportc, dynlib, cdecl.} =
         finalizeJobject(jniEnv, this, p)
 
 
