@@ -1,4 +1,5 @@
-import macros, tables, sets, jni_wrapper, jni_api, strutils
+import macros, tables, sets, jni_wrapper, jni_api, strutils, sequtils
+from strformat import fmt
 
 type MethodDescr = object
   name: string
@@ -190,8 +191,204 @@ private native void """ & InitializerName & """();
   # s.insert($a & "\n")
   writeFile(jnimGlue, javaGlue)
 
-proc genDexGlue(className, parentClass: string, interfaces: seq[string], isPublic: bool, methodDefs: seq[MethodDescr], staticSection, emitSection: string): NimNode =
-  doAssert(false, "Not implemented")
+var dexGlue {.compileTime.}: seq[string]
+
+proc genDexGlue(className, parentClass: string, interfaces: seq[string], isPublic: bool, methodDefs: seq[MethodDescr], staticSection, emitSection: string) =
+  # NOTE: as of Nim 1.0.2, some stdlib packages used by dali are broken at
+  # compile time (see e.g.: https://github.com/nim-lang/Nim/issues/14339), so
+  # we must use a workaround of writing an external file and compiling it
+  # via command line.
+
+  template quot(pattern: string): string =
+    fmt(pattern, '`', '`')
+
+  func dexClass(javaClassPath: string): string =
+    # FIXME: sometimes genDexGlue is getting class names without full path from
+    # jexport, requiring some normalization
+    let fullPath =
+      if javaClassPath.startsWith "Jnim.":
+        javaClassPath[5..^1]
+      elif not javaClassPath.contains ".":
+        JnimPackageName & ".Jnim$" & javaClassPath
+      else:
+        javaClassPath
+    "L" & fullPath.replace(".", "/") & ";"
+
+  const
+    Object = dexClass"java.lang.Object"
+    # TODO: make it possible to customize the path of the package
+    Jnim = dexClass(JnimPackageName & ".Jnim")
+    NimObject = dexClass(JnimPackageName & ".Jnim$__NimObject")
+    System = dexClass"java.lang.System"
+    String = dexClass"java.lang.String"
+  if dexGlue.len == 0:
+    dexGlue.add quot"""
+dex.classes.add ClassDef(class: `Jnim.repr`, access: {Public}, superclass: some(`Object.repr`),
+  class_data: ClassData(
+    direct_methods: @[
+      EncodedMethod(
+        m: Method(class: `Jnim.repr`, name: "<clinit>", prototype: Prototype(ret: "V")),
+        access: {Static, Constructor},
+        code: Code(
+          registers: 2, ins: 0, outs: 1, instrs: @[
+          # System.loadLibrary(libname)
+          const_string(0, libname),
+          invoke_static(0,
+            Method(class: `System.repr`, name: "loadLibrary", prototype: Prototype(ret: "V", params: @[`String.repr`]))),
+          return_void(),
+          ])
+      )
+    ]))
+dex.classes.add ClassDef(class: `NimObject.repr`, access: {Public, Interface}, superclass: some(`Object.repr`))
+"""
+
+  let
+    class = dexClass(JnimPackageName & ".Jnim$" & className)
+    super = if parentClass.len != 0: dexClass(parentClass) else: Object
+    field = quot"""Field(class: `class.repr`, typ: "J", name: `PointerFieldName.repr`)"""
+    Throws = dexClass"dalvik.annotation.Throws"
+    Throwable = dexClass"java.lang.Throwable"
+  dexGlue.add quot"""
+dex.classes.add ClassDef(class: `class.repr`, access: {Public, Static}, superclass: some(`super.repr`),
+  interfaces: @`(NimObject & interfaces.map(dexClass)).repr`,
+  class_data: ClassData(
+    instance_fields: @[
+      # private long PointerFieldName;
+      EncodedField(f: `field`, access: {Private})],
+    direct_methods: @[
+      EncodedMethod(
+        m: Method(class: `class.repr`, name: "<clinit>", prototype: Prototype(ret: "V")),
+        access: {Static, Constructor},
+        code: Code(
+          registers: 2, ins: 0, outs: 1, instrs: @[
+          # System.loadLibrary(libname)
+          const_string(0, libname),
+          invoke_static(0,
+            Method(class: `System.repr`, name: "loadLibrary", prototype: Prototype(ret: "V", params: @[`String.repr`]))),
+          return_void(),
+          ])
+      ),
+      EncodedMethod(
+        m: Method(class: `class.repr`, name: `FinalizerName.repr`, prototype: Prototype(ret: "V", params: @["J"])),
+        access: {Static, Public, Native},
+        code: nil
+      ),
+      # private native void 'InitializerName'();
+      EncodedMethod(
+        m: Method(class: `class.repr`, name: `InitializerName.repr`, prototype: Prototype(ret: "V", params: @[])),
+        access: {Private, Native},
+        code: nil
+      ),
+    ],
+    virtual_methods: @[
+      # protected void finalize() throws Throwable { super.finalize(); FinalizerName(PointerFieldName); PointerFieldName = 0; }
+      EncodedMethod(
+        m: Method(class: `class.repr`, name: "finalize", prototype: Prototype(ret: "V")),
+        access: {Public},
+        annotations: @[
+          (VisSystem, EncodedAnnotation(typ: `Throws.repr`, elems: @[
+            AnnotationElement(name: "value", value: EVArray(@[
+              EVType(`Throwable.repr`),
+            ]))
+          ]))],
+        code: Code(
+          registers: 3, ins: 1, outs: 2, instrs: @[
+            # ins: this
+            # super.finalize()
+            invoke_super(2,
+              Method(class: `super.repr`, name: "finalize", prototype: Prototype(ret: "V"))),
+            # this.FinalizerName(PointerFieldName)
+            iget_wide(0, 2, `field`),
+            invoke_static(0, 1,
+              Method(class: `class.repr`, name: `FinalizerName.repr`, prototype: Prototype(ret: "V", params: @["J"]))),
+            # this.PointerFieldName = 0
+            const_wide_16(0, 0'i16),
+            iput_wide(0, 2, `field`),
+            return_void(),
+        ])),
+      ],
+  ))
+"""
+
+  func typ(javaType: string): string =
+    case javaType
+    of "void": "V"
+    of "boolean": "Z"
+    of "byte": "B"
+    of "char": "C"
+    of "int": "I"
+    of "long": "J"
+    of "float": "F"
+    of "double": "D"
+    of "short": "S"
+    of "String": dexClass"java.lang.String"  # TODO: do we need this, or we already get java.lang.String?
+    of "Object": dexClass"java.lang.Object"
+    of "Class": dexClass"java.lang.Class"
+    of "Throwable": dexClass"java.lang.Throwable"
+    else: dexClass(javaType)
+
+  for m in methodDefs:
+    let args = m.argTypes.map(typ)
+    if not m.isConstr:
+      dexGlue.add quot"""
+dex.classes[^1].class_data.virtual_methods.add EncodedMethod(
+  m: Method(class: `class.repr`, name: `m.name.repr`,
+    prototype: Prototype(ret: `typ(m.retType).repr`, params: @`args.repr`)),
+  access: {Public, Native}, code: nil)
+"""
+    else:
+      # FIXME: handle all wide types, not only "J"
+      func width(typ: string): int =
+        if typ[0] in {'J'}: 2 else: 1
+      let
+        nregs = args.map(width).foldl(a + b, 1)  # extra 1 accounts for 'this'
+        prototype = quot"""Prototype(ret: "V", params: @`args.repr`)"""
+      # public `class`(`args...`) { super(`args...`); InitializerName(); }  /* a constructor */
+      dexGlue.add quot"""
+dex.classes[^1].class_data.direct_methods.add EncodedMethod(
+  m: Method(class: `class.repr`, name: "<init>", prototype: `prototype`),
+  access: {Public, Constructor}, code: Code(
+    registers: `nregs.repr`.uint16, ins: `nregs.repr`.uint16, outs: `nregs.repr`.uint16, instrs: @[
+      newDexInvoke(0x70, `nregs.repr`, 0, Method(class: `super.repr`, name: "<init>", prototype: `prototype`)),
+      newDexInvoke(0x70, 1, 0, Method(class: `class.repr`, name: `InitializerName.repr`, prototype: Prototype(ret: "V", params: @[]))),
+      return_void(),
+    ]))
+"""
+
+macro jnimDexWrite*(genDex: static[string] = "gen_dex.nim"): untyped =
+  writeFile(genDex, """
+import options, os, strutils
+import dali
+
+if paramCount() != 2:
+  stderr.write("error: bad number of arguments\n")
+  stderr.write("USAGE: gen_dex CLASSES.DEX LIBFOOBAR.SO\n")
+  quit(1)
+var
+  dexfile = paramStr(1)
+  libname = paramStr(2)
+libname.removePrefix("lib")
+libname.removeSuffix(".so")
+
+proc newDexInvoke(opcode: uint8, nregs, reg0: int, m: Method): Instr =
+  if nregs <= 5: # Dalvik instruction format 35c
+    func reg(n: int): Arg =
+      if n < nregs: RegX(uint4(reg0+n)) else: RawX(0)
+    newInstr(
+      opcode, RawX(uint4(nregs)), reg(4),
+      MethodXXXX(m),
+      reg(1), reg(0), reg(3), reg(2))
+  else: # Dalvik instruction format 3rc
+    # FIXME: jnimGenDex support for constructors with many params not tested
+    newInstr(
+      opcode, RawXX(uint8(nregs)),
+      MethodXXXX(m),
+      RawXXXX(uint16(reg0)))
+
+let dex = newDex()
+$1
+writeFile(dexfile, dex.render)
+""" % dexGlue.join"")
 
 macro genJexportGlue(className, parentClass: static[string], interfaces: static[seq[string]], isPublic: static[bool], methodDefs: static[seq[MethodDescr]], staticSection, emitSection: static[string]): untyped =
   # echo treeRepr(a)
