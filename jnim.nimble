@@ -38,7 +38,7 @@ proc compileJava() =
 proc test(name: string) =
   let outFile = BIN_DIR / "test_" & name
   rmFile("Jnim.java")
-  exec "nim c --passC:-g --threads:on -d:jnimGlue=Jnim.java --out:" & outFile & " tests/test_" & name
+  exec "nim c --passC:-g --threads:on -d:nimEmulateOverflowChecks -d:jnimGlue=Jnim.java --out:" & outFile & " tests/test_" & name
   compileJava()
   exec outFile
 
