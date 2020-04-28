@@ -213,6 +213,7 @@ template nimTypeToJNIType(T: type[int32]): type = jint
 template nimTypeToJNIType(T: type[int64]): type = jlong
 template nimTypeToJNIType(T: type[JVMObject]): type = jobject
 template nimTypeToJNIType(T: type[string]): type = jstring
+template nimTypeToJNIType(T: type[jboolean]): type = jboolean
 
 
 template jniValueToNim(e: JNIEnvPtr, v: jint, T: type[int32]): int32 = int32(v)
@@ -225,6 +226,7 @@ template nimValueToJni(e: JNIEnvPtr, v: int32, T: type[jint]): jint = jint(v)
 template nimValueToJni(e: JNIEnvPtr, v: int64, T: type[jlong]): jlong = jlong(v)
 template nimValueToJni(e: JNIEnvPtr, v: string, T: type[jstring]): jstring = e.NewStringUTF(e, v)
 template nimValueToJni[T](e: JNIEnvPtr, v: T, V: type[void]) = v
+template nimValueToJni(e: JNIEnvPtr, v: jboolean, T: type[jboolean]): jboolean = v
 
 
 template jniObjectToNimObj*(e: JNIEnvPtr, v: jobject, T: type[JVMObject]): auto =
