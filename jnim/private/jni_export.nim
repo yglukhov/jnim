@@ -9,6 +9,7 @@ const
   JnimPackageName = "io.github.yglukhov.jnim"
   FinalizerName = "_0"
   PointerFieldName = "_1"
+  InitializerName = "_2"
   JniExportedFunctionPrefix = "Java_" & JnimPackageName.replace('.', '_') & "_Jnim_00024"
 
 proc initMethodDescr(name, retType: string, argTypes: seq[string]): MethodDescr =
@@ -143,6 +144,7 @@ public static native void """ & FinalizerName & """(long p);
   classDef &= """
 protected void finalize() throws Throwable { super.finalize(); """ & FinalizerName & "(" & PointerFieldName & "); " & PointerFieldName & """ = 0; }
 private long """ & PointerFieldName & """;
+private native void """ & InitializerName & """();
 """
 
   for m in methodDefs:
@@ -166,7 +168,7 @@ private long """ & PointerFieldName & """;
       for i, a in m.argTypes:
         if i != 0: classDef &= ", "
         classDef &= "_" & $i
-      classDef &= "); }\n"
+      classDef &= "); " & InitializerName & "(); }\n"
     else:
       classDef &= ";\n"
 
@@ -238,15 +240,6 @@ proc raiseJVMException(e: JNIEnvPtr) {.noreturn.} =
   checkJVMException(e) # This should raise
   doAssert(false, "unreachable")
 
-proc getNimObjectFromJObject(e: JNIEnvPtr, j: jobject): JVMObject =
-  let clazz = e.GetObjectClass(e, j)
-  if unlikely clazz.isNil: raiseJVMException(e)
-  let fid = e.GetFieldID(e, clazz, PointerFieldName, "J")
-  if unlikely fid.isNil: raiseJVMException(e)
-
-  e.deleteLocalRef(clazz)
-  result = cast[JVMObject](e.GetLongField(e, j, fid))
-
 proc getNimDataFromJObject(e: JNIEnvPtr, j: jobject): RootRef =
   let clazz = e.GetObjectClass(e, j)
   if unlikely clazz.isNil: raiseJVMException(e)
@@ -262,12 +255,12 @@ proc setNimDataToJObject(e: JNIEnvPtr, j: jobject, clazz: JClass, o: RootRef) =
   GC_ref(o)
   e.SetLongField(e, j, fid, cast[jlong](o))
 
-proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) =
+proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) {.exportc: "Java_" & JnimPackageName.replace('.', '_') & "_Jnim__10", dynlib, cdecl.} =
   let p = cast[RootRef](p)
   if not p.isNil:
     GC_unref(p)
 
-proc implementConstructor(p: NimNode, className: string, sig: NimNode): NimNode =
+proc implementConstructor(p: NimNode, className, classSig: string, sig: NimNode): NimNode =
   let iClazz = ident"clazz"
   let classIdent = ident(className)
   result = p
@@ -280,23 +273,55 @@ proc implementConstructor(p: NimNode, className: string, sig: NimNode): NimNode 
       args.add(newCall("toJValue", name))
 
   p.body = quote do:
-    const fq = JnimPackageName.replace(".", "/") & "/Jnim$" & `className`
     var `iClazz` {.global.}: JVMClass
     if unlikely `iClazz`.isNil:
-      `iClazz` = JVMClass.getByFqcn(fq)
-      jniRegisterNativeMethods(`classIdent`, `iClazz`)
+      `iClazz` = JVMClass.getByFqcn(`classSig`)
 
     let inst = `iClazz`.newObjectRaw(`sig`, `args`)
     when compiles(result.data):
-      let data = new(type(result.data))
-      setNimDataToJObject(theEnv, inst, `iClazz`.get, cast[RootRef](data))
+      let data = cast[type(result.data)](getNimDataFromJObject(theEnv, inst))
     result = fromJObjectConsumingLocalRef(`classIdent`, inst)
     when compiles(result.data):
       result.data = data
 
+when compileOption("threads"):
+  var gcInited {.threadVar.}: bool
+
+proc updateStackBottom() {.inline.} =
+  when not defined(gcDestructors):
+    var a {.volatile.}: int
+    nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
+    when compileOption("threads") and not compileOption("tlsEmulation"):
+      if not gcInited:
+        gcInited = true
+        setupForeignThreadGC()
+
+var nativeMethodDescs: seq[tuple[classSig: cstring, nativeMethods: seq[JNINativeMethod]]]
+
+proc nativeMethodDef(name, signautre: cstring, fnPtr: pointer): JNINativeMethod {.inline.} =
+  JNINativeMethod(name: name, signature: signautre, fnPtr: fnPtr)
+
+proc registerNativeMethods(classSig: cstring, nativeMethods: varargs[JNINativeMethod]) =
+  if nativeMethods.len != 0:
+    nativeMethodDescs.add((classSig, @nativeMethods))
+
+# Register the finalizer
+registerNativeMethods(static(JnimPackageName.replace(".", "/") & "/Jnim"), nativeMethodDef("_0", "(J)V", finalizeJobject))
+
+proc registerNativeMethods*() =
+  for i in 0 .. nativeMethodDescs.high:
+    let cl = theEnv.findClass(nativeMethodDescs[i].classSig)
+    if not cl.isNil:
+      let r = callVM theEnv.RegisterNatives(theEnv, cl, unsafeAddr nativeMethodDescs[i].nativeMethods[0], nativeMethodDescs[i].nativeMethods.len.jint)
+      assert(r == 0)
+      theEnv.deleteLocalRef(cl)
+  nativeMethodDescs = @[]
+
 macro jexport*(a: varargs[untyped]): untyped =
   var (className, parentClass, interfaces, body, isPublic) = extractArguments(a)
   let classNameIdent = newIdentNode(className)
+  let clazzIdent = ident"clazz"
+  let classSig = JnimPackageName.replace(".", "/") & "/Jnim$" & className
 
   let nonVirtualClassNameIdent = ident("JnimNonVirtual_" & className)
 
@@ -332,7 +357,7 @@ macro jexport*(a: varargs[untyped]): untyped =
   for i in interfaces:
     inter.add(newCall("jniFqcn", newIdentNode(i)))
 
-  var nativeMethodDefs = newNimNode(nnkBracket)
+  var nativeMethodsRegistration = newCall(bindSym"registerNativeMethods", newLit(classSig))
 
   var staticSection = newLit("")
   var emitSection = newLit("")
@@ -348,7 +373,7 @@ macro jexport*(a: varargs[untyped]): untyped =
       let params = m.params
 
       var thunkParams = newSeq[NimNode]()
-      let thunkName = genSym(nskProc, JniExportedFunctionPrefix & className & "_" & $m.name)
+      let thunkName = ident(JniExportedFunctionPrefix & className & "_" & $m.name)
       var thunkCall = newCall(m.name)
       let envName = newIdentNode("jniEnv")
 
@@ -364,7 +389,12 @@ macro jexport*(a: varargs[untyped]): untyped =
       thunkParams.add(newIdentDefs(envName, newIdentNode("JNIEnvPtr")))
       thunkParams.add(newIdentDefs(ident"this", ident"jobject"))
 
-      thunkCall.add(newCall(ident"jniObjectToNimObj", envName, ident"this", newCall("type", classNameIdent)))
+      let noinlineIdent = ident"noinline"
+      let noinlineVar = ident"noinlinep"
+      let noinlineCall = newCall(noinlineVar, envName, ident"this")
+
+      var thisRef = nskLet.genSym"thisRef"
+      thunkCall.add(thisRef)
 
       var sig = newCall(bindSym"constSig")
       sig.add(newLit("("))
@@ -379,6 +409,7 @@ macro jexport*(a: varargs[untyped]): untyped =
           sig.add(newCall("jniSig", copyNimTree(pt)))
           thunkParams.add(newIdentDefs(copyNimTree(paramName), thunkParamType))
           thunkCall.add(newCall(bindSym"jniValueToNim", envName, copyNimTree(paramName), copyNimTree(pt)))
+          noinlineCall.add(copyNimTree(paramName))
       let md = newCall(bindSym"initMethodDescr", newLit($m.name), retType, argTypes)
       methodDefs.add(md)
 
@@ -389,10 +420,8 @@ macro jexport*(a: varargs[untyped]): untyped =
         sig.add(newCall("jniSig", params[0]))
 
       if not isConstr:
-        nativeMethodDefs.add(newTree(nnkObjConstr, newIdentNode("JNINativeMethod"),
-          newTree(nnkExprColonExpr, newIdentNode("name"), newLit($m.name)),
-          newTree(nnkExprColonExpr, newIdentNode("signature"), sig),
-          newTree(nnkExprColonExpr, newIdentNode("fnPtr"), thunkName)))
+        nativeMethodsRegistration.add(
+          newCall(bindSym"nativeMethodDef", newLit($m.name), sig, thunkName))
 
         # Emit the definition as is
         m.params.insert(1, newIdentDefs(ident"this", classNameIdent))
@@ -401,18 +430,27 @@ macro jexport*(a: varargs[untyped]): untyped =
 
         thunkCall = newCall(bindSym"nimValueToJni", envName, thunkCall, copyNimTree(thunkParams[0]))
 
+        let noinlineProc = newProc(noinlineIdent, thunkParams)
+        noinlineProc.addPragma(newIdentNode("nimcall"))
+        noinlineProc.body = quote do:
+          let `thisRef` = theEnv.jniObjectToNimObj(this, type(`classNameIdent`))
+          `thunkCall`
+
         let thunk = newProc(thunkName, thunkParams)
         thunk.addPragma(newIdentNode("cdecl"))
+        thunk.addPragma(newIdentNode("dynlib"))
         thunk.addPragma(newIdentNode("exportc")) # Allow jni runtime to discover the functions
         thunk.body = quote do:
+          # TODO: somehow pair this with a matching tearDownForeignThreadGC when necessary
+          updateStackBottom()
           if theEnv.isNil: theEnv = `envName`
-          `thunkCall`
+          `noinlineProc`
+          var `noinlineVar` {.volatile.} = `noinlineIdent`
+          `noinlineCall`
         result.add(thunk)
-  
       else:
         # implement constructor
-        constructors.add(implementConstructor(m, className, sig))
-
+        constructors.add(implementConstructor(m, className, classSig, sig))
 
     of nnkCommand:
       case $m[0]
@@ -428,35 +466,25 @@ macro jexport*(a: varargs[untyped]): untyped =
       echo "Unexpected AST: ", repr(m)
       assert(false)
 
-  block: # Finalizer thunk
-    let thunkName = genSym(nskProc, JniExportedFunctionPrefix & className & "__0")
-    result.add quote do:
-      proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject, p: jlong) {.exportc, cdecl.} =
-        finalizeJobject(jniEnv, this, p)
-
-
   result.add newCall(bindSym"genJexportGlue", newLit(className), parentFq, inter, newLit(isPublic), methodDefs, staticSection, emitSection)
 
-  # Add finalizer impl
-  # nativeMethodDefs.add(newTree(nnkObjConstr, newIdentNode("JNINativeMethod"),
-  #   newTree(nnkExprColonExpr, newIdentNode("name"), newLit(FinalizerName)),
-  #   newTree(nnkExprColonExpr, newIdentNode("signature"), newLit("(J)V")),
-  #   newTree(nnkExprColonExpr, newIdentNode("fnPtr"), bindSym"finalizeJobject")))
-
-  let clazzIdent = ident"clazz"
-  var nativeMethodsRegistration = newEmptyNode()
-  if nativeMethodDefs.len != 0:
-    nativeMethodsRegistration = quote do:
-      var nativeMethods = `nativeMethodDefs`
-      if nativeMethods.len != 0:
-        let r = callVM theEnv.RegisterNatives(theEnv, `clazzIdent`.get(), addr nativeMethods[0], nativeMethods.len.jint)
-        assert(r == 0)
-
-  result.add quote do:
-    proc jniRegisterNativeMethods(t: type[`classNameIdent`], `clazzIdent`: JVMClass) =
-      `nativeMethodsRegistration`
+  block: # Initializer thunk
+    let iClazz = ident"clazz"
+    let classIdent = ident(className)
+    let thunkName = ident(JniExportedFunctionPrefix & className & "_" & InitializerName.replace("_", "_1"))
+    nativeMethodsRegistration.add(
+      newCall(bindSym"nativeMethodDef", newLit(InitializerName), newLit("()V"), thunkName))
+    result.add quote do:
+      proc `thunkName`(jniEnv: JNIEnvPtr, this: jobject) {.exportc, dynlib, cdecl.} =
+        var `iClazz` {.global.}: JVMClass
+        if unlikely `iClazz`.isNil:
+          `iClazz` = JVMClass.getByFqcn(`classSig`)
+        when compiles(`classIdent`.data):
+          let data = new(type(`classIdent`.data))
+          setNimDataToJObject(jniEnv, this, `iClazz`.get, cast[RootRef](data))
 
   result.add(constructors)
+  result.add(nativeMethodsRegistration)
 
   # Generate interface converters
   for interf in interfaces:

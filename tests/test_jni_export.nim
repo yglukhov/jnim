@@ -64,6 +64,8 @@ suite "jni_export":
     if not isJNIThreadInitialized():
       initJNIForTests()
 
+    registerNativeMethods()
+
   test "Smoke test":
     let mr = MyObj.new()
     let tr = Tester.new()
