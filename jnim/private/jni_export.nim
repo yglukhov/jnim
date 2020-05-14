@@ -7,7 +7,7 @@ type MethodDescr = object
   argTypes: seq[string]
 
 const
-  JnimPackageName = "io.github.yglukhov.jnim"
+  JnimPackageName {.strdefine.} = "io.github.yglukhov.jnim"
   FinalizerName = "_0"
   PointerFieldName = "_1"
   InitializerName = "_2"
