@@ -199,8 +199,30 @@ proc genDexGlue(className, parentClass: string, interfaces: seq[string], isPubli
   # we must use a workaround of writing an external file and compiling it
   # via command line.
 
-  template quot(pattern: string): string =
-    fmt(pattern, '`', '`')
+
+  when compiles(fmt("foobar `1+2` barfoo", '`', '`')):
+    template quot(pattern: string): string =
+      fmt(pattern, '`', '`')
+  else:
+    # Hacky workaround for Nim <1.2.x, which doesn't allow using non-default
+    # markers in fmt. Whereas using default '{' and '}' in quot templates below
+    # would make them significantly less readable.
+    # The following macro quotes all "{...}" blocks with double braces: "{{...}}",
+    # then replaces backtick blocks "`...`" with brace blocks: "{...}", and finally
+    # calls fmt on the resulting string.
+    macro quot(pattern: string): untyped =
+      let spans = pattern.strVal.multiReplace(("{", "{{"), ("}", "}}")).split('`')
+      var
+        i = 0
+        buf = ""
+      while i+1 < spans.len:
+        buf.add spans[i] & "{" & spans[i+1] & "}"
+        i += 2
+      if i < spans.len:
+        buf.add spans[i]
+      let bufNode = newStrLitNode(buf)
+      quote do:
+        fmt(`bufNode`)
 
   func dexClass(javaClassPath: string): string =
     # FIXME: sometimes genDexGlue is getting class names without full path from
