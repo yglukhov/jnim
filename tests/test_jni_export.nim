@@ -1,4 +1,4 @@
-import ../jnim/private / [ jni_api, jni_generator, jni_export ],
+import ../jnim/private / [ jni_api, jni_generator, jni_export, java_glue ],
        ./common,
        unittest
 
