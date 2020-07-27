@@ -107,7 +107,7 @@ template deleteGlobalRef*(env: JNIEnvPtr, r: jobject) =
   env.DeleteGlobalRef(env, r)
 
 template newGlobalRef*[T : jobject](env: JNIEnvPtr, r: T): T =
-  cast[T](theEnv.NewGlobalRef(theEnv, r))
+  cast[T](env.NewGlobalRef(env, r))
 
 ####################################################################################################
 # Types

@@ -1,4 +1,4 @@
-import macros, tables, sets, jni_wrapper, jni_api, strutils, sequtils
+import macros, tables, jni_wrapper, jni_api, java_glue, strutils, sequtils
 from strformat import fmt
 
 type MethodDescr = object
@@ -7,16 +7,12 @@ type MethodDescr = object
   argTypes: seq[string]
 
 const
-  JnimPackageName {.strdefine.} = "io.github.yglukhov.jnim"
-  FinalizerName = "_0"
   PointerFieldName = "_1"
   InitializerName = "_2"
-  JniExportedFunctionPrefix = "Java_" & JnimPackageName.replace('.', '_') & "_Jnim_00024"
+  JniExportedFunctionPrefix* = "Java_" & jnimPackageName.replace('.', '_') & "_Jnim_00024"
 
 proc initMethodDescr(name, retType: string, argTypes: seq[string]): MethodDescr =
-  result.name = name
-  result.retType = retType
-  result.argTypes = argTypes
+  MethodDescr(name: name, retType: retType, argTypes: argTypes)
 
 proc toWords(a: NimNode, res: var seq[string]) =
   case a.kind
@@ -71,14 +67,6 @@ proc extractArguments(a: NimNode): tuple[className, parentClass: string, interfa
   if a[^1].kind != nnkIdent:
     result.body = a[^1]
 
-const jnimGlue {.strdefine.} = "Jnim.java"
-
-var
-  javaGlue {.compileTime.} = newStringOfCap(1000000)
-  imports {.compileTime.}: HashSet[string]
-  classCursor {.compileTime.} = 0
-  importCursor {.compileTime.} = 0
-
 proc importNameFromFqcn(fq: string): string =
   if '.' in fq and not fq.startsWith("Jnim."):
     let dollarIdx = fq.find('$')
@@ -90,38 +78,18 @@ proc importNameFromFqcn(fq: string): string =
 proc isConstr(m: MethodDescr): bool = m.name == "new"
 
 proc genJavaGlue(className, parentClass: string, interfaces: seq[string], isPublic: bool, methodDefs: seq[MethodDescr], staticSection, emitSection: string) =
-  if classCursor == 0:
-
-    javaGlue = "package " & JnimPackageName & ";\n"
-    importCursor = javaGlue.len
-    javaGlue &= """
-public class Jnim {
-public interface __NimObject {}
-public static native void """ & FinalizerName & """(long p);
-"""
-    classCursor = javaGlue.len
-    javaGlue &= "}\n"
-    imports = initSet[string]()
-
   echo "className: ", className, " public: ", isPublic
   echo "super: ", parentClass
   echo "interfaces: ", interfaces
   echo "body: ", repr(body)
   # echo "cur javaglue.len: ", javaGlue.len
 
-  var newImports = newStringOfCap(10000)
+  var imports = newSeq[string]()
 
   proc noDollarFqcn(s: string): string = s.replace('$', '.')
 
-  proc addImport(s: string) =
-    if s.len != 0 and s notin imports:
-      imports.incl(s)
-      newImports &= "import "
-      newImports &= s
-      newImports &= ";\n"
-
-  # addImport("ExportTestClass")
-  # addImport(className)
+  # imports.add("ExportTestClass")
+  # imports.add(className)
 
   var classDef = newStringOfCap(100000)
   classDef &= "public static class "
@@ -129,13 +97,13 @@ public static native void """ & FinalizerName & """(long p);
   if parentClass.len != 0:
     classDef &= " extends "
     classDef &= parentClass.noDollarFqcn()
-    addImport(importNameFromFqcn(parentClass))
+    imports.add(importNameFromFqcn(parentClass))
 
   classDef &= " implements __NimObject"
   for f in interfaces:
     classDef &= ", "
     classDef &= f.noDollarFqcn()
-    addImport(importNameFromFqcn(f))
+    imports.add(importNameFromFqcn(f))
   classDef &= " {\n"
   if staticSection.len != 0:
     classDef &= "static { " & staticSection & "}\n"
@@ -175,21 +143,14 @@ private native void """ & InitializerName & """();
 
   classDef &= "}\n\n"
 
-  if newImports.len != 0:
-    javaGlue.insert(newImports, importCursor)
-    importCursor += newImports.len
-    classCursor += newImports.len
-
-  javaGlue.insert(classDef, classCursor)
-  classCursor += classDef.len
-  # echo javaGlue
-  # echo "new javaglue.len: ", javaGlue.len
+  emitGlueImportsP(imports)
+  emitGlueClassP(classDef)
 
   # echo classDef
 
   # var s {.global.}: string
   # s.insert($a & "\n")
-  writeFile(jnimGlue, javaGlue)
+  flushGlueP()
 
 var dexGlue {.compileTime.}: seq[string]
 
@@ -231,7 +192,7 @@ proc genDexGlue(className, parentClass: string, interfaces: seq[string], isPubli
       if javaClassPath.startsWith "Jnim.":
         javaClassPath[5..^1]
       elif not javaClassPath.contains ".":
-        JnimPackageName & ".Jnim$" & javaClassPath
+        jnimPackageName & ".Jnim$" & javaClassPath
       else:
         javaClassPath
     "L" & fullPath.replace(".", "/") & ";"
@@ -239,8 +200,8 @@ proc genDexGlue(className, parentClass: string, interfaces: seq[string], isPubli
   const
     Object = dexClass"java.lang.Object"
     # TODO: make it possible to customize the path of the package
-    Jnim = dexClass(JnimPackageName & ".Jnim")
-    NimObject = dexClass(JnimPackageName & ".Jnim$__NimObject")
+    Jnim = dexClass(jnimPackageName & ".Jnim")
+    NimObject = dexClass(jnimPackageName & ".Jnim$__NimObject")
     System = dexClass"java.lang.System"
     String = dexClass"java.lang.String"
   if dexGlue.len == 0:
@@ -265,7 +226,7 @@ dex.classes.add ClassDef(class: `NimObject.repr`, access: {Public, Interface}, s
 """
 
   let
-    class = dexClass(JnimPackageName & ".Jnim$" & className)
+    class = dexClass(jnimPackageName & ".Jnim$" & className)
     super = if parentClass.len != 0: dexClass(parentClass) else: Object
     field = quot"""Field(class: `class.repr`, typ: "J", name: `PointerFieldName.repr`)"""
     Throws = dexClass"dalvik.annotation.Throws"
@@ -474,7 +435,7 @@ proc setNimDataToJObject(e: JNIEnvPtr, j: jobject, clazz: JClass, o: RootRef) =
   GC_ref(o)
   e.SetLongField(e, j, fid, cast[jlong](o))
 
-proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) {.exportc: "Java_" & JnimPackageName.replace('.', '_') & "_Jnim__10", dynlib, cdecl.} =
+proc finalizeJobject(e: JNIEnvPtr, j: jobject, p: jlong) {.exportc: "Java_" & jnimPackageName.replace('.', '_') & "_Jnim__10", dynlib, cdecl.} =
   let p = cast[RootRef](p)
   if not p.isNil:
     GC_unref(p)
@@ -525,7 +486,7 @@ proc registerNativeMethods(classSig: cstring, nativeMethods: varargs[JNINativeMe
     nativeMethodDescs.add((classSig, @nativeMethods))
 
 # Register the finalizer
-registerNativeMethods(static(JnimPackageName.replace(".", "/") & "/Jnim"), nativeMethodDef("_0", "(J)V", finalizeJobject))
+registerNativeMethods(static(jnimPackageName.replace(".", "/") & "/Jnim"), nativeMethodDef("_0", "(J)V", finalizeJobject))
 
 proc registerNativeMethods*() =
   for i in 0 .. nativeMethodDescs.high:
@@ -540,7 +501,7 @@ macro jexport*(a: varargs[untyped]): untyped =
   var (className, parentClass, interfaces, body, isPublic) = extractArguments(a)
   let classNameIdent = newIdentNode(className)
   let clazzIdent = ident"clazz"
-  let classSig = JnimPackageName.replace(".", "/") & "/Jnim$" & className
+  let classSig = jnimPackageName.replace(".", "/") & "/Jnim$" & className
 
   let nonVirtualClassNameIdent = ident("JnimNonVirtual_" & className)
 
@@ -714,7 +675,3 @@ macro jexport*(a: varargs[untyped]): untyped =
         cast[`interfaceName`](v)
 
   # echo repr result
-
-macro debugPrintJavaGlue*(): untyped {.deprecated.} =
-  echo javaGlue
-
