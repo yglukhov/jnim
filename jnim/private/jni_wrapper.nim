@@ -640,7 +640,7 @@ proc setField*[T](e: JNIEnvPtr, o: jobject, f: jfieldID, v: T) {.inline.} =
   elif T is jfloat: e.SetFloatField(e, o, f, v)
   elif T is jdouble: e.SetDoubleField(e, o, f, v)
   elif T is jboolean: e.SetBooleanField(e, o, f, v)
-  else: unexpectedType(result)
+  else: unexpectedType(v)
 
 proc callStaticMethod*(e: JNIEnvPtr, T: typedesc, c: JClass, m: jmethodID, a: ptr jvalue): T {.inline.} =
   when T is jobject: e.CallStaticObjectMethodA(e, c, m, a)
@@ -680,7 +680,7 @@ proc setStaticField*[T](e: JNIEnvPtr, o: JClass, f: jfieldID, v: T) {.inline.} =
   elif T is jfloat: e.SetStaticFloatField(e, o, f, v)
   elif T is jdouble: e.SetStaticDoubleField(e, o, f, v)
   elif T is jboolean: e.SetStaticBooleanField(e, o, f, v)
-  else: unexpectedType(result)
+  else: unexpectedType(v)
 
 proc newArray*(e: JNIEnvPtr, T: typedesc, l: jsize): jtypedArray[T] {.inline.} =
   when T is jchar: e.NewCharArray(e, l)

@@ -634,7 +634,7 @@ proc jcast*[T: JVMObject](obj: JVMObject): T =
   ## - If java object, referenced by `obj`, is an instance of class,
   ## represented by `T` - returns an object of `T` that references
   ## the same java object.
-  ## - Otherwise raises an exception (`ObjectConversionError`).
+  ## - Otherwise raises an exception (`ObjectConversionDefect`).
   ## **WARNING**: since generic parameters are not represented on JVM level,
   ## they are ignored (even though they are required by Nim syntax). This
   ## means that the following won't raise an error:
@@ -650,7 +650,7 @@ proc jcast*[T: JVMObject](obj: JVMObject): T =
 
   if not obj.instanceOf(T):
     raise newException(
-      ObjectConversionError,
+      ObjectConversionDefect,
       "Failed to convert " & typetraits.name(obj.type) &
         " to " & typetraits.name(T)
     )
