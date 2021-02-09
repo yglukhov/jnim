@@ -8,7 +8,7 @@ const
 
 var
   javaGlue {.compileTime.} = newStringOfCap(1000000)
-  existingImports {.compileTime.} = initSet[string]()
+  existingImports {.compileTime.} = initHashSet[string]()
   classCursor {.compileTime.} = 0
   importCursor {.compileTime.} = 0
 

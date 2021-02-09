@@ -30,43 +30,43 @@ suite "jni_api":
   test "API - call System.out.println":
     let cls = JVMClass.getByName("java.lang.System")
     let outId = cls.getStaticFieldId("out", sigForClass"java.io.PrintStream")
-    let `out` = cls.getObject(outId)
+    let `out` = cls.getField(JVMObject, outId)
     let outCls = `out`.getJVMClass
     let printlnId = outCls.getMethodId("println", "($#)V" % string.jniSig)
-    `out`.callVoidMethod(printlnId, ["Hello, world".newJVMObject.toJValue])
+    `out`.callMethod(void, printlnId, ["Hello, world".newJVMObject.toJValue])
 
   test "API - TestClass - static fields":
     let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
 
-    check: cls.getObject("objectSField").toStringRaw == "obj"
-    check: cls.getChar("charSField") == 'A'.jchar
-    check: cls.getByte("byteSField") == 1
-    check: cls.getShort("shortSField") == 2
-    check: cls.getInt("intSField") == 3
-    check: cls.getLong("longSField") == 4
-    check: cls.getFloat("floatSField") == 1.0
-    check: cls.getDouble("doubleSField") == 2.0
-    check: cls.getBoolean("booleanSField") == JVM_TRUE
+    check: cls.getField(JVMObject, "objectSField").toStringRaw == "obj"
+    check: cls.getField(jchar, "charSField") == 'A'.jchar
+    check: cls.getField(jbyte, "byteSField") == 1
+    check: cls.getField(jshort, "shortSField") == 2
+    check: cls.getField(jint, "intSField") == 3
+    check: cls.getField(jlong, "longSField") == 4
+    check: cls.getField(jfloat, "floatSField") == 1.0
+    check: cls.getField(jdouble, "doubleSField") == 2.0
+    check: cls.getField(jboolean, "booleanSField") == JVM_TRUE
 
-    cls.setObject("objectSField", "Nim".newJVMObject)
-    cls.setChar("charSField", 'B'.jchar)
-    cls.setByte("byteSField", 100)
-    cls.setShort("shortSField", 200)
-    cls.setInt("intSField", 300)
-    cls.setLong("longSField", 400)
-    cls.setFloat("floatSField", 500.0)
-    cls.setDouble("doubleSField", 600.0)
-    cls.setBoolean("booleanSField", JVM_FALSE)
+    cls.setField("objectSField", "Nim".newJVMObject)
+    cls.setField("charSField", 'B'.jchar)
+    cls.setField("byteSField", 100.jbyte)
+    cls.setField("shortSField", 200.jshort)
+    cls.setField("intSField", 300.jint)
+    cls.setField("longSField", 400.jlong)
+    cls.setField("floatSField", 500.jfloat)
+    cls.setField("doubleSField", 600.jdouble)
+    cls.setField("booleanSField", JVM_FALSE)
     
-    check: cls.getObject("objectSField").toStringRaw == "Nim"
-    check: cls.getChar("charSField") == 'B'.jchar
-    check: cls.getByte("byteSField") == 100
-    check: cls.getShort("shortSField") == 200
-    check: cls.getInt("intSField") == 300
-    check: cls.getLong("longSField") == 400
-    check: cls.getFloat("floatSField") == 500.0
-    check: cls.getDouble("doubleSField") == 600.0
-    check: cls.getBoolean("booleanSField") == JVM_FALSE
+    check: cls.getField(JVMObject, "objectSField").toStringRaw == "Nim"
+    check: cls.getField(jchar, "charSField") == 'B'.jchar
+    check: cls.getField(jbyte, "byteSField") == 100
+    check: cls.getField(jshort, "shortSField") == 200
+    check: cls.getField(jint, "intSField") == 300
+    check: cls.getField(jlong, "longSField") == 400
+    check: cls.getField(jfloat, "floatSField") == 500.0
+    check: cls.getField(jdouble, "doubleSField") == 600.0
+    check: cls.getField(jboolean, "booleanSField") == JVM_FALSE
 
   test "API - TestClass - fields":
     let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
@@ -74,15 +74,15 @@ suite "jni_api":
 
     check: getPropValue(string, obj, obj.getJVMClass.getFieldId("checkStringProperty", jniSig(string))) == "OK"
     
-    check: obj.getObject("objectField").toStringRaw == "obj"
-    check: obj.getChar("charField") == 'A'.jchar
-    check: obj.getByte("byteField") == 1
-    check: obj.getShort("shortField") == 2
-    check: obj.getInt("intField") == 3
-    check: obj.getLong("longField") == 4
-    check: obj.getFloat("floatField") == 1.0
-    check: obj.getDouble("doubleField") == 2.0
-    check: obj.getBoolean("booleanField") == JVM_TRUE
+    check: obj.getField(JVMObject, "objectField").toStringRaw == "obj"
+    check: obj.getField(jchar, "charField") == 'A'.jchar
+    check: obj.getField(jbyte, "byteField") == 1
+    check: obj.getField(jshort, "shortField") == 2
+    check: obj.getField(jint, "intField") == 3
+    check: obj.getField(jlong, "longField") == 4
+    check: obj.getField(jfloat, "floatField") == 1.0
+    check: obj.getField(jdouble, "doubleField") == 2.0
+    check: obj.getField(jboolean, "booleanField") == JVM_TRUE
 
     obj.setObject("objectField", "Nim".newJVMObject)
     obj.setChar("charField", 'B'.jchar)
@@ -107,37 +107,36 @@ suite "jni_api":
   test "JVM - TestClass - static methods":
     let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
 
-    check: cls.callObjectMethod("objectSMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
+    check: cls.callMethod(JVMObject, "objectSMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
     check: string.callMethod(cls, cls.getStaticMethodId("objectSMethod", "($1)$1" % JVMObject.jniSig), ["test".newJVMObject.toJValue]) == "test"
-    check: cls.callCharMethod("charSMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
-    check: cls.callByteMethod("byteSMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
-    check: cls.callShortMethod("shortSMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
-    check: cls.callIntMethod("intSMethod", "($1)$1" % jint.jniSig, [3.jint.toJValue]) == 3
-    check: cls.callLongMethod("longSMethod", "($1)$1" % jlong.jniSig, [4.jlong.toJValue]) == 4
-    check: cls.callFloatMethod("floatSMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
-    check: cls.callDoubleMethod("doubleSMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
-    check: cls.callBooleanMethod("booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
+    check: cls.callMethod(jchar, "charSMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
+    check: cls.callMethod(jbyte, "byteSMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
+    check: cls.callMethod(jshort, "shortSMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
+    check: cls.callMethod(jint, "intSMethod", "($1)$1" % jint.jniSig, [3.jint.toJValue]) == 3
+    check: cls.callMethod(jlong, "longSMethod", "($1)$1" % jlong.jniSig, [4.jlong.toJValue]) == 4
+    check: cls.callMethod(jfloat, "floatSMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
+    check: cls.callMethod(jdouble, "doubleSMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
+    check: cls.callMethod(jboolean, "booleanSMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
 
 
   test "JVM - TestClass - methods":
     let cls = JVMClass.getByName("io.github.yglukhov.jnim.TestClass")
     let obj = cls.newObject("()V")
 
-    check: obj.callObjectMethod("objectMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
+    check: obj.callMethod(JVMObject, "objectMethod", "($1)$1" % JVMObject.jniSig, ["test".newJVMObject.toJValue]).toStringRaw == "test"
     check: string.callMethod(obj, cls.getMethodId("objectMethod", "($1)$1" % JVMObject.jniSig), ["test".newJVMObject.toJValue]) == "test"
-    check: obj.callCharMethod("charMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
-    check: obj.callByteMethod("byteMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
-    check: obj.callShortMethod("shortMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
-    check: obj.callIntMethod("intMethod", "($1)$1" % jint.jniSig, [3.jint.toJValue]) == 3
-    check: obj.callLongMethod("longMethod", "($1)$1" % jlong.jniSig, [4.jlong.toJValue]) == 4
-    check: obj.callFloatMethod("floatMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
-    check: obj.callDoubleMethod("doubleMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
-    check: obj.callBooleanMethod("booleanMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
+    check: obj.callMethod(jchar, "charMethod", "($1)$1" % jchar.jniSig, ['A'.jchar.toJValue]) == 'A'.jchar
+    check: obj.callMethod(jbyte, "byteMethod", "($1)$1" % jbyte.jniSig, [1.jbyte.toJValue]) == 1
+    check: obj.callMethod(jshort, "shortMethod", "($1)$1" % jshort.jniSig, [2.jshort.toJValue]) == 2
+    check: obj.callMethod(jint, "intMethod", "($1)$1" % jint.jniSig, [3.jint.toJValue]) == 3
+    check: obj.callMethod(jlong, "longMethod", "($1)$1" % jlong.jniSig, [4.jlong.toJValue]) == 4
+    check: obj.callMethod(jfloat, "floatMethod", "($1)$1" % jfloat.jniSig, [5.jfloat.toJValue]) == 5.0
+    check: obj.callMethod(jdouble, "doubleMethod", "($1)$1" % jdouble.jniSig, [6.jdouble.toJValue]) == 6.0
+    check: obj.callMethod(jboolean, "booleanMethod", "($1)$1" % jboolean.jniSig, [JVM_TRUE.toJValue]) == JVM_TRUE
 
   test "JVM - arrays":
-    discard newJVMCharArray(100.jsize)
     discard jchar.newArray(100)
-    discard newJVMObjectArray(100.jsize)
+    discard newArray(JVMObject, 100.jsize)
     discard JVMClass.getByName("java.lang.Object").newArray(100)
 
     discard @[1.jint, 2, 3].toJVMObject()
@@ -164,9 +163,9 @@ suite "jni_api":
     objArray[0] = "Hello".newJVMObject
     objArray[1] = "world".newJVMObject
     obj.setObjectArray("objectArray", objArray)
-    check: obj.callBooleanMethod("checkObjectArray", "()" & jboolean.jniSig) == JVM_FALSE
+    check: obj.callMethod(jboolean, "checkObjectArray", "()" & jboolean.jniSig) == JVM_FALSE
     objArray[1] = "world!".newJVMObject
-    check: obj.callBooleanMethod("checkObjectArray", "()" & jboolean.jniSig) == JVM_TRUE
+    check: obj.callMethod(jboolean, "checkObjectArray", "()" & jboolean.jniSig) == JVM_TRUE
 
     let doubleArray = obj.callDoubleArrayMethod("getDoubleArray", "($#)$#" % [jdouble.jniSig, seq[jdouble].jniSig], [2.0.jdouble.toJValue])
     for idx in 1..doubleArray.len:
@@ -174,7 +173,7 @@ suite "jni_api":
 
     let strArray = cls.callObjectArrayMethod("getStringArrayS", "()" & seq[string].jniSig)
     for idx, val in ["Hello", "from", "java!"]:
-      check: strArray[idx].toStringRaw == val
+      check: newJVMObjectConsumingLocalRef(strArray[idx]).toStringRaw == val
 
   test "API - jstring $":
     check: $(theEnv.NewStringUTF(theEnv, "test")) == "test"

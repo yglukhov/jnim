@@ -38,6 +38,12 @@ proc initJNI*(version: JNIVersion = JNIVersion.v1_6, options: openarray[string] 
   initJNIArgs(version, options)
   initJNIThread()
 
+proc initJNI*(env: JNIEnvPtr) =
+  theEnv = env
+
+proc initJNI*(vm: JavaVMPtr) =
+  theVM = vm
+
 # This is not supported, as it said here: http://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/invocation.html#destroy_java_vm:
 # "As of JDK/JRE 1.1.2 unloading of the VM is not supported."
 # Maybe it can be usefull with alternative implementations of JRE
@@ -151,10 +157,10 @@ template checkException() =
   assert(not theEnv.isNil)
   checkJVMException(theEnv)
 
-template callVM*(s: untyped): untyped =
-  let res = s
+proc callVM*[T](s: T): T {.inline.} =
   checkException()
-  res
+  when T isnot void:
+    return s
 
 ####################################################################################################
 # JVMMethodID type
@@ -371,24 +377,6 @@ proc toStringRaw(o: JVMObject): string =
     return ""
   toStringRaw(o.obj)
 
-proc callVoidMethod*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []) =
-  checkInit
-  let a = if args.len == 0: nil else: unsafeAddr args[0]
-  theEnv.CallVoidMethodA(theEnv, o.get, id.get, a)
-  checkException
-
-proc callVoidMethod*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []) =
-  checkInit
-  let a = if args.len == 0: nil else: unsafeAddr args[0]
-  theEnv.CallVoidMethodA(theEnv, o.get, o.getMethodId(name, sig).get, a)
-  checkException
-
-proc callVoidMethod*(o: JnimNonVirtual_JVMObject, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []) =
-  checkInit
-  let a = if args.len == 0: nil else: unsafeAddr args[0]
-  theEnv.CallNonVirtualVoidMethodA(theEnv, o.obj, c.get, id.get, a)
-  checkException
-
 ####################################################################################################
 # Arrays support
 
@@ -418,7 +406,7 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
   type `JVM typName Array`* {.inject.} = JVMArray[typ]
 
   when `typ` isnot jobject:
-    proc `newJVM typName Array`*(len: jsize): JVMArray[typ] {.inline.} =
+    proc `newJVM typName Array`*(len: jsize): JVMArray[typ] {.inline, deprecated.} =
       newArray(`typ`, len.int)
 
   else:
@@ -477,29 +465,6 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
     theEnv.SetObjectField(theEnv, o.get, o.getFieldId(name, seq[`typ`].jniSig).get, arr.arr)
     checkException
 
-  # Array methods
-
-  when `typ` is jobject:
-    proc `[]`*(arr: JVMArray[typ], idx: Natural): JVMObject =
-      checkInit
-      (callVM theEnv.GetObjectArrayElement(theEnv, arr.get, idx.jsize)).newJVMObjectConsumingLocalRef
-    proc `[]=`*(arr: JVMArray[typ], idx: Natural, obj: JVMObject) =
-      checkInit
-      theEnv.SetObjectArrayElement(theEnv, arr.get, idx.jsize, obj.get)
-      checkException
-  else:
-    proc getArrayRegion*(a: arrTyp, start, length: jint, address: ptr typ) =
-      checkInit
-      theEnv.getArrayRegion(a, start, length, address)
-
-    proc `[]`*(arr: JVMArray[typ], idx: Natural): `typ` =
-      checkInit
-      theEnv.getArrayRegion(arr.get, idx.jsize, 1.jsize, addr result)
-      checkException
-    proc `[]=`*(arr: JVMArray[typ], idx: Natural, v: `typ`) =
-      checkInit
-      theEnv.`Set typName ArrayRegion`(theEnv, arr.get, idx.jsize, 1.jsize, unsafeAddr v)
-      checkException
 
   # Array methods
   proc `call typName ArrayMethod`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): JVMArray[typ] =
@@ -532,72 +497,96 @@ genArrayType(jdouble, jdoubleArray, Double)
 genArrayType(jboolean, jbooleanArray, Boolean)
 genArrayType(jobject, jobjectArray, Object)
 
+proc `[]`*[T](arr: JVMArray[T], idx: Natural): T =
+  checkInit
+  when T is jobject:
+    callVM theEnv.GetObjectArrayElement(theEnv, arr.get, idx.jsize)
+  elif T is JVMObject:
+    (callVM theEnv.GetObjectArrayElement(theEnv, arr.get, idx.jsize)).newJVMObjectConsumingLocalRef
+  else:
+    theEnv.getArrayRegion(arr.get, idx.jsize, 1, addr result)
+    checkException
+
+proc `[]=`*[T, V](arr: JVMArray[T], idx: Natural, v: V) =
+  checkInit
+  theEnv.setArrayRegion(arr.get, idx.jsize, 1, unsafeAddr v)
+  checkException
+
+proc `[]=`*(arr: JVMArray[jobject], idx: Natural, v: JVMObject|jobject) =
+  checkInit
+  let vv = when v is jobject: v
+            else: v.get
+  theEnv.SetObjectArrayElement(theEnv, arr.get, idx.jsize, vv)
+  checkException
+
 ####################################################################################################
 # Fields accessors generation
+proc getField*(c: JVMClass, T: typedesc, id: JVMFieldID): T =
+  checkInit
+  when T is JVMObject:
+    (callVM theEnv.getStaticField(jobject, c.get, id.get)).newJVMObjectConsumingLocalRef
+  else:
+    (callVM theEnv.getStaticField(T, c.get, id.get))
+
+proc getField*(c: JVMClass, T: typedesc, name: cstring): T {.inline.} =
+  getField(c, T, c.getStaticFieldId(name, T))
+
+proc setField*[T](c: JVMClass, id: JVMFieldID, v: T) =
+  checkInit
+  when T is JVMObject:
+    theEnv.setStaticField(c.get, id.get, v.get)
+  else:
+    theEnv.setStaticField(c.get, id.get, v)
+  checkException
+
+proc setField*[T](c: JVMClass, name: cstring, v: T) =
+  setField(c, c.getStaticFieldId(name, T), v)
+
+proc getField*(o: JVMObject, T: typedesc, id: JVMFieldID): T =
+  checkInit
+  when T is JVMObject:
+    (callVM theEnv.getField(jobject, o.get, id.get)).newJVMObjectConsumingLocalRef
+  else:
+    (callVM theEnv.getField(T, o.get, id.get))
+
+proc getField*(o: JVMObject, T: typedesc, name: cstring): T =
+  getField(o, T, o.getFieldId(name, T))
+
+proc setField*[T](o: JVMObject, id: JVMFieldID, v: T) =
+  checkInit
+  when T is JVMObject:
+    theEnv.setField(o.get, id.get, v.get)
+  else:
+    theEnv.setField(o.get, id.get, v)
+  checkException
+
+proc setField*[T](o: JVMObject, name: cstring, v: T) =
+  setField(o, o.getFieldId(name, T), v)
 
 template genField(typ: typedesc, typName: untyped): untyped =
-  proc `get typName`*(c: JVMClass, id: JVMFieldID): `typ` =
-    checkInit
-    when `typ` is JVMObject:
-      (callVM theEnv.getStaticField(jobject, c.get, id.get)).newJVMObjectConsumingLocalRef
-    else:
-      (callVM theEnv.getStaticField(`typ`, c.get, id.get))
+  proc `get typName`*(c: JVMClass, id: JVMFieldID): typ {.inline.} =
+    getField(c, typ, id)
 
-  proc `get typName`*(c: JVMClass, name: string): `typ` =
-    checkInit
-    when `typ` is JVMObject:
-      (callVM theEnv.getStaticField(jobject, c.get, c.getStaticFieldId(`name`, `typ`).get)).newJVMObjectConsumingLocalRef
-    else:
-      (callVM theEnv.getStaticField(`typ`, c.get, c.getStaticFieldId(`name`, `typ`).get))
+  proc `get typName`*(c: JVMClass, name: string): typ {.inline.} =
+    getField(c, typ, name)
 
-  proc `set typName`*(c: JVMClass, id: JVMFieldID, v: `typ`) =
-    checkInit
-    when `typ` is JVMObject:
-      theEnv.setStaticField(c.get, id.get, v.get)
-    else:
-      theEnv.setStaticField(c.get, id.get, v)
-    checkException
+  proc `set typName`*(c: JVMClass, id: JVMFieldID, v: typ) {.inline.} =
+    setField(c, id, v)
 
-  proc `set typName`*(c: JVMClass, name: string, v: `typ`) =
-    `set typName`(c, c.getStaticFieldId(`name`, `typ`), v)
+  proc `set typName`*(c: JVMClass, name: string, v: typ) {.inline.} =
+    setField(c, name, v)
 
-  proc `get typName`*(o: JVMObject, id: JVMFieldID): `typ` =
-    checkInit
-    when `typ` is JVMObject:
-      (callVM theEnv.getField(jobject, o.get, id.get)).newJVMObjectConsumingLocalRef
-    else:
-      (callVM theEnv.getField(`typ`, o.get, id.get))
+  proc `get typName`*(o: JVMObject, id: JVMFieldID): typ {.inline.} =
+    getField(o, typ, id)
 
-  proc `get typName`*(o: JVMObject, name: string): `typ` =
-    checkInit
-    when `typ` is JVMObject:
-      (callVM theEnv.getField(jobject, o.get, o.getFieldId(`name`, `typ`).get)).newJVMObjectConsumingLocalRef
-    else:
-      (callVM theEnv.getField(`typ`, o.get, o.getFieldId(`name`, `typ`).get))
+  proc `get typName`*(o: JVMObject, name: string): typ {.inline.} =
+    getField(o, typ, name)
 
-  proc `set typName`*(o: JVMObject, id: JVMFieldID, v: `typ`) =
-    checkInit
-    when `typ` is JVMObject:
-      theEnv.setField(o.get, id.get, v.get)
-    else:
-      theEnv.setField(o.get, id.get, v)
-    checkException
+  proc `set typName`*(o: JVMObject, id: JVMFieldID, v: typ) {.inline.} =
+    setField(o, id, v)
 
-  proc `set typName`*(o: JVMObject, name: string, v: `typ`) =
-    `set typName`(o, o.getFieldId(`name`, `typ`), v)
-
-  when `typ` isnot JVMObject:
-    # Need to find out, why I can't just call `get typName`. Guess it's Nim's bug
-    proc getProp*(T: typedesc[`typ`], c: JVMClass, id: JVMFieldID): `typ` =
-      checkInit
-      (callVM theEnv.getStaticField(`typ`, c.get, id.get))
-
-    proc getProp*(T: typedesc[`typ`], o: JVMObject, id: JVMFieldID): `typ` =
-      checkInit
-      (callVM theEnv.getField(`typ`, o.get, id.get))
-
-    proc setProp*(T: typedesc[`typ`], o: JVMClass|JVMObject, id: JVMFieldID, v: `typ`) =
-      `set typName`(o, id, v)
+  proc `set typName`*(o: JVMObject, name: string, v: typ) {.inline.} =
+    setField(o, name, v)
 
 
 genField(JVMObject, Object)
@@ -610,58 +599,50 @@ genField(jfloat, Float)
 genField(jdouble, Double)
 genField(jboolean, Boolean)
 
-proc getPropRaw*(T: typedesc[JVMObject], c: JVMClass, id: JVMFieldID): jobject =
-  # deprecated
+proc callMethod*(c: JVMClass, retType: typedesc, id: JVMMethodId, args: openarray[jvalue] = []): retType =
   checkInit
-  (callVM theEnv.getStaticField(jobject, c.get, id.get))
+  when retType is JVMObject:
+    (callVM theEnv.callStaticMethod(jobject, c.get, id.get, args)).newJVMObjectConsumingLocalRef
+  else:
+    callVM theEnv.callStaticMethod(retType, c.get, id.get, args)
 
-proc getPropRaw*(T: typedesc[JVMObject], o: JVMObject, id: JVMFieldID): jobject =
-  # deprecated
-  checkInit
-  (callVM theEnv.getField(jobject, o.get, id.get))
+proc callMethod*(c: JVMClass, retType: typedesc, name, sig: cstring, args: openarray[jvalue] = []): retType {.inline.} =
+  callMethod(c, retType, c.getStaticMethodId(name, sig), args)
 
-proc setPropRaw*(T: typedesc[JVMObject], c: JVMClass, id: JVMFieldID, v: jobject) =
-  # deprecated
+proc callMethod*(o: JVMObject, retType: typedesc, id: JVMMethodID, args: openarray[jvalue] = []): retType =
   checkInit
-  theEnv.setStaticField(c.get, id.get, v)
-  checkException
+  when retType is JVMObject:
+    (callVM theEnv.callMethod(jobject, o.get, id.get, args)).newJVMObjectConsumingLocalRef
+  else:
+    callVM theEnv.callMethod(retType, o.get, id.get, args)
 
-proc setPropRaw*(T: typedesc[JVMObject], o: JVMObject, id: JVMFieldID, v: jobject) =
-  # deprecated
-  checkInit
-  theEnv.setField(o.get, id.get, v)
-  checkException
+proc callMethod*(o: JVMObject, retType: typedesc, name, sig: cstring, args: openarray[jvalue] = []): retType {.inline.} =
+  callMethod(o, retType, o.getMethodId(name, sig), args)
+
+proc callMethod*(o: JnimNonVirtual_JVMObject, retType: typedesc, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): retType =
+  when retType is JVMObject:
+    (callVM theEnv.callNonVirtualMethod(jobject, o.obj, c.get, id.get, args)).newJVMObjectConsumingLocalRef
+  else:
+    callVM theEnv.callNonVirtualMethod(retType, o.obj, c.get, id.get, args)
 
 ####################################################################################################
 # Methods generation
 
 template genMethod(typ: typedesc, typName: untyped): untyped =
-  proc `call typName Method`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `typ` =
-    checkInit
-    when `typ` is JVMObject:
-      (callVM theEnv.callStaticMethod(jobject, c.get, id.get, args)).newJVMObjectConsumingLocalRef
-    else:
-      callVM theEnv.callStaticMethod(`typ`, c.get, id.get, args)
+  proc `call typName Method`*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `typ` {.inline, deprecated.} =
+    callMethod(c, typ, id, args)
 
-  proc `call typName Method`*(c: JVMClass, name, sig: string, args: openarray[jvalue] = []): `typ` {.inline.} =
-    `call typName Method`(c, c.getStaticMethodId(name, sig), args)
+  proc `call typName Method`*(c: JVMClass, name, sig: string, args: openarray[jvalue] = []): `typ` {.inline, deprecated.} =
+    callMethod(c, typ, name, sig, args)
 
-  proc `call typName Method`*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []): `typ` =
-    checkInit
-    when `typ` is JVMObject:
-      (callVM theEnv.callMethod(jobject, o.get, id.get, args)).newJVMObjectConsumingLocalRef
-    else:
-      callVM theEnv.callMethod(`typ`, o.get, id.get, args)
+  proc `call typName Method`*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []): `typ` {.inline, deprecated.} =
+    callMethod(o, typ, id, args)
 
-  proc `call typName Method`*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []): `typ` {.inline.} =
-    `call typName Method`(o, o.getMethodId(name, sig), args)
+  proc `call typName Method`*(o: JVMObject, name, sig: cstring, args: openarray[jvalue] = []): `typ` {.inline, deprecated.} =
+    callMethod(o, typ, name, sig, args)
 
-  proc `call typName Method`*(o: JnimNonVirtual_JVMObject, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `typ` =
-    checkInit
-    when `typ` is JVMObject:
-      (callVM theEnv.callNonVirtualMethod(jobject, o.obj, c.get, id.get, args)).newJVMObjectConsumingLocalRef
-    else:
-      callVM theEnv.callNonVirtualMethod(`typ`, o.obj, c.get, id.get, args)
+  proc `call typName Method`*(o: JnimNonVirtual_JVMObject, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): `typ` {.inline, deprecated.} =
+    callMethod(o, typ, c, id, args)
 
 genMethod(JVMObject, Object)
 genMethod(jchar, Char)
@@ -672,15 +653,6 @@ genMethod(jlong, Long)
 genMethod(jfloat, Float)
 genMethod(jdouble, Double)
 genMethod(jboolean, Boolean)
-
-proc callObjectMethodRaw*(c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): jobject = # Deprecated
-  callVM theEnv.callStaticMethod(jobject, c.get, id.get, args)
-
-proc callObjectMethodRaw*(o: JVMObject, id: JVMMethodID, args: openarray[jvalue] = []): jobject = # Deprecated
-  callVM theEnv.callMethod(jobject, o.get, id.get, args)
-
-proc callObjectMethodRaw*(o: JnimNonVirtual_JVMObject, c: JVMClass, id: JVMMethodID, args: openarray[jvalue] = []): jobject = # Deprecated
-  callVM theEnv.callNonvirtualMethod(jobject, o.obj, c.get, id.get, args)
 
 ####################################################################################################
 # Helpers
@@ -720,7 +692,8 @@ template jarrayToSeqImpl[T](arr: jarray, res: var seq[T]) =
   res = newSeq[T](length.int)
   when T is JPrimitiveType:
     type TT = T
-    getArrayRegion(jtypedArray[TT](arr), 0, length, addr(res[0]))
+    if length != 0:
+      theEnv.getArrayRegion(jtypedArray[TT](arr), 0, length, addr(res[0]))
   elif T is JVMObject:
     type TT = T
     for i in 0..<res.len:
@@ -737,87 +710,55 @@ proc jarrayToSeqConsumingLocalRef[T](arr: jarray, t: typedesc[seq[T]]): seq[T] {
 
 template getPropValue*(T: typedesc, o: untyped, id: JVMFieldID): untyped =
   when T is bool:
-    (jboolean.getProp(o, id) != JVM_FALSE)
+    (getField(o, jboolean, id) != JVM_FALSE)
   elif T is JPrimitiveType:
-    T.getProp(o, id)
+    getField(o, T, id)
   elif T is string:
-    toStringRawConsumingLocalRef(JVMObject.getPropRaw(o, id))
+    toStringRawConsumingLocalRef(getField(o, jobject, id))
   elif T is JVMObject:
-    fromJObjectConsumingLocalRef(T, JVMObject.getPropRaw(o, id))
+    fromJObjectConsumingLocalRef(T, getField(o, jobject, id))
   elif T is seq:
-    T(jarrayToSeqConsumingLocalRef(JVMObject.getPropRaw(o, id).jarray, T))
+    T(jarrayToSeqConsumingLocalRef(getField(o, jobject, id).jarray, T))
   else:
     {.error: "Unknown property type".}
 
 template setPropValue*(T: typedesc, o: untyped, id: JVMFieldID, v: T) =
   when T is bool:
-    jboolean.setProp(o, id, if v: JVM_TRUE else: JVM_FALSE)
+    setField(o, id, if v: JVM_TRUE else: JVM_FALSE)
   elif T is JPrimitiveType:
-    T.setProp(o, id, v)
+    setField(o, id, v)
   elif compiles(toJVMObject(v)):
-    JVMObject.setPropRaw(o, id, toJVMObject(v).get)
+    setField(o, id, toJVMObject(v).get)
   else:
     {.error: "Unknown property type".}
 
 template callMethod*(T: typedesc, o: untyped, methodId: JVMMethodID, args: openarray[jvalue]): untyped =
-  when T is void:
-    o.callVoidMethod(methodId, args)
-  elif T is jchar:
-    o.callCharMethod(methodId, args)
-  elif T is jbyte:
-    o.callByteMethod(methodId, args)
-  elif T is jshort:
-    o.callShortMethod(methodId, args)
-  elif T is jint:
-    o.callIntMethod(methodId, args)
-  elif T is jlong:
-    o.callLongMethod(methodId, args)
-  elif T is jfloat:
-    o.callFloatMethod(methodId, args)
-  elif T is jdouble:
-    o.callDoubleMethod(methodId, args)
-  elif T is jboolean:
-    o.callBooleanMethod(methodId, args)
+  when T is JVMValueType|void:
+    o.callMethod(T, methodId, args)
   elif T is bool:
-    (o.callBooleanMethod(methodId, args) != JVM_FALSE)
+    (o.callMethod(jboolean, methodId, args) != JVM_FALSE)
   elif T is seq:
-    T(jarrayToSeqConsumingLocalRef(o.callObjectMethodRaw(methodId, args).jarray, T))
+    T(jarrayToSeqConsumingLocalRef(o.callMethod(jobject, methodId, args).jarray, T))
   elif T is string:
-    toStringRawConsumingLocalRef(o.callObjectMethodRaw(methodId, args))
+    toStringRawConsumingLocalRef(o.callMethod(jobject, methodId, args))
   elif T is JVMObject:
-    fromJObjectConsumingLocalRef(T, o.callObjectMethodRaw(methodId, args))
+    fromJObjectConsumingLocalRef(T, o.callMethod(jobject, methodId, args))
   else:
-    {.error: "Unknown return type".}
+    {.error: "Unknown return type" & $T.}
 
-template callNonVirtualMethod*(T: typedesc, o: untyped, c: JVMClass, methodId: JVMMethodID, args: openarray[jvalue]): untyped =
-  when T is void:
-    o.callVoidMethod(c, methodId, args)
-  elif T is jchar:
-    o.callCharMethod(c, methodId, args)
-  elif T is jbyte:
-    o.callByteMethod(c, methodId, args)
-  elif T is jshort:
-    o.callShortMethod(c, methodId, args)
-  elif T is jint:
-    o.callIntMethod(c, methodId, args)
-  elif T is jlong:
-    o.callLongMethod(c, methodId, args)
-  elif T is jfloat:
-    o.callFloatMethod(c, methodId, args)
-  elif T is jdouble:
-    o.callDoubleMethod(c, methodId, args)
-  elif T is jboolean:
-    o.callBooleanMethod(c, methodId, args)
+template callNonVirtualMethod*(T: typedesc, o: JnimNonVirtual_JVMObject, c: JVMClass, methodId: JVMMethodID, args: openarray[jvalue]): untyped =
+  when T is JVMValueType|void:
+    o.callMethod(T, c, methodId, args)
   elif T is bool:
-    (o.callBooleanMethod(c, methodId, args) != JVM_FALSE)
+    (o.callMethod(jboolean, c, methodId, args) != JVM_FALSE)
   elif T is seq:
-    T(jarrayToSeqConsumingLocalRef(o.callObjectMethodRaw(c, methodId, args).jarray, T))
+    T(jarrayToSeqConsumingLocalRef(o.callMethod(jobject, c, methodId, args).jarray, T))
   elif T is string:
-    toStringRawConsumingLocalRef(o.callObjectMethodRaw(c, methodId, args))
+    toStringRawConsumingLocalRef(o.callMethod(jobject, c, methodId, args))
   elif T is JVMObject:
-    fromJObjectConsumingLocalRef(T, o.callObjectMethodRaw(c, methodId, args))
+    fromJObjectConsumingLocalRef(T, o.callMethod(jobject, c, methodId, args))
   else:
-    {.error: "Unknown return type".}
+    {.error: "Unknown return type " & $T.}
 
 proc instanceOfRaw*(obj: JVMObject, cls: JVMClass): bool =
   checkInit

@@ -346,12 +346,12 @@ suite "jni_generator":
     check: MethodTestClass.factory(5).addToMem(1) == 6
     check: o.getStrings == @["Hello", "world!"]
 
-    let buf = newJVMByteArray(10)
+    let buf = newArray(jbyte, 10)
     check: o.readBytes(buf) == 4
     for i in countup(0, 3):
       check: buf[i] == i
 
-    let buf2 = newJVMByteArray(2)
+    let buf2 = newArray(jbyte, 2)
     check: o.readBytes(buf2) == 2
     for i in countup(0, 1):
       check: buf2[i] == i
@@ -447,5 +447,5 @@ suite "jni_generator":
 
     check: jcast[String](s) is String
     check: jcast[Object](s) is Object
-    expect ObjectConversionError:
+    expect ObjectConversionDefect:
       discard jcast[Integer](s)
