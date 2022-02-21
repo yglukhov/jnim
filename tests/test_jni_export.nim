@@ -19,7 +19,7 @@ jclass io.github.yglukhov.jnim.ExportTestClass$Implementation of Interface:
   proc new
 
 type
-  MyObjData = ref object
+  MyObjData = ref object of RootObj
     a: int
 
   MyObj = ref object of JVMObject

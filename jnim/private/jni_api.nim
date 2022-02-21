@@ -122,11 +122,22 @@ type
   JVMFieldID* = distinct jfieldID
   JVMClass* = ref object
     cls: JClass
-  JVMObject* {.inheritable.} = ref object
+  JVMObjectObj {.inheritable.} = object
     obj: jobject
+  JVMObject* = ref JVMObjectObj
   JnimNonVirtual_JVMObject* {.inheritable.} = object # Not for public use!
     obj*: jobject
     # clazz*: JVMClass
+
+
+proc freeJVMObjectObj(o: var JVMObjectObj) =
+  if o.obj != nil and theEnv != nil:
+    theEnv.deleteGlobalRef(o.obj)
+    o.obj = nil
+
+when defined(gcDestructors):
+  proc `=destroy`*(o: var JVMObjectObj) =
+    freeJVMObjectObj(o)
 
 ####################################################################################################
 # Exception handling
@@ -281,16 +292,17 @@ proc newObjectRaw*(c: JVMClass, sig: cstring, args: openarray[jvalue] = []): job
 proc jniSig*(T: typedesc[JVMObject]): string = sigForClass"java.lang.Object"
 
 proc freeJVMObject*(o: JVMObject) =
-  if o.obj != nil and theEnv != nil:
-    theEnv.deleteGlobalRef(o.obj)
-    o.obj = nil
+  freeJVMObjectObj(o[])
 
 proc free*(o: JVMObject) {.deprecated.} =
   o.freeJVMObject()
 
 proc fromJObject*(T: typedesc[JVMObject], o: jobject): T =
   if o != nil:
-    result.new(cast[proc(r: T) {.nimcall.}](freeJVMObject))
+    when defined(gcDestructors):
+      result.new()
+    else:
+      result.new(cast[proc(r: T) {.nimcall.}](freeJVMObject))
     checkInit
     result.obj = theEnv.newGlobalRef(o)
 

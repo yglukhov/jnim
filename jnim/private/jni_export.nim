@@ -81,7 +81,7 @@ proc genJavaGlue(className, parentClass: string, interfaces: seq[string], isPubl
   echo "className: ", className, " public: ", isPublic
   echo "super: ", parentClass
   echo "interfaces: ", interfaces
-  echo "body: ", repr(body)
+  # echo "body: ", repr(body)
   # echo "cur javaglue.len: ", javaGlue.len
 
   var imports = newSeq[string]()

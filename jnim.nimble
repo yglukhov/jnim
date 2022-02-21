@@ -35,15 +35,16 @@ proc compileJava() =
   cmd &= " jnim/support/io/github/vegansk/jnim/NativeInvocationHandler.java"
   exec cmd
 
-proc test(name: string) =
+proc test(name: string, flags = "") =
   let outFile = BIN_DIR / "test_" & name
   rmFile("Jnim.java")
-  exec "nim c --passC:-g --threads:on -d:nimEmulateOverflowChecks -d:jnimGlue=Jnim.java --out:" & outFile & " tests/test_" & name
+  exec "nim c " & flags & " --passC:-g --threads:on -d:nimEmulateOverflowChecks -d:jnimGlue=Jnim.java --out:" & outFile & " tests/test_" & name
   compileJava()
   exec outFile
 
 task test, "Run all tests":
   test "all"
+  test "all", "--gc:orc"
 
 task test_jvm_finder, "Run jvm_finder test":
   test "jvm_finder"
