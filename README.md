@@ -1,6 +1,5 @@
-jnim - JNI library for Nim language [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble.png)](https://github.com/yglukhov/nimble-tag) 
+jnim - JNI library for Nim language [![Build Status](https://github.com/yglukhov/jnim/workflows/CI/badge.svg?branch=master)](https://github.com/yglukhov/jnim/actions?query=branch%3Amaster) [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble.png)](https://github.com/yglukhov/nimble-tag) 
 ======================================
-[![Build Status](https://travis-ci.org/yglukhov/jnim.svg?branch=master)](https://travis-ci.org/yglukhov/jnim)
 
 Native language integration with Java VM has never been easier!
 ```nim
@@ -12,8 +11,6 @@ jclass java.io.PrintStream of JVMObject:
 jclass java.lang.System of JVMObject:
   proc `out`: PrintStream {.prop, final, `static`.}
 
-# Initialize JVM
-initJNI()
 # Call!
 System.`out`.println("This string is printed with System.out.println!")
 ```
@@ -30,7 +27,7 @@ The documentation is coming soon. Now you can look the examples in the [tests](t
 For example, [tests/test_java_lang.nim](tests/test_java_lang.nim) and [tests/test_java_util.nim](tests/test_java_util.nim)
 shows how to use high level API.
 
-If you want to run the tests, use ``nim test`` command.
+If you want to run the tests, use ``nimble test`` command.
 
 ## Installation
 ```sh
