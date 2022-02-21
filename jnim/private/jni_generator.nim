@@ -432,9 +432,12 @@ template withGCDisabled(body: untyped) =
   # are still here. This template should be used wherever jni references are
   # taken from temporary Nim objects.
 
-  GC_disable()
-  body
-  GC_enable()
+  when defined(gcDestructors):
+    body
+  else:
+    GC_disable()
+    body
+    GC_enable()
 
 proc generateConstructor(cd: ClassDef, pd: ProcDef, def: NimNode): NimNode =
   assert pd.isConstructor
