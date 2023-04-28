@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.5.2"
+version       = "0.5.3"
 author        = "Anatoly Galiulin, Yuriy Glukhov"
 description   = "Java bridge for Nim"
 license       = "MIT"
@@ -43,8 +43,8 @@ proc test(name: string, flags = "") =
   exec outFile
 
 task test, "Run all tests":
-  test "all"
-  test "all", "--gc:orc"
+  test "all", "--mm:orc"
+  test "all", "--mm:refc"
 
 task test_jvm_finder, "Run jvm_finder test":
   test "jvm_finder"
