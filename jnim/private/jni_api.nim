@@ -15,7 +15,7 @@ var initArgs: JavaVMInitArgs
 # Options for another threads
 var theVM: JavaVMPtr
 var theEnv* {.threadVar}: JNIEnvPtr
-var findClassOverride* {.threadVar.}: proc(env: JNIEnvPtr, name: cstring): JClass
+var findClassOverride* {.threadVar.}: proc(env: JNIEnvPtr, name: cstring): JClass {.gcsafe.}
 
 proc initJNIThread* {.gcsafe.}
 
