@@ -143,17 +143,17 @@ when defined(gcDestructors):
 # Exception handling
 
 type
-  JavaException* = object of Exception
+  JavaException* = object of CatchableError
     ex: JVMObject
 
-proc toStringRaw*(o: JVMObject): string
+proc toStringRaw*(o: JVMObject): string {.gcsafe.}
 
 proc newJavaException*(ex: JVMObject): ref JavaException =
   result = newException(JavaException, ex.toStringRaw)
   result.ex = ex
 
-proc newJVMObject*(o: jobject): JVMObject
-proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject
+proc newJVMObject*(o: jobject): JVMObject {.gcsafe.}
+proc newJVMObjectConsumingLocalRef*(o: jobject): JVMObject {.gcsafe.}
 
 proc raiseJavaException() =
   let ex = theEnv.ExceptionOccurred(theEnv)
@@ -209,7 +209,7 @@ proc getByFqcn*(T: typedesc[JVMClass], name: cstring): JVMClass =
 
 proc getByName*(T: typedesc[JVMClass], name: string): JVMClass =
   ## Finds class by it's name (not fqcn)
-  T.getByFqcn(name.fqcn)
+  T.getByFqcn(name.fqcn.cstring)
 
 proc getJVMClass*(o: jobject): JVMClass {.inline.} =
   checkInit
@@ -227,7 +227,7 @@ proc getStaticFieldId*(c: JVMClass, name, sig: cstring): JVMFieldID =
   (callVM theEnv.GetStaticFieldID(theEnv, c.get, name, sig)).newJVMFieldID
 
 proc getStaticFieldId*(c: JVMClass, name: cstring, t: typedesc): JVMFieldID {.inline.} =
-  getStaticFieldId(c, name, jniSig(t))
+  getStaticFieldId(c, name, jniSig(t).cstring)
 
 proc getFieldId*(c: JVMClass, name, sig: cstring): JVMFieldID =
   checkInit
@@ -243,7 +243,7 @@ proc getFieldId*(c: JVMObject, name, sig: cstring): JVMFieldID =
   theEnv.deleteLocalRef(clazz)
 
 proc getFieldId*(c: JVMObject, name: cstring, t: typedesc): JVMFieldID {.inline.} =
-  getFieldId(c, name, jniSig(t))
+  getFieldId(c, name, jniSig(t).cstring)
 
 proc getMethodId*(c: JVMClass, name, sig: cstring): JVMMethodID =
   checkInit
@@ -362,7 +362,7 @@ proc jstringToStringAux(s: jstring): string =
     let numChars = theEnv.GetStringLength(theEnv, s)
     theEnv.GetStringUTFRegion(theEnv, s, 0, numChars, addr result[0])
 
-proc toStringRaw(o: jobject): string =
+proc toStringRaw(o: jobject): string {.gcsafe.} =
   # This is low level ``toString`` version.
   assert(not o.isNil)
   let cls = theEnv.GetObjectClass(theEnv, o)
@@ -457,24 +457,24 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
 
   proc `get typName Array`*(c: JVMClass, name: cstring): JVMArray[typ] =
     checkInit
-    let j = callVM theEnv.GetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, seq[`typ`].jniSig).get)
+    let j = callVM theEnv.GetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, seq[`typ`].jniSig.cstring).get)
     result = `typ`.newArray(j)
     theEnv.deleteLocalRef(j)
 
   proc `get typName Array`*(o: JVMObject, name: cstring): JVMArray[typ] =
     checkInit
-    let j = callVM theEnv.GetObjectField(theEnv, o.get, o.getFieldId(name, seq[`typ`].jniSig).get)
+    let j = callVM theEnv.GetObjectField(theEnv, o.get, o.getFieldId(name, seq[`typ`].jniSig.cstring).get)
     result = `typ`.newArray(j)
     theEnv.deleteLocalRef(j)
 
   proc `set typName Array`*(c: JVMClass, name: cstring, arr: JVMArray[typ]) =
     checkInit
-    theEnv.SetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, seq[`typ`].jniSig).get, arr.arr)
+    theEnv.SetStaticObjectField(theEnv, c.get, c.getStaticFieldId(name, seq[`typ`].jniSig.cstring).get, arr.arr)
     checkException
 
   proc `set typName Array`*(o: JVMObject, name: cstring, arr: JVMArray[typ]) =
     checkInit
-    theEnv.SetObjectField(theEnv, o.get, o.getFieldId(name, seq[`typ`].jniSig).get, arr.arr)
+    theEnv.SetObjectField(theEnv, o.get, o.getFieldId(name, seq[`typ`].jniSig.cstring).get, arr.arr)
     checkException
 
 

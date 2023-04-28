@@ -1,4 +1,4 @@
-import sugar, os, osproc, strutils, options
+import os, osproc, strutils, options
 
 type
   JVMPath* = tuple[
@@ -40,11 +40,17 @@ proc searchInJavaHome: Option[JVMPath] =
     ## Hack for Kindle fire.
     return (root:"", lib: "/system/lib/libdvm.so").some
   else:
-    let p = getEnv("JAVA_HOME").string
+    var p = getEnv("JAVA_HOME")
+    var lib: string
     if p.len != 0:
-      let lib = findJvmInPath(p)
-      if lib.len != 0:
-        return (root: p, lib: lib).some
+      lib = findJvmInPath(p)
+
+    if lib.len == 0:
+      p = "/usr/lib/jvm/default/"
+      lib = findJvmInPath(p)
+
+    if lib.len != 0:
+      return (root: p, lib: lib).some
 
 proc runJavaProcess: string =
   when nimvm:
@@ -98,10 +104,3 @@ proc findJVM*(opts: set[JVMSearchOpts] = {JVMSearchOpts.JavaHome, JVMSearchOpts.
       result = searchInJavaHome()
     if not result.isSome and JVMSearchOpts.CurrentEnv in opts:
       result = searchInCurrentEnv()
-
-proc findCtJVM: JVMPath {.compileTime.} =
-  let jvmO = findJVM()
-  assert jvmO.isSome, "JVM not found. Please set JAVA_HOME environment variable"
-  jvmO.get
-
-template CT_JVM*: JVMPath {.deprecated.} = static(findCtJVM())
