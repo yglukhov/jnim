@@ -9,5 +9,6 @@ jclass java.lang.System of JVMObject:
 
 # Initialize JVM
 initJNI()
+
 # Call!
 System.`out`.println("This string is printed with System.out.println!")
