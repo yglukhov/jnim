@@ -22,7 +22,8 @@ proc findJvmInPath(p: string): string =
       "jre/lib/libjvm.dylib",
       "jre/lib/amd64/jamvm/libjvm.so",
       "jre/lib/amd64/server/libjvm.so",
-      "lib/server/libjvm.so"
+      "lib/server/libjvm.so",
+      "libexec/lib/server/libjvm.so",
     ]
   for lib in libs:
     let lp = p / lib
