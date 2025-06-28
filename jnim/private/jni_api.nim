@@ -392,18 +392,31 @@ proc toStringRaw(o: JVMObject): string =
 ####################################################################################################
 # Arrays support
 
-type JVMArray[T] = ref object
-  arr: jtypedArray[T]
+type
+  JVMArrayObj[T] = object
+    arr: jtypedArray[T]
+  JVMArray[T] = ref JVMArrayObj[T]
 
 proc get*[T](arr: JVMArray[T]): jtypedArray[T] = arr.arr
 proc jniSig*[T](t: typedesc[JVMArray[T]]): string = "[" & jniSig(T)
-proc freeJVMArray[T](a: JVMArray[T]) =
+proc freeJVMArrayObj[T](a: JVMArrayObj[T]) =
   if a.arr != nil and theEnv != nil:
     theEnv.deleteGlobalRef(a.arr)
 
+when defined(gcDestructors):
+  proc `=destroy`*[T](o: var JVMArrayObj[T]) =
+    freeJVMArrayObj(o)
+    # freeJVMObjectObj(o)
+else:
+  proc freeJVMArray[T](o: JVMArray[T]) =
+    freeJVMArrayObj(o[])
+
 proc newArray*(T: typedesc, len: int): JVMArray[T] =
   checkInit
-  new(result, freeJVMArray[T])
+  when defined(gcDestructors):
+    result.new()
+  else:
+    result.new(freeJVMArray[T])
   let j = callVM theEnv.newArray(T, len.jsize)
   result.arr = theEnv.newGlobalRef(j)
   theEnv.deleteLocalRef(j)
@@ -425,7 +438,10 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
 
     proc `newJVM typName Array`*(len: jsize, cls = JVMClass.getByName("java.lang.Object")): JVMArray[typ] =
       checkInit
-      new(result, freeJVMArray[jobject])
+      when defined(gcDestructors):
+        result.new()
+      else:
+        result.new(freeJVMArray[jobject])
       let j = callVM theEnv.NewObjectArray(theEnv, len, cls.get, nil)
       result.arr = theEnv.newGlobalRef(j)
       theEnv.deleteLocalRef(j)
@@ -438,7 +454,10 @@ template genArrayType(typ, arrTyp: typedesc, typName: untyped): untyped =
 
   proc `newJVM typName Array`*(arr: jobject): JVMArray[typ] =
     checkInit
-    new(result, freeJVMArray[typ])
+    when defined(gcDestructors):
+      result.new()
+    else:
+      result.new(freeJVMArray[typ])
     result.arr = theEnv.newGlobalRef(arr).`arrTyp`
 
   proc `newJVM typName Array`*(arr: JVMObject): JVMArray[typ] =

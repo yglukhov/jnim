@@ -1,8 +1,8 @@
 import ../jnim,
-       ../jnim/java/lang,
        common,
        unittest,
        encodings
+import ../jnim/java/lang except Exception
 
 suite "javaapi.core":
   setup:

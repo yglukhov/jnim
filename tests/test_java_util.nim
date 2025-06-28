@@ -1,8 +1,8 @@
 import ../jnim,
        ../jnim/java/util,
-       ../jnim/java/lang,
        common,
        unittest
+import ../jnim/java/lang except Exception
 import sequtils except toSeq
 
 suite "java.util":
